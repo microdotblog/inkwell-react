@@ -1,4 +1,4 @@
-package com.inkwell
+package blog.micro.inkwell
 
 import android.os.Build
 import android.os.Bundle

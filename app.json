@@ -2,6 +2,19 @@
   "expo": {
     "name": "inkwell",
     "slug": "inkwell",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "userInterfaceStyle": "automatic",
+    "scheme": "inkwell",
+    "plugins": [
+      "expo-font"
+    ],
+    "android": {
+      "package": "blog.micro.inkwell",
+      "allowBackup": false
+    },
+    "ios": {
+      "bundleIdentifier": "blog.micro.inkwell",
+      "supportsTablet": true
+    }
   }
 }
