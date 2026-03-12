@@ -3,6 +3,7 @@
     "name": "inkwell",
     "slug": "inkwell",
     "version": "1.0.0",
+    "icon": "./assets/images/app-icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "inkwell",
     "plugins": [
@@ -16,6 +17,10 @@
       "allowBackup": false
     },
     "ios": {
+      "icon": {
+        "light": "./assets/images/app-icon.png",
+        "dark": "./assets/images/app-icon-dark.png"
+      },
       "bundleIdentifier": "blog.micro.inkwell",
       "supportsTablet": true
     }
