@@ -1,6 +1,4 @@
 import React from 'react';
-import { Platform } from 'react-native';
-import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react';
 
@@ -9,9 +7,7 @@ import FeedScreen from '../screens/FeedScreen';
 import SignedInScreen from '../screens/SignedInScreen';
 import { getAuthTheme } from '../theme/authTheme';
 
-const ANDROID_FEED_TAB_ICON = require('../assets/tab-feed.png');
 const Stack = createNativeStackNavigator();
-const Tab = createNativeBottomTabNavigator();
 
 function SignedInTabs({ isDark = false }) {
   const theme = getAuthTheme(isDark);
@@ -36,7 +32,12 @@ function SignedInTabs({ isDark = false }) {
           headerShown: false,
         }}
       >
-        {() => <SignedInHomeTabs isDark={isDark} />}
+        {(screen_props) => (
+          <FeedScreen
+            {...screen_props}
+            isDark={isDark}
+          />
+        )}
       </Stack.Screen>
       <Stack.Screen
         name="Account"
@@ -75,51 +76,3 @@ function SignedInTabs({ isDark = false }) {
 }
 
 export default observer(SignedInTabs);
-
-function SignedInHomeTabs({ isDark = false }) {
-  const theme = getAuthTheme(isDark);
-
-  return (
-    <Tab.Navigator
-      initialRouteName="Feed"
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: theme.colors.accentStrong,
-        tabBarInactiveTintColor: theme.colors.inkSoft,
-        tabBarActiveIndicatorColor: theme.colors.accentSoft,
-        tabBarLabelVisibilityMode: 'labeled',
-        tabBarStyle: {
-          backgroundColor: theme.isDark ? 'rgba(28, 36, 48, 0.76)' : 'rgba(255, 255, 255, 0.74)',
-          shadowColor: theme.colors.shadow,
-        },
-        tabBarBlurEffect: 'systemDefault',
-        tabBarMinimizeBehavior: 'onScrollDown',
-      }}
-    >
-      <Tab.Screen
-        name="Feed"
-        options={{
-          title: 'Feed',
-          tabBarLabel: 'Feed',
-          tabBarIcon: ({ focused }) => {
-            if (Platform.OS === 'ios') {
-              return {
-                type: 'sfSymbol',
-                name: focused
-                  ? 'dot.radiowaves.left.and.right.circle.fill'
-                  : 'dot.radiowaves.left.and.right',
-              };
-            } else {
-              return {
-                type: 'image',
-                source: ANDROID_FEED_TAB_ICON,
-              };
-            }
-          },
-        }}
-      >
-        {(screen_props) => <FeedScreen {...screen_props} isDark={isDark} />}
-      </Tab.Screen>
-    </Tab.Navigator>
-  );
-}
