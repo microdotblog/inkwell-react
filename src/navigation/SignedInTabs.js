@@ -9,6 +9,8 @@ import FeedScreen from '../screens/FeedScreen';
 import SignedInScreen from '../screens/SignedInScreen';
 import { getAuthTheme } from '../theme/authTheme';
 
+const ANDROID_FEED_TAB_ICON = require('../assets/tab-feed.png');
+const ANDROID_ACCOUNT_TAB_ICON = require('../assets/tab-account.png');
 const Stack = createNativeStackNavigator();
 const Tab = createNativeBottomTabNavigator();
 
@@ -92,7 +94,7 @@ function SignedInHomeTabs({ isDark = false }) {
             } else {
               return {
                 type: 'image',
-                source: { uri: 'ic_tab_feed' },
+                source: ANDROID_FEED_TAB_ICON,
               };
             }
           },
@@ -114,7 +116,7 @@ function SignedInHomeTabs({ isDark = false }) {
             } else {
               return {
                 type: 'image',
-                source: { uri: 'ic_tab_account' },
+                source: ANDROID_ACCOUNT_TAB_ICON,
               };
             }
           },
