@@ -43,6 +43,8 @@ const SCREEN_HORIZONTAL_PADDING = 20;
 const LIST_TOP_PADDING = 12;
 const SEGMENT_WRAP_MAX_HEIGHT = 50;
 const HEADER_ACCOUNT_BUTTON_SIZE = 40;
+const HEADER_CONTROL_HEIGHT = HEADER_ACCOUNT_BUTTON_SIZE;
+const HEADER_CONTROL_RADIUS = HEADER_CONTROL_HEIGHT / 2;
 const HEADER_ACCOUNT_GAP = 12;
 const HEADER_ACCOUNT_AVATAR_TRANSITION_MS = 180;
 const LIST_TOP_GAP = 12;
@@ -54,6 +56,8 @@ const SEGMENT_SWIPE_DISTANCE = 56;
 const SEGMENT_SWIPE_VELOCITY = 620;
 const SEGMENT_SWIPE_NUDGE = 24;
 const SEGMENT_CONTROL_INSET = 3;
+const SEGMENT_BUTTON_HEIGHT = HEADER_CONTROL_HEIGHT - SEGMENT_CONTROL_INSET * 2;
+const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
 const FEED_AVATAR_SIZE = 28;
 const READ_ROW_OPACITY = 0.56;
 const FEED_AVATAR_TRANSITION_MS = 180;
@@ -1103,10 +1107,11 @@ const styles = StyleSheet.create({
   segmentedControl: {
     position: 'relative',
     flex: 1,
+    minHeight: HEADER_CONTROL_HEIGHT,
     flexDirection: 'row',
-    borderRadius: 16,
+    borderRadius: HEADER_CONTROL_RADIUS,
     borderWidth: 1,
-    padding: 3,
+    padding: SEGMENT_CONTROL_INSET,
     shadowOffset: {
       width: 0,
       height: 10,
@@ -1117,8 +1122,8 @@ const styles = StyleSheet.create({
   },
   searchField: {
     flex: 1,
-    minHeight: HEADER_ACCOUNT_BUTTON_SIZE,
-    borderRadius: 20,
+    minHeight: HEADER_CONTROL_HEIGHT,
+    borderRadius: HEADER_CONTROL_RADIUS,
     borderWidth: 1,
     paddingLeft: 14,
     paddingRight: 12,
@@ -1146,12 +1151,12 @@ const styles = StyleSheet.create({
     top: SEGMENT_CONTROL_INSET,
     bottom: SEGMENT_CONTROL_INSET,
     left: 0,
-    borderRadius: 12,
+    borderRadius: SEGMENT_BUTTON_RADIUS,
   },
   segmentButton: {
     flex: 1,
-    minHeight: 34,
-    borderRadius: 12,
+    minHeight: SEGMENT_BUTTON_HEIGHT,
+    borderRadius: SEGMENT_BUTTON_RADIUS,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
