@@ -5,6 +5,7 @@ import {
   fetch_micro_blog_feed_icons,
   fetch_micro_blog_feed_subscriptions,
   fetch_micro_blog_feed_unread_entry_ids,
+  mark_micro_blog_feed_entries_read,
 } from '../api/MicroBlogFeeds';
 import Tokens from './Tokens';
 
@@ -21,9 +22,12 @@ const TimelineEntry = types.model('TimelineEntry', {
   id: types.optional(types.string, ''),
   feed_id: types.optional(types.string, ''),
   source: types.optional(types.string, ''),
+  source_url: types.optional(types.string, ''),
   avatar_url: types.optional(types.string, ''),
   title: types.optional(types.string, ''),
   summary: types.optional(types.string, ''),
+  content: types.optional(types.string, ''),
+  author: types.optional(types.string, ''),
   url: types.optional(types.string, ''),
   published_at: types.optional(types.string, ''),
   is_read: types.optional(types.boolean, false),
@@ -45,6 +49,10 @@ const Feed = types
     has_bootstrapped: types.optional(types.boolean, false),
     error_message: types.maybeNull(types.string),
   })
+  .volatile(() => ({
+    local_read_entry_ids: new Set(),
+    pending_read_sync_entry_ids: new Set(),
+  }))
   .actions((self) => ({
     clear_error() {
       self.error_message = null;
@@ -55,11 +63,17 @@ const Feed = types
       self.timeline_entries.replace([]);
     },
 
+    clear_local_read_state() {
+      self.local_read_entry_ids.clear();
+      self.pending_read_sync_entry_ids.clear();
+    },
+
     reset() {
       self.active_segment = 'today';
       self.is_bootstrapping = false;
       self.has_bootstrapped = false;
       self.error_message = null;
+      self.clear_local_read_state();
       self.clear_feed_data();
     },
 
@@ -85,6 +99,7 @@ const Feed = types
         entries,
         normalized_subscriptions,
         unread_ids,
+        self.local_read_entry_ids,
       );
 
       self.subscriptions.replace(normalized_subscriptions);
@@ -153,6 +168,7 @@ const Feed = types
           entries,
           icons,
         );
+        self.retry_unsynced_local_reads(unread_entry_ids);
         self.has_bootstrapped = true;
         return true;
       } catch (error) {
@@ -174,6 +190,94 @@ const Feed = types
     retry_bootstrap: flow(function* () {
       return yield self.bootstrap();
     }),
+
+    mark_entry_read_locally(entry_id = '') {
+      const normalized_entry_id = normalize_string(entry_id);
+
+      if (!normalized_entry_id) {
+        return false;
+      }
+
+      const timeline_entry = self.timeline_entries.find((entry) => {
+        return entry.id === normalized_entry_id;
+      });
+
+      if (!timeline_entry || timeline_entry.is_read) {
+        return false;
+      }
+
+      timeline_entry.is_read = true;
+      self.local_read_entry_ids.add(normalized_entry_id);
+      return true;
+    },
+
+    open_entry(entry_id = '') {
+      const did_mark_read = self.mark_entry_read_locally(entry_id);
+
+      if (!did_mark_read) {
+        return;
+      }
+
+      self.sync_read_entries([entry_id]);
+    },
+
+    retry_unsynced_local_reads(unread_entry_ids = []) {
+      const unread_ids = Array.isArray(unread_entry_ids)
+        ? unread_entry_ids.map((entry_id) => {
+            return normalize_string(entry_id);
+          })
+        : [];
+      const unsynced_entry_ids = unread_ids.filter((entry_id) => {
+        return (
+          entry_id &&
+          self.local_read_entry_ids.has(entry_id) &&
+          !self.pending_read_sync_entry_ids.has(entry_id)
+        );
+      });
+
+      if (unsynced_entry_ids.length === 0) {
+        return;
+      }
+
+      self.sync_read_entries(unsynced_entry_ids);
+    },
+
+    sync_read_entries: flow(function* (entry_ids = []) {
+      const normalized_entry_ids = normalize_unique_entry_ids(entry_ids).filter(
+        (entry_id) => {
+          return !self.pending_read_sync_entry_ids.has(entry_id);
+        },
+      );
+
+      if (normalized_entry_ids.length === 0) {
+        return false;
+      }
+
+      normalized_entry_ids.forEach((entry_id) => {
+        self.pending_read_sync_entry_ids.add(entry_id);
+      });
+
+      try {
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return false;
+        }
+
+        yield mark_micro_blog_feed_entries_read({
+          token: user_token,
+          entry_ids: normalized_entry_ids,
+        });
+
+        return true;
+      } catch (error) {
+        return false;
+      } finally {
+        normalized_entry_ids.forEach((entry_id) => {
+          self.pending_read_sync_entry_ids.delete(entry_id);
+        });
+      }
+    }),
   }))
   .views((self) => ({
     visible_timeline_entries() {
@@ -189,6 +293,24 @@ const Feed = types
       return timeline_entries.map((timeline_entry) => {
         return getSnapshot(timeline_entry);
       });
+    },
+
+    timeline_entry_snapshot(entry_id = '') {
+      const normalized_entry_id = normalize_string(entry_id);
+
+      if (!normalized_entry_id) {
+        return null;
+      }
+
+      const timeline_entry = self.timeline_entries.find((entry) => {
+        return entry.id === normalized_entry_id;
+      });
+
+      if (!timeline_entry) {
+        return null;
+      }
+
+      return getSnapshot(timeline_entry);
     },
   }))
   .create();
@@ -232,6 +354,7 @@ function normalize_timeline_entries(
   entries = [],
   subscriptions = [],
   unread_entry_ids = [],
+  local_read_entry_ids = new Set(),
 ) {
   if (!Array.isArray(entries)) {
     return [];
@@ -255,12 +378,16 @@ function normalize_timeline_entries(
       id: normalized_id,
       feed_id: normalize_feed_id(entry, subscription),
       source: resolve_source(subscription),
+      source_url: resolve_source_url(subscription),
       avatar_url: resolve_avatar_url(subscription),
       title: normalize_string(entry?.title),
       summary: normalize_string(entry?.summary),
+      content: normalize_string(entry?.content),
+      author: normalize_string(entry?.author),
       url: normalize_string(entry?.url),
       published_at,
-      is_read: !unread_set.has(normalized_id),
+      is_read:
+        local_read_entry_ids.has(normalized_id) || !unread_set.has(normalized_id),
       age_bucket: get_age_bucket(published_at),
     };
   });
@@ -392,6 +519,18 @@ function resolve_source(subscription = null) {
   return 'Feed';
 }
 
+function resolve_source_url(subscription = null) {
+  if (subscription?.site_url) {
+    return normalize_string(subscription.site_url);
+  }
+
+  if (subscription?.feed_url) {
+    return normalize_string(subscription.feed_url);
+  }
+
+  return '';
+}
+
 function resolve_subscription_avatar(
   subscription = null,
   icon_map = new Map(),
@@ -469,4 +608,12 @@ function get_age_bucket(iso_date = '') {
   const bucket = Math.min(Math.max(diff_days, 0), 6) + 1;
 
   return `day-${bucket}`;
+}
+
+function normalize_unique_entry_ids(entry_ids = []) {
+  if (!Array.isArray(entry_ids)) {
+    return [];
+  }
+
+  return [...new Set(entry_ids.map((entry_id) => normalize_string(entry_id)).filter(Boolean))];
 }

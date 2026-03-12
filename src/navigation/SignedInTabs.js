@@ -1,15 +1,62 @@
 import React from 'react';
 import { Platform } from 'react-native';
 import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react';
 
+import FeedItemDetailScreen from '../screens/FeedItemDetailScreen';
 import FeedScreen from '../screens/FeedScreen';
 import SignedInScreen from '../screens/SignedInScreen';
 import { getAuthTheme } from '../theme/authTheme';
 
+const Stack = createNativeStackNavigator();
 const Tab = createNativeBottomTabNavigator();
 
 function SignedInTabs({ isDark = false }) {
+  const theme = getAuthTheme(isDark);
+
+  return (
+    <Stack.Navigator
+      initialRouteName="SignedInHome"
+      screenOptions={{
+        contentStyle: {
+          backgroundColor: theme.colors.canvas,
+        },
+        headerBackButtonDisplayMode: 'minimal',
+        headerStyle: {
+          backgroundColor: theme.colors.paper,
+        },
+        headerTintColor: theme.colors.ink,
+      }}
+    >
+      <Stack.Screen
+        name="SignedInHome"
+        options={{
+          headerShown: false,
+        }}
+      >
+        {() => <SignedInHomeTabs isDark={isDark} />}
+      </Stack.Screen>
+      <Stack.Screen
+        name="FeedItemDetail"
+        options={{
+          title: '',
+        }}
+      >
+        {(screen_props) => (
+          <FeedItemDetailScreen
+            {...screen_props}
+            isDark={isDark}
+          />
+        )}
+      </Stack.Screen>
+    </Stack.Navigator>
+  );
+}
+
+export default observer(SignedInTabs);
+
+function SignedInHomeTabs({ isDark = false }) {
   const theme = getAuthTheme(isDark);
 
   return (
@@ -51,7 +98,7 @@ function SignedInTabs({ isDark = false }) {
           },
         }}
       >
-        {() => <FeedScreen isDark={isDark} />}
+        {(screen_props) => <FeedScreen {...screen_props} isDark={isDark} />}
       </Tab.Screen>
       <Tab.Screen
         name="Account"
@@ -73,10 +120,13 @@ function SignedInTabs({ isDark = false }) {
           },
         }}
       >
-        {() => <SignedInScreen isDark={isDark} />}
+        {(screen_props) => (
+          <SignedInScreen
+            {...screen_props}
+            isDark={isDark}
+          />
+        )}
       </Tab.Screen>
     </Tab.Navigator>
   );
 }
-
-export default observer(SignedInTabs);

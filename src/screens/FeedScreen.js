@@ -48,7 +48,7 @@ const FEED_AVATAR_SIZE = 28;
 const READ_ROW_OPACITY = 0.56;
 const FEED_AVATAR_TRANSITION_MS = 180;
 
-function FeedScreen({ isDark = false }) {
+function FeedScreen({ navigation, isDark = false }) {
   const theme = getAuthTheme(isDark);
   const insets = useSafeAreaInsets();
   const active_segment = Feed.active_segment;
@@ -94,6 +94,20 @@ function FeedScreen({ isDark = false }) {
     Feed.set_active_segment(segment);
     scroll_to_top_ref.current.scrollToTop();
   }, []);
+
+  const handle_entry_press = React.useCallback(
+    (entry_id = '') => {
+      if (!entry_id) {
+        return;
+      }
+
+      Feed.open_entry(entry_id);
+      navigation.navigate('FeedItemDetail', {
+        entry_id,
+      });
+    },
+    [navigation],
+  );
 
   const handle_segment_swipe = React.useCallback(
     (direction) => {
@@ -270,6 +284,7 @@ function FeedScreen({ isDark = false }) {
             error_message,
             has_any_timeline_entries,
             list_ref,
+            on_entry_press: handle_entry_press,
             visible_timeline_entries,
           })}
         </Animated.View>
@@ -347,6 +362,7 @@ function render_content({
   error_message,
   has_any_timeline_entries,
   list_ref,
+  on_entry_press,
   visible_timeline_entries,
 }) {
   if (is_loading_initial) {
@@ -434,7 +450,13 @@ function render_content({
           />
         }
         renderItem={({ item }) => {
-          return <FeedTimelineRow entry={item} theme={theme} />;
+          return (
+            <FeedTimelineRow
+              entry={item}
+              onPress={on_entry_press}
+              theme={theme}
+            />
+          );
         }}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -444,22 +466,27 @@ function render_content({
   }
 }
 
-function FeedTimelineRow({ entry, theme }) {
+function FeedTimelineRow({ entry, onPress, theme }) {
   const source_label = entry.source || 'Feed';
   const title = resolve_entry_title(entry);
   const summary = resolve_entry_summary(entry);
   const timestamp = format_entry_timestamp(entry.published_at);
+  const row_opacity = entry.is_read ? READ_ROW_OPACITY : 1;
 
   return (
-    <View
-      style={[
-        styles.rowCard,
-        {
-          backgroundColor: theme.colors.paper,
-          borderColor: theme.colors.line,
-          opacity: entry.is_read ? READ_ROW_OPACITY : 1,
-        },
-      ]}
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => onPress?.(entry.id)}
+      style={({ pressed }) => {
+        return [
+          styles.rowCard,
+          {
+            backgroundColor: theme.colors.paper,
+            borderColor: theme.colors.line,
+            opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
+          },
+        ];
+      }}
     >
       <View style={styles.rowHeader}>
         <View style={styles.sourceWrap}>
@@ -496,7 +523,7 @@ function FeedTimelineRow({ entry, theme }) {
           </Text>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

@@ -85,6 +85,35 @@ export async function fetch_micro_blog_feed_icons({ token = '' } = {}) {
   });
 }
 
+export async function mark_micro_blog_feed_entries_read({
+  token = '',
+  entry_ids = [],
+} = {}) {
+  const unread_entries = normalize_entry_payload_ids(entry_ids);
+
+  if (unread_entries.length === 0) {
+    return [];
+  }
+
+  const payload = await fetch_micro_blog_feeds_json(
+    '/feeds/v2/unread_entries.json',
+    {
+      token,
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ unread_entries }),
+    },
+  );
+
+  if (Array.isArray(payload)) {
+    return payload;
+  } else {
+    return [];
+  }
+}
+
 async function fetch_micro_blog_feeds_json(
   path,
   { token = '', headers: custom_headers, ...options } = {},
@@ -105,8 +134,9 @@ async function fetch_micro_blog_feeds_json(
     headers,
   });
 
+  const response_text = await response.text();
+
   if (!response.ok) {
-    const response_text = await response.text();
     throw create_request_error(
       'Feeds request failed.',
       response.status,
@@ -114,7 +144,19 @@ async function fetch_micro_blog_feeds_json(
     );
   }
 
-  return response.json();
+  if (!response_text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    throw create_request_error(
+      'Feeds response parsing failed.',
+      response.status,
+      response_text,
+    );
+  }
 }
 
 function get_oldest_timeline_midnight() {
@@ -161,4 +203,28 @@ function create_request_error(message, status = null, response_text = '') {
   error.status = status;
   error.response_text = response_text;
   return error;
+}
+
+function normalize_entry_payload_ids(entry_ids = []) {
+  if (!Array.isArray(entry_ids)) {
+    return [];
+  }
+
+  return entry_ids
+    .map((entry_id) => {
+      const trimmed_entry_id = `${entry_id || ''}`.trim();
+
+      if (!trimmed_entry_id) {
+        return null;
+      }
+
+      const numeric_entry_id = Number(trimmed_entry_id);
+
+      if (!Number.isNaN(numeric_entry_id)) {
+        return numeric_entry_id;
+      } else {
+        return trimmed_entry_id;
+      }
+    })
+    .filter(Boolean);
 }
