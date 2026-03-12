@@ -234,6 +234,8 @@ function FeedScreen({ navigation, isDark = false }) {
   }, []);
 
   const segment_wrap_style = useAnimatedStyle(() => {
+    const segment_nudge_x = -swipe_nudge_x.value;
+
     return {
       height: interpolate(
         scroll_y.value,
@@ -263,18 +265,20 @@ function FeedScreen({ navigation, isDark = false }) {
           ),
         },
         {
-          translateX: swipe_nudge_x.value * 0.4,
+          translateX: segment_nudge_x * 0.4,
         },
       ],
     };
   }, []);
 
   const active_segment_style = useAnimatedStyle(() => {
+    const segment_nudge_x = -swipe_nudge_x.value;
+
     return {
       opacity: active_segment_width.value > 0 ? 1 : 0,
       transform: [
         {
-          translateX: active_segment_offset.value + swipe_nudge_x.value * 0.18,
+          translateX: active_segment_offset.value + segment_nudge_x * 0.18,
         },
       ],
       width: active_segment_width.value,
