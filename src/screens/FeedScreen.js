@@ -1,13 +1,16 @@
 import React from 'react';
 import {
   FlatList,
+  Keyboard,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useScrollToTop } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -56,6 +59,8 @@ function FeedScreen({ navigation, isDark = false }) {
   const theme = getAuthTheme(isDark);
   const insets = useSafeAreaInsets();
   const active_segment = Feed.active_segment;
+  const is_search_active = Feed.is_search_active;
+  const search_query = Feed.search_query;
   const profile = Auth.current_profile();
   const has_bootstrapped = Feed.has_bootstrapped;
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
@@ -66,6 +71,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const list_top_inset =
     header_top_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
   const list_ref = React.useRef(null);
+  const search_input_ref = React.useRef(null);
   const [segment_frames, set_segment_frames] = React.useState({});
   const scroll_y = useSharedValue(0);
   const swipe_nudge_x = useSharedValue(0);
@@ -100,6 +106,33 @@ function FeedScreen({ navigation, isDark = false }) {
     scroll_to_top_ref.current.scrollToTop();
   }, []);
 
+  const handle_search_toggle_press = React.useCallback(() => {
+    if (Feed.is_search_active) {
+      Feed.hide_search();
+      Keyboard.dismiss();
+      return;
+    }
+
+    Feed.show_search();
+    scroll_y.value = 0;
+    list_ref.current?.scrollToOffset?.({
+      animated: false,
+      offset: 0,
+    });
+  }, [scroll_y]);
+
+  const handle_search_query_change = React.useCallback(
+    (next_search_query = '') => {
+      Feed.set_search_query(next_search_query);
+      scroll_y.value = 0;
+      list_ref.current?.scrollToOffset?.({
+        animated: false,
+        offset: 0,
+      });
+    },
+    [scroll_y],
+  );
+
   const handle_entry_press = React.useCallback(
     (entry_id = '') => {
       if (!entry_id) {
@@ -126,6 +159,10 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const handle_segment_swipe = React.useCallback(
     (direction) => {
+      if (is_search_active) {
+        return;
+      }
+
       const current_index = SEGMENT_OPTIONS.findIndex(
         (option) => option.key === active_segment,
       );
@@ -141,7 +178,7 @@ function FeedScreen({ navigation, isDark = false }) {
 
       handle_segment_press(next_option.key);
     },
-    [active_segment, handle_segment_press],
+    [active_segment, handle_segment_press, is_search_active],
   );
 
   const update_segment_frame = React.useCallback((segment, layout) => {
@@ -167,6 +204,7 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const swipe_gesture = React.useMemo(() => {
     return Gesture.Pan()
+      .enabled(!is_search_active)
       .activeOffsetX([-18, 18])
       .failOffsetY([-14, 14])
       .onUpdate((event) => {
@@ -200,7 +238,13 @@ function FeedScreen({ navigation, isDark = false }) {
           duration: 180,
         });
       });
-  }, [handle_segment_swipe, swipe_nudge_x]);
+  }, [handle_segment_swipe, is_search_active, swipe_nudge_x]);
+
+  React.useEffect(() => {
+    if (is_search_active) {
+      search_input_ref.current?.focus?.();
+    }
+  }, [is_search_active]);
 
   React.useEffect(() => {
     const active_frame = segment_frames[active_segment];
@@ -295,6 +339,7 @@ function FeedScreen({ navigation, isDark = false }) {
         >
           {render_content({
             active_segment,
+            is_search_active,
             list_top_inset,
             on_scroll,
             theme,
@@ -304,6 +349,7 @@ function FeedScreen({ navigation, isDark = false }) {
             has_any_timeline_entries,
             list_ref,
             on_entry_press: handle_entry_press,
+            search_query,
             visible_timeline_entries,
           })}
         </Animated.View>
@@ -318,59 +364,73 @@ function FeedScreen({ navigation, isDark = false }) {
                 profile_photo={profile.photo}
                 theme={theme}
               />
-              <View
-                style={[
-                  styles.segmentedControl,
-                  {
-                    backgroundColor: theme.colors.paper,
-                    borderColor: theme.colors.line,
-                    shadowColor: theme.colors.shadow,
-                  },
-                ]}
-              >
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.activeSegmentPill,
-                    {
-                      backgroundColor: theme.colors.accent,
-                    },
-                    active_segment_style,
-                  ]}
+              {is_search_active ? (
+                <FeedSearchField
+                  input_ref={search_input_ref}
+                  onChangeText={handle_search_query_change}
+                  theme={theme}
+                  value={search_query}
                 />
-                {SEGMENT_OPTIONS.map((option) => {
-                  const is_active = option.key === active_segment;
+              ) : (
+                <View
+                  style={[
+                    styles.segmentedControl,
+                    {
+                      backgroundColor: theme.colors.paper,
+                      borderColor: theme.colors.line,
+                      shadowColor: theme.colors.shadow,
+                    },
+                  ]}
+                >
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.activeSegmentPill,
+                      {
+                        backgroundColor: theme.colors.accent,
+                      },
+                      active_segment_style,
+                    ]}
+                  />
+                  {SEGMENT_OPTIONS.map((option) => {
+                    const is_active = option.key === active_segment;
 
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: is_active }}
-                      key={option.key}
-                      onLayout={(event) => {
-                        update_segment_frame(
-                          option.key,
-                          event.nativeEvent.layout,
-                        );
-                      }}
-                      onPress={() => handle_segment_press(option.key)}
-                      style={[styles.segmentButton]}
-                    >
-                      <Text
-                        style={[
-                          styles.segmentLabel,
-                          {
-                            color: is_active
-                              ? theme.colors.white
-                              : theme.colors.inkSoft,
-                          },
-                        ]}
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: is_active }}
+                        key={option.key}
+                        onLayout={(event) => {
+                          update_segment_frame(
+                            option.key,
+                            event.nativeEvent.layout,
+                          );
+                        }}
+                        onPress={() => handle_segment_press(option.key)}
+                        style={[styles.segmentButton]}
                       >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+                        <Text
+                          style={[
+                            styles.segmentLabel,
+                            {
+                              color: is_active
+                                ? theme.colors.white
+                                : theme.colors.inkSoft,
+                            },
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+              <FeedSearchToggleButton
+                is_search_active={is_search_active}
+                onPress={handle_search_toggle_press}
+                theme={theme}
+              />
             </View>
           </Animated.View>
         </View>
@@ -381,6 +441,7 @@ function FeedScreen({ navigation, isDark = false }) {
 
 function render_content({
   active_segment,
+  is_search_active,
   list_top_inset,
   on_scroll,
   theme,
@@ -390,6 +451,7 @@ function render_content({
   has_any_timeline_entries,
   list_ref,
   on_entry_press,
+  search_query,
   visible_timeline_entries,
 }) {
   if (is_loading_initial) {
@@ -453,12 +515,20 @@ function render_content({
             <AuthCard style={styles.stateCard} theme={theme}>
               <View style={styles.stateCopy}>
                 <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
-                  {get_empty_state_title(active_segment)}
+                  {get_empty_state_title(
+                    active_segment,
+                    is_search_active,
+                    search_query,
+                  )}
                 </Text>
                 <Text
                   style={[styles.stateBody, { color: theme.colors.inkSoft }]}
                 >
-                  {get_empty_state_body(active_segment)}
+                  {get_empty_state_body(
+                    active_segment,
+                    is_search_active,
+                    search_query,
+                  )}
                 </Text>
               </View>
             </AuthCard>
@@ -626,6 +696,81 @@ function AccountHeaderButton({
   );
 }
 
+function FeedSearchField({
+  input_ref,
+  onChangeText,
+  theme,
+  value = '',
+}) {
+  return (
+    <View
+      style={[
+        styles.searchField,
+        {
+          backgroundColor: theme.colors.paper,
+          borderColor: theme.colors.line,
+          shadowColor: theme.colors.shadow,
+        },
+      ]}
+    >
+      <MaterialIcons
+        color={theme.colors.inkSoft}
+        name="search"
+        size={18}
+        style={styles.searchFieldIcon}
+      />
+      <TextInput
+        autoCapitalize="none"
+        autoCorrect={false}
+        onChangeText={onChangeText}
+        onSubmitEditing={Keyboard.dismiss}
+        placeholder="Search"
+        placeholderTextColor={theme.colors.inkSoft}
+        ref={input_ref}
+        returnKeyType="search"
+        selectionColor={theme.colors.accentStrong}
+        style={[styles.searchInput, { color: theme.colors.ink }]}
+        value={value}
+      />
+    </View>
+  );
+}
+
+function FeedSearchToggleButton({
+  is_search_active = false,
+  onPress,
+  theme,
+}) {
+  const icon_name = is_search_active ? 'close' : 'search';
+
+  return (
+    <Pressable
+      accessibilityLabel={is_search_active ? 'Close search' : 'Search'}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => {
+        return [
+          styles.headerUtilityButton,
+          {
+            backgroundColor: theme.colors.paper,
+            borderColor: theme.colors.line,
+            opacity: pressed ? 0.82 : 1,
+            shadowColor: theme.colors.shadow,
+          },
+        ];
+      }}
+    >
+      <MaterialIcons
+        color={
+          is_search_active ? theme.colors.accentStrong : theme.colors.inkSoft
+        }
+        name={icon_name}
+        size={20}
+      />
+    </Pressable>
+  );
+}
+
 function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
   const trimmed_avatar_url = `${avatar_url || ''}`.trim();
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
@@ -756,7 +901,19 @@ function is_today(date) {
   );
 }
 
-function get_empty_state_title(active_segment = 'today') {
+function get_empty_state_title(
+  active_segment = 'today',
+  is_search_active = false,
+  search_query = '',
+) {
+  if (is_search_active) {
+    if (`${search_query || ''}`.trim()) {
+      return 'No matching posts';
+    } else {
+      return 'Nothing in your feed yet';
+    }
+  }
+
   if (active_segment === 'recent') {
     return 'Nothing recent yet';
   } else if (active_segment === 'fading') {
@@ -766,7 +923,19 @@ function get_empty_state_title(active_segment = 'today') {
   }
 }
 
-function get_empty_state_body(active_segment = 'today') {
+function get_empty_state_body(
+  active_segment = 'today',
+  is_search_active = false,
+  search_query = '',
+) {
+  if (is_search_active) {
+    if (`${search_query || ''}`.trim()) {
+      return 'Try a different word or phrase.';
+    } else {
+      return 'Posts will show up here as soon as your feeds update.';
+    }
+  }
+
   if (active_segment === 'recent') {
     return 'Posts from the last couple of days will gather here once they arrive.';
   } else if (active_segment === 'fading') {
@@ -817,6 +986,21 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 3,
   },
+  headerUtilityButton: {
+    width: HEADER_ACCOUNT_BUTTON_SIZE,
+    height: HEADER_ACCOUNT_BUTTON_SIZE,
+    borderRadius: HEADER_ACCOUNT_BUTTON_SIZE / 2,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 3,
+  },
   accountAvatarFrame: {
     width: '100%',
     height: '100%',
@@ -852,6 +1036,32 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 16,
     elevation: 3,
+  },
+  searchField: {
+    flex: 1,
+    minHeight: HEADER_ACCOUNT_BUTTON_SIZE,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingLeft: 14,
+    paddingRight: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  searchFieldIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    paddingVertical: 0,
   },
   activeSegmentPill: {
     position: 'absolute',

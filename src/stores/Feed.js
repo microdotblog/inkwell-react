@@ -43,6 +43,8 @@ const SEGMENT_BUCKETS = {
 const Feed = types
   .model('Feed', {
     active_segment: types.optional(types.string, 'today'),
+    is_search_active: types.optional(types.boolean, false),
+    search_query: types.optional(types.string, ''),
     subscriptions: types.optional(types.array(FeedSubscription), []),
     timeline_entries: types.optional(types.array(TimelineEntry), []),
     is_bootstrapping: types.optional(types.boolean, false),
@@ -70,6 +72,8 @@ const Feed = types
 
     reset() {
       self.active_segment = 'today';
+      self.is_search_active = false;
+      self.search_query = '';
       self.is_bootstrapping = false;
       self.has_bootstrapped = false;
       self.error_message = null;
@@ -80,6 +84,19 @@ const Feed = types
     set_active_segment(segment = 'today') {
       const next_segment = normalize_segment(segment);
       self.active_segment = next_segment;
+    },
+
+    show_search() {
+      self.is_search_active = true;
+    },
+
+    hide_search() {
+      self.is_search_active = false;
+      self.search_query = '';
+    },
+
+    set_search_query(search_query = '') {
+      self.search_query = `${search_query || ''}`;
     },
 
     apply_bootstrap_payload(
@@ -281,12 +298,30 @@ const Feed = types
   }))
   .views((self) => ({
     visible_timeline_entries() {
-      const segment_buckets = SEGMENT_BUCKETS[self.active_segment];
-      const timeline_entries = !segment_buckets
-        ? self.timeline_entries
-        : self.timeline_entries.filter((timeline_entry) => {
-            return segment_buckets.includes(timeline_entry.age_bucket);
+      const normalized_search_query = normalize_search_query(self.search_query);
+      let timeline_entries = self.timeline_entries;
+
+      if (self.is_search_active) {
+        if (normalized_search_query) {
+          timeline_entries = timeline_entries.filter((timeline_entry) => {
+            return timeline_entry_matches_search(
+              timeline_entry,
+              normalized_search_query,
+            );
           });
+        }
+
+        timeline_entries = [...timeline_entries].sort(
+          compare_timeline_entries_by_published_at,
+        );
+      } else {
+        const segment_buckets = SEGMENT_BUCKETS[self.active_segment];
+        timeline_entries = !segment_buckets
+          ? self.timeline_entries
+          : self.timeline_entries.filter((timeline_entry) => {
+              return segment_buckets.includes(timeline_entry.age_bucket);
+            });
+      }
 
       // FlatList can temporarily hold onto older items while a refresh replaces the MST array.
       // Returning snapshots here prevents the UI from reading dead model nodes between renders.
@@ -329,6 +364,51 @@ function normalize_segment(segment = 'today') {
   }
 
   return 'today';
+}
+
+function normalize_search_query(search_query = '') {
+  return `${search_query || ''}`.trim().toLowerCase();
+}
+
+function timeline_entry_matches_search(
+  timeline_entry,
+  normalized_search_query = '',
+) {
+  if (!normalized_search_query) {
+    return true;
+  }
+
+  const search_fields = [
+    timeline_entry?.title,
+    timeline_entry?.summary,
+    timeline_entry?.source,
+    timeline_entry?.url,
+  ];
+
+  return search_fields.some((field) => {
+    if (!field) {
+      return false;
+    }
+
+    return `${field}`.toLowerCase().includes(normalized_search_query);
+  });
+}
+
+function compare_timeline_entries_by_published_at(left_entry, right_entry) {
+  const left_timestamp = resolve_published_timestamp(left_entry?.published_at);
+  const right_timestamp = resolve_published_timestamp(right_entry?.published_at);
+
+  return right_timestamp - left_timestamp;
+}
+
+function resolve_published_timestamp(raw_date = '') {
+  const timestamp = new Date(raw_date).getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return 0;
+  } else {
+    return timestamp;
+  }
 }
 
 function normalize_subscriptions(subscriptions = [], icons = []) {
