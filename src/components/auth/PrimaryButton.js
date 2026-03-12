@@ -13,6 +13,7 @@ export default function PrimaryButton({
   style,
   textStyle,
   theme,
+  disabled = false,
 }) {
   const scale = useSharedValue(1);
 
@@ -23,6 +24,10 @@ export default function PrimaryButton({
   }, []);
 
   function handlePressIn() {
+    if (disabled) {
+      return;
+    }
+
     scale.value = withSpring(0.985, {
       damping: 18,
       stiffness: 240,
@@ -30,6 +35,10 @@ export default function PrimaryButton({
   }
 
   function handlePressOut() {
+    if (disabled) {
+      return;
+    }
+
     scale.value = withSpring(1, {
       damping: 16,
       stiffness: 220,
@@ -40,6 +49,8 @@ export default function PrimaryButton({
     <Animated.View style={[animatedStyle, style]}>
       <Pressable
         accessibilityRole="button"
+        accessibilityState={{ disabled }}
+        disabled={disabled}
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -60,7 +71,8 @@ export default function PrimaryButton({
                   shadowColor: theme.colors.glow,
                 },
               ],
-          pressed ? styles.pressed : null,
+          pressed && !disabled ? styles.pressed : null,
+          disabled ? styles.disabled : null,
         ]}
       >
         <Text
@@ -101,6 +113,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.96,
+  },
+  disabled: {
+    opacity: 0.58,
   },
   label: {
     fontSize: 16,

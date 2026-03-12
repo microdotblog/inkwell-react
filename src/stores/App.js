@@ -1,13 +1,17 @@
 import { AppState, Appearance } from 'react-native';
-import { types } from 'mobx-state-tree';
+import { flow, types } from 'mobx-state-tree';
+
+import Auth from './Auth';
 
 const AppStore = types
   .model('App', {
     theme: types.optional(types.string, 'light'),
+    is_hydrating: types.optional(types.boolean, true),
   })
   .volatile(() => ({
     app_state_subscription: null,
     appearance_subscription: null,
+    did_start: false,
   }))
   .actions(self => ({
     set_theme(theme = 'light') {
@@ -42,6 +46,31 @@ const AppStore = types
       self.appearance_subscription?.remove();
       self.app_state_subscription = null;
       self.appearance_subscription = null;
+    },
+
+    hydrate: flow(function* () {
+      self.is_hydrating = true;
+
+      try {
+        yield Auth.hydrate();
+      } finally {
+        self.is_hydrating = false;
+      }
+    }),
+
+    start: flow(function* () {
+      if (self.did_start) {
+        return;
+      }
+
+      self.did_start = true;
+      self.start_theme_listener();
+      yield self.hydrate();
+    }),
+
+    stop() {
+      self.did_start = false;
+      self.stop_theme_listener();
     },
   }))
   .views(self => ({

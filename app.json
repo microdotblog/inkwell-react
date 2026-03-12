@@ -6,7 +6,9 @@
     "userInterfaceStyle": "automatic",
     "scheme": "inkwell",
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-web-browser",
+      "expo-secure-store"
     ],
     "android": {
       "package": "blog.micro.inkwell",

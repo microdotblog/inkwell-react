@@ -5,10 +5,15 @@ import { StatusBar } from 'expo-status-bar';
 import { observer } from 'mobx-react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
 
+import SignedInScreen from './screens/SignedInScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
+import Auth from './stores/Auth';
 import AppStore from './stores/App';
 import { getAuthTheme } from './theme/authTheme';
+
+WebBrowser.maybeCompleteAuthSession();
 
 function App() {
   const isDark = AppStore.theme === 'dark';
@@ -21,14 +26,14 @@ function App() {
   });
 
   React.useEffect(() => {
-    AppStore.start_theme_listener();
+    AppStore.start();
 
     return () => {
-      AppStore.stop_theme_listener();
+      AppStore.stop();
     };
   }, []);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || AppStore.is_hydrating) {
     return (
       <View style={[styles.loadingScreen, { backgroundColor: theme.colors.canvas }]}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -41,7 +46,7 @@ function App() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <StatusBar style={isDark ? 'light' : 'dark'} />
-        <WelcomeScreen isDark={isDark} />
+        {Auth.is_signed_in() ? <SignedInScreen isDark={isDark} /> : <WelcomeScreen isDark={isDark} />}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

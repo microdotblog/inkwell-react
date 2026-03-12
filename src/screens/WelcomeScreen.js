@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { observer } from 'mobx-react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   FadeInUp,
@@ -13,12 +14,15 @@ import Animated, {
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
+import Auth from '../stores/Auth';
 import { getAuthTheme } from '../theme/authTheme';
 
-export default function WelcomeScreen({ isDark = false }) {
+function WelcomeScreen({ isDark = false }) {
   const theme = getAuthTheme(isDark);
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(26);
+  const is_signing_in = Auth.is_loading();
+  const error_message = Auth.error_message;
 
   React.useEffect(() => {
     cardOpacity.value = withDelay(
@@ -43,13 +47,6 @@ export default function WelcomeScreen({ isDark = false }) {
       transform: [{ translateY: cardTranslateY.value }],
     };
   }, []);
-
-  function handleMicroBlogPress() {
-    Alert.alert(
-      'Micro.blog sign in comes next.',
-      'Coming soon.'
-    );
-  }
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
@@ -77,11 +74,17 @@ export default function WelcomeScreen({ isDark = false }) {
                   Sign in with Micro.blog.
                 </Text>
                 <Text style={[styles.cardBody, { color: theme.colors.inkSoft }]}>
-                  Connect your account to get started.
+                  Connect your account in your default browser and come right back.
                 </Text>
+                {error_message ? (
+                  <Text style={[styles.errorMessage, { color: theme.colors.accentStrong }]}>
+                    {error_message}
+                  </Text>
+                ) : null}
                 <PrimaryButton
-                  label="Continue with Micro.blog"
-                  onPress={handleMicroBlogPress}
+                  label={is_signing_in ? 'Connecting to Micro.blog...' : 'Continue with Micro.blog'}
+                  onPress={Auth.sign_in_with_micro_blog}
+                  disabled={is_signing_in}
                   theme={theme}
                 />
               </AuthCard>
@@ -141,6 +144,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
+  errorMessage: {
+    fontSize: 14,
+    lineHeight: 21,
+  },
   footer: {
     minHeight: 255,
     justifyContent: 'flex-end',
@@ -149,3 +156,5 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 });
+
+export default observer(WelcomeScreen);
