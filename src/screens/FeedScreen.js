@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useScrollToTop } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,6 +44,9 @@ const SEGMENT_SWIPE_DISTANCE = 56;
 const SEGMENT_SWIPE_VELOCITY = 620;
 const SEGMENT_SWIPE_NUDGE = 24;
 const SEGMENT_CONTROL_INSET = 3;
+const FEED_AVATAR_SIZE = 28;
+const READ_ROW_OPACITY = 0.56;
+const FEED_AVATAR_TRANSITION_MS = 180;
 
 function FeedScreen({ isDark = false }) {
   const theme = getAuthTheme(isDark);
@@ -54,7 +58,8 @@ function FeedScreen({ isDark = false }) {
   const error_message = Feed.error_message;
   const background_intensity = visible_timeline_entries.length > 0 ? 0.14 : 1;
   const header_top_inset = insets.top + HEADER_TOP_PADDING;
-  const list_top_inset = header_top_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
+  const list_top_inset =
+    header_top_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
   const list_ref = React.useRef(null);
   const [segment_frames, set_segment_frames] = React.useState({});
   const scroll_y = useSharedValue(0);
@@ -63,7 +68,9 @@ function FeedScreen({ isDark = false }) {
   const active_segment_width = useSharedValue(0);
   const is_loading_initial =
     (Feed.is_bootstrapping && visible_timeline_entries.length === 0) ||
-    (!has_bootstrapped && !error_message && visible_timeline_entries.length === 0);
+    (!has_bootstrapped &&
+      !error_message &&
+      visible_timeline_entries.length === 0);
   const is_refreshing = Feed.is_bootstrapping && has_bootstrapped;
   const scroll_to_top_ref = React.useRef({
     scrollToTop: () => {
@@ -88,20 +95,25 @@ function FeedScreen({ isDark = false }) {
     scroll_to_top_ref.current.scrollToTop();
   }, []);
 
-  const handle_segment_swipe = React.useCallback((direction) => {
-    const current_index = SEGMENT_OPTIONS.findIndex(option => option.key === active_segment);
-    if (current_index < 0) {
-      return;
-    }
+  const handle_segment_swipe = React.useCallback(
+    (direction) => {
+      const current_index = SEGMENT_OPTIONS.findIndex(
+        (option) => option.key === active_segment,
+      );
+      if (current_index < 0) {
+        return;
+      }
 
-    const next_index = current_index + direction;
-    const next_option = SEGMENT_OPTIONS[next_index];
-    if (!next_option) {
-      return;
-    }
+      const next_index = current_index + direction;
+      const next_option = SEGMENT_OPTIONS[next_index];
+      if (!next_option) {
+        return;
+      }
 
-    handle_segment_press(next_option.key);
-  }, [active_segment, handle_segment_press]);
+      handle_segment_press(next_option.key);
+    },
+    [active_segment, handle_segment_press],
+  );
 
   const update_segment_frame = React.useCallback((segment, layout) => {
     set_segment_frames((current_frames) => {
@@ -133,8 +145,10 @@ function FeedScreen({ isDark = false }) {
         swipe_nudge_x.value = next_nudge;
       })
       .onEnd((event) => {
-        const has_enough_distance = Math.abs(event.translationX) >= SEGMENT_SWIPE_DISTANCE;
-        const has_enough_velocity = Math.abs(event.velocityX) >= SEGMENT_SWIPE_VELOCITY;
+        const has_enough_distance =
+          Math.abs(event.translationX) >= SEGMENT_SWIPE_DISTANCE;
+        const has_enough_velocity =
+          Math.abs(event.velocityX) >= SEGMENT_SWIPE_VELOCITY;
 
         swipe_nudge_x.value = withTiming(0, {
           duration: 180,
@@ -167,7 +181,12 @@ function FeedScreen({ isDark = false }) {
     active_segment_width.value = withTiming(active_frame?.width || 0, {
       duration: 220,
     });
-  }, [active_segment, active_segment_offset, active_segment_width, segment_frames]);
+  }, [
+    active_segment,
+    active_segment_offset,
+    active_segment_width,
+    segment_frames,
+  ]);
 
   const content_nudge_style = useAnimatedStyle(() => {
     return {
@@ -175,7 +194,7 @@ function FeedScreen({ isDark = false }) {
         Math.abs(swipe_nudge_x.value),
         [0, SEGMENT_SWIPE_NUDGE],
         [1, 0.985],
-        Extrapolation.CLAMP
+        Extrapolation.CLAMP,
       ),
       transform: [
         {
@@ -191,19 +210,19 @@ function FeedScreen({ isDark = false }) {
         scroll_y.value,
         [0, SEGMENT_COLLAPSE_DISTANCE],
         [SEGMENT_WRAP_MAX_HEIGHT, 0],
-        Extrapolation.CLAMP
+        Extrapolation.CLAMP,
       ),
       marginTop: interpolate(
         scroll_y.value,
         [0, SEGMENT_COLLAPSE_DISTANCE],
         [2, 0],
-        Extrapolation.CLAMP
+        Extrapolation.CLAMP,
       ),
       opacity: interpolate(
         scroll_y.value,
         [0, SEGMENT_COLLAPSE_DISTANCE * 0.82],
         [1, 0],
-        Extrapolation.CLAMP
+        Extrapolation.CLAMP,
       ),
       transform: [
         {
@@ -211,7 +230,7 @@ function FeedScreen({ isDark = false }) {
             scroll_y.value,
             [0, SEGMENT_COLLAPSE_DISTANCE],
             [0, -18],
-            Extrapolation.CLAMP
+            Extrapolation.CLAMP,
           ),
         },
         {
@@ -237,7 +256,10 @@ function FeedScreen({ isDark = false }) {
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
       <GestureDetector gesture={swipe_gesture}>
-        <Animated.View collapsable={false} style={[styles.contentSurface, content_nudge_style]}>
+        <Animated.View
+          collapsable={false}
+          style={[styles.contentSurface, content_nudge_style]}
+        >
           {render_content({
             active_segment,
             list_top_inset,
@@ -284,18 +306,21 @@ function FeedScreen({ isDark = false }) {
                     accessibilityState={{ selected: is_active }}
                     key={option.key}
                     onLayout={(event) => {
-                      update_segment_frame(option.key, event.nativeEvent.layout);
+                      update_segment_frame(
+                        option.key,
+                        event.nativeEvent.layout,
+                      );
                     }}
                     onPress={() => handle_segment_press(option.key)}
-                    style={[
-                      styles.segmentButton,
-                    ]}
+                    style={[styles.segmentButton]}
                   >
                     <Text
                       style={[
                         styles.segmentLabel,
                         {
-                          color: is_active ? theme.colors.white : theme.colors.inkSoft,
+                          color: is_active
+                            ? theme.colors.white
+                            : theme.colors.inkSoft,
                         },
                       ]}
                     >
@@ -356,10 +381,12 @@ function render_content({
             paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
             paddingTop: list_top_inset,
           },
-          visible_timeline_entries.length === 0 ? styles.listContentEmpty : null,
+          visible_timeline_entries.length === 0
+            ? styles.listContentEmpty
+            : null,
         ]}
         data={visible_timeline_entries}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         ListEmptyComponent={
           error_message && !has_any_timeline_entries ? (
             <AuthCard style={styles.stateCard} theme={theme}>
@@ -367,11 +394,17 @@ function render_content({
                 <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
                   Couldn't load your feed
                 </Text>
-                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                <Text
+                  style={[styles.stateBody, { color: theme.colors.inkSoft }]}
+                >
                   {error_message}
                 </Text>
               </View>
-              <PrimaryButton label="Try again" onPress={Feed.retry_bootstrap} theme={theme} />
+              <PrimaryButton
+                label="Try again"
+                onPress={Feed.retry_bootstrap}
+                theme={theme}
+              />
             </AuthCard>
           ) : (
             <AuthCard style={styles.stateCard} theme={theme}>
@@ -379,7 +412,9 @@ function render_content({
                 <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
                   {get_empty_state_title(active_segment)}
                 </Text>
-                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                <Text
+                  style={[styles.stateBody, { color: theme.colors.inkSoft }]}
+                >
                   {get_empty_state_body(active_segment)}
                 </Text>
               </View>
@@ -410,6 +445,7 @@ function render_content({
 }
 
 function FeedTimelineRow({ entry, theme }) {
+  const source_label = entry.source || 'Feed';
   const title = resolve_entry_title(entry);
   const summary = resolve_entry_summary(entry);
   const timestamp = format_entry_timestamp(entry.published_at);
@@ -421,37 +457,96 @@ function FeedTimelineRow({ entry, theme }) {
         {
           backgroundColor: theme.colors.paper,
           borderColor: theme.colors.line,
-          opacity: entry.is_read ? 0.72 : 1,
+          opacity: entry.is_read ? READ_ROW_OPACITY : 1,
         },
       ]}
     >
       <View style={styles.rowHeader}>
         <View style={styles.sourceWrap}>
-          <View
-            style={[
-              styles.readDot,
-              {
-                backgroundColor: entry.is_read ? theme.colors.line : theme.colors.accentStrong,
-              },
-            ]}
+          <FeedSourceAvatar
+            avatar_url={entry.avatar_url}
+            source={source_label}
+            theme={theme}
           />
-          <Text numberOfLines={1} style={[styles.sourceLabel, { color: theme.colors.inkSoft }]}>
-            {entry.source || 'Feed'}
+          <Text
+            numberOfLines={1}
+            style={[styles.sourceLabel, { color: theme.colors.inkSoft }]}
+          >
+            {source_label}
           </Text>
         </View>
-        <Text style={[styles.timestamp, { color: theme.colors.inkSoft }]}>{timestamp}</Text>
+        <Text style={[styles.timestamp, { color: theme.colors.inkSoft }]}>
+          {timestamp}
+        </Text>
       </View>
 
       <View style={styles.rowBody}>
-        <Text numberOfLines={2} style={[styles.rowTitle, { color: theme.colors.ink }]}>
+        <Text
+          numberOfLines={2}
+          style={[styles.rowTitle, { color: theme.colors.ink }]}
+        >
           {title}
         </Text>
         {summary ? (
-          <Text numberOfLines={3} style={[styles.rowSummary, { color: theme.colors.inkSoft }]}>
+          <Text
+            numberOfLines={3}
+            style={[styles.rowSummary, { color: theme.colors.inkSoft }]}
+          >
             {summary}
           </Text>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
+  const trimmed_avatar_url = `${avatar_url || ''}`.trim();
+  const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
+  const [is_image_loaded, set_is_image_loaded] = React.useState(false);
+  const initial = get_source_avatar_initial(source);
+  const should_show_image = trimmed_avatar_url && !did_fail_to_load;
+  const should_show_initial =
+    !trimmed_avatar_url || did_fail_to_load || !is_image_loaded;
+
+  React.useEffect(() => {
+    set_did_fail_to_load(false);
+    set_is_image_loaded(false);
+  }, [trimmed_avatar_url]);
+
+  return (
+    <View
+      style={[
+        styles.sourceAvatarFrame,
+        {
+          backgroundColor: theme.colors.accentSoft,
+          borderColor: theme.colors.line,
+        },
+      ]}
+    >
+      <View style={styles.sourceAvatarPlaceholder}>
+        {should_show_initial ? (
+          <Text
+            style={[
+              styles.sourceAvatarInitial,
+              { color: theme.colors.accentStrong },
+            ]}
+          >
+            {initial}
+          </Text>
+        ) : null}
+      </View>
+      {should_show_image ? (
+        <Image
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          onError={() => set_did_fail_to_load(true)}
+          onLoad={() => set_is_image_loaded(true)}
+          source={{ uri: trimmed_avatar_url }}
+          style={styles.sourceAvatarImage}
+          transition={FEED_AVATAR_TRANSITION_MS}
+        />
+      ) : null}
     </View>
   );
 }
@@ -477,6 +572,17 @@ function resolve_entry_summary(entry) {
     return '';
   } else {
     return summary;
+  }
+}
+
+function get_source_avatar_initial(source = '') {
+  const trimmed_source = `${source || ''}`.trim();
+  const initial = trimmed_source.charAt(0).toUpperCase();
+
+  if (initial) {
+    return initial;
+  } else {
+    return 'F';
   }
 }
 
@@ -642,10 +748,28 @@ const styles = StyleSheet.create({
     gap: 10,
     flex: 1,
   },
-  readDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  sourceAvatarFrame: {
+    width: FEED_AVATAR_SIZE,
+    height: FEED_AVATAR_SIZE,
+    borderRadius: FEED_AVATAR_SIZE / 2,
+    borderWidth: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  sourceAvatarPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceAvatarImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  sourceAvatarInitial: {
+    fontFamily: 'Newsreader_700Bold',
+    fontSize: 14,
+    lineHeight: 15,
   },
   sourceLabel: {
     flex: 1,

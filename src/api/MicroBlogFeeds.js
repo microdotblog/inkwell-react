@@ -9,9 +9,12 @@ export function get_micro_blog_feeds_base_url() {
 }
 
 export async function fetch_micro_blog_feed_subscriptions({ token = '' } = {}) {
-  return fetch_micro_blog_feeds_json('/feeds/v2/subscriptions.json?mode=extended', {
-    token,
-  });
+  return fetch_micro_blog_feeds_json(
+    '/feeds/v2/subscriptions.json?mode=extended',
+    {
+      token,
+    },
+  );
 }
 
 export async function fetch_micro_blog_feed_entries({ token = '' } = {}) {
@@ -27,9 +30,12 @@ export async function fetch_micro_blog_feed_entries({ token = '' } = {}) {
       per_page: String(per_page),
       page: String(page),
     });
-    const page_entries = await fetch_micro_blog_feeds_json(`/feeds/v2/entries.json?${params.toString()}`, {
-      token: trimmed_token,
-    });
+    const page_entries = await fetch_micro_blog_feeds_json(
+      `/feeds/v2/entries.json?${params.toString()}`,
+      {
+        token: trimmed_token,
+      },
+    );
 
     if (!Array.isArray(page_entries) || page_entries.length === 0) {
       break;
@@ -65,13 +71,24 @@ export async function fetch_micro_blog_feed_entries({ token = '' } = {}) {
   return entries;
 }
 
-export async function fetch_micro_blog_feed_unread_entry_ids({ token = '' } = {}) {
+export async function fetch_micro_blog_feed_unread_entry_ids({
+  token = '',
+} = {}) {
   return fetch_micro_blog_feeds_json('/feeds/v2/unread_entries.json', {
     token,
   });
 }
 
-async function fetch_micro_blog_feeds_json(path, { token = '', headers: custom_headers, ...options } = {}) {
+export async function fetch_micro_blog_feed_icons({ token = '' } = {}) {
+  return fetch_micro_blog_feeds_json('/feeds/v2/icons.json', {
+    token,
+  });
+}
+
+async function fetch_micro_blog_feeds_json(
+  path,
+  { token = '', headers: custom_headers, ...options } = {},
+) {
   const trimmed_token = `${token || ''}`.trim();
 
   if (!trimmed_token) {
@@ -90,7 +107,11 @@ async function fetch_micro_blog_feeds_json(path, { token = '', headers: custom_h
 
   if (!response.ok) {
     const response_text = await response.text();
-    throw create_request_error('Feeds request failed.', response.status, response_text);
+    throw create_request_error(
+      'Feeds request failed.',
+      response.status,
+      response_text,
+    );
   }
 
   return response.json();
@@ -98,8 +119,12 @@ async function fetch_micro_blog_feeds_json(path, { token = '', headers: custom_h
 
 function get_oldest_timeline_midnight() {
   const now = new Date();
-  const today_midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return today_midnight.getTime() - ((TIMELINE_WINDOW_DAYS - 1) * DAY_MS);
+  const today_midnight = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  return today_midnight.getTime() - (TIMELINE_WINDOW_DAYS - 1) * DAY_MS;
 }
 
 function get_local_midnight_time(raw_date = '') {
@@ -116,7 +141,7 @@ function get_local_midnight_time(raw_date = '') {
   const entry_midnight = new Date(
     entry_date.getFullYear(),
     entry_date.getMonth(),
-    entry_date.getDate()
+    entry_date.getDate(),
   );
 
   return entry_midnight.getTime();
