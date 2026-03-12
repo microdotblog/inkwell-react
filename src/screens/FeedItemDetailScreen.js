@@ -29,6 +29,7 @@ const READER_AVATAR_TRANSITION_MS = 180;
 const READER_TITLE_FONT_SIZE = 44;
 const READER_TITLE_LINE_HEIGHT = 50;
 const READER_TITLE_TOP_MARGIN = 18;
+const READER_PARAGRAPH_SPACING = 18;
 const IOS_HEADER_TITLE_REVEAL_OFFSET = 12;
 const READER_IGNORED_DOM_TAGS = [
   'script',
@@ -289,6 +290,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
                     },
                     p: {
                       color: theme.colors.ink,
+                      marginBottom: READER_PARAGRAPH_SPACING,
                       marginTop: 0,
                     },
                     pre: {
