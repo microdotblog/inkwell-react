@@ -10,7 +10,6 @@ import SignedInScreen from '../screens/SignedInScreen';
 import { getAuthTheme } from '../theme/authTheme';
 
 const ANDROID_FEED_TAB_ICON = require('../assets/tab-feed.png');
-const ANDROID_ACCOUNT_TAB_ICON = require('../assets/tab-account.png');
 const Stack = createNativeStackNavigator();
 const Tab = createNativeBottomTabNavigator();
 
@@ -38,6 +37,25 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {() => <SignedInHomeTabs isDark={isDark} />}
+      </Stack.Screen>
+      <Stack.Screen
+        name="Account"
+        options={{
+          headerShadowVisible: false,
+          headerStyle: {
+            backgroundColor: 'transparent',
+          },
+          headerTintColor: theme.colors.ink,
+          headerTitle: '',
+          headerTransparent: true,
+        }}
+      >
+        {(screen_props) => (
+          <SignedInScreen
+            {...screen_props}
+            isDark={isDark}
+          />
+        )}
       </Stack.Screen>
       <Stack.Screen
         name="FeedItemDetail"
@@ -101,33 +119,6 @@ function SignedInHomeTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => <FeedScreen {...screen_props} isDark={isDark} />}
-      </Tab.Screen>
-      <Tab.Screen
-        name="Account"
-        options={{
-          title: 'Account',
-          tabBarLabel: 'Account',
-          tabBarIcon: ({ focused }) => {
-            if (Platform.OS === 'ios') {
-              return {
-                type: 'sfSymbol',
-                name: focused ? 'person.crop.circle.fill' : 'person.crop.circle',
-              };
-            } else {
-              return {
-                type: 'image',
-                source: ANDROID_ACCOUNT_TAB_ICON,
-              };
-            }
-          },
-        }}
-      >
-        {(screen_props) => (
-          <SignedInScreen
-            {...screen_props}
-            isDark={isDark}
-          />
-        )}
       </Tab.Screen>
     </Tab.Navigator>
   );

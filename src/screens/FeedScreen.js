@@ -26,6 +26,7 @@ import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import RssLoadingView from '../components/loading/RssLoadingView';
+import Auth from '../stores/Auth';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -39,6 +40,9 @@ const SCREEN_HORIZONTAL_PADDING = 20;
 const HEADER_TOP_PADDING = 10;
 const SEGMENT_COLLAPSE_DISTANCE = 74;
 const SEGMENT_WRAP_MAX_HEIGHT = 50;
+const HEADER_ACCOUNT_BUTTON_SIZE = 40;
+const HEADER_ACCOUNT_GAP = 12;
+const HEADER_ACCOUNT_AVATAR_TRANSITION_MS = 180;
 const LIST_TOP_GAP = 12;
 const SEGMENT_SWIPE_DISTANCE = 56;
 const SEGMENT_SWIPE_VELOCITY = 620;
@@ -52,6 +56,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const theme = getAuthTheme(isDark);
   const insets = useSafeAreaInsets();
   const active_segment = Feed.active_segment;
+  const profile = Auth.current_profile();
   const has_bootstrapped = Feed.has_bootstrapped;
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
   const visible_timeline_entries = Feed.visible_timeline_entries();
@@ -108,6 +113,16 @@ function FeedScreen({ navigation, isDark = false }) {
     },
     [navigation],
   );
+
+  const handle_account_press = React.useCallback(() => {
+    const parent_navigation = navigation.getParent();
+
+    if (parent_navigation) {
+      parent_navigation.navigate('Account');
+    } else {
+      navigation.navigate('Account');
+    }
+  }, [navigation]);
 
   const handle_segment_swipe = React.useCallback(
     (direction) => {
@@ -292,58 +307,66 @@ function FeedScreen({ navigation, isDark = false }) {
       <View pointerEvents="box-none" style={styles.headerOverlay}>
         <View style={[styles.header, { paddingTop: header_top_inset }]}>
           <Animated.View style={[styles.segmentWrap, segment_wrap_style]}>
-            <View
-              style={[
-                styles.segmentedControl,
-                {
-                  backgroundColor: theme.colors.paper,
-                  borderColor: theme.colors.line,
-                  shadowColor: theme.colors.shadow,
-                },
-              ]}
-            >
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.activeSegmentPill,
-                  {
-                    backgroundColor: theme.colors.accent,
-                  },
-                  active_segment_style,
-                ]}
+            <View style={styles.headerControlsRow}>
+              <AccountHeaderButton
+                onPress={handle_account_press}
+                profile_name={profile.name}
+                profile_photo={profile.photo}
+                theme={theme}
               />
-              {SEGMENT_OPTIONS.map((option) => {
-                const is_active = option.key === active_segment;
+              <View
+                style={[
+                  styles.segmentedControl,
+                  {
+                    backgroundColor: theme.colors.paper,
+                    borderColor: theme.colors.line,
+                    shadowColor: theme.colors.shadow,
+                  },
+                ]}
+              >
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.activeSegmentPill,
+                    {
+                      backgroundColor: theme.colors.accent,
+                    },
+                    active_segment_style,
+                  ]}
+                />
+                {SEGMENT_OPTIONS.map((option) => {
+                  const is_active = option.key === active_segment;
 
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: is_active }}
-                    key={option.key}
-                    onLayout={(event) => {
-                      update_segment_frame(
-                        option.key,
-                        event.nativeEvent.layout,
-                      );
-                    }}
-                    onPress={() => handle_segment_press(option.key)}
-                    style={[styles.segmentButton]}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentLabel,
-                        {
-                          color: is_active
-                            ? theme.colors.white
-                            : theme.colors.inkSoft,
-                        },
-                      ]}
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: is_active }}
+                      key={option.key}
+                      onLayout={(event) => {
+                        update_segment_frame(
+                          option.key,
+                          event.nativeEvent.layout,
+                        );
+                      }}
+                      onPress={() => handle_segment_press(option.key)}
+                      style={[styles.segmentButton]}
                     >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.segmentLabel,
+                          {
+                            color: is_active
+                              ? theme.colors.white
+                              : theme.colors.inkSoft,
+                          },
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           </Animated.View>
         </View>
@@ -527,6 +550,78 @@ function FeedTimelineRow({ entry, onPress, theme }) {
   );
 }
 
+function AccountHeaderButton({
+  onPress,
+  profile_name = '',
+  profile_photo = '',
+  theme,
+}) {
+  const trimmed_profile_photo = `${profile_photo || ''}`.trim();
+  const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
+  const [is_image_loaded, set_is_image_loaded] = React.useState(false);
+  const should_show_image = trimmed_profile_photo && !did_fail_to_load;
+  const should_show_initial =
+    !trimmed_profile_photo || did_fail_to_load || !is_image_loaded;
+  const profile_initial = get_profile_initial(profile_name);
+
+  React.useEffect(() => {
+    set_did_fail_to_load(false);
+    set_is_image_loaded(false);
+  }, [trimmed_profile_photo]);
+
+  return (
+    <Pressable
+      accessibilityLabel="Open account"
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => {
+        return [
+          styles.accountButton,
+          {
+            backgroundColor: theme.colors.paper,
+            borderColor: theme.colors.line,
+            opacity: pressed ? 0.82 : 1,
+            shadowColor: theme.colors.shadow,
+          },
+        ];
+      }}
+    >
+      <View
+        style={[
+          styles.accountAvatarFrame,
+          {
+            backgroundColor: theme.colors.accentSoft,
+          },
+        ]}
+      >
+        <View style={styles.accountAvatarPlaceholder}>
+          {should_show_initial ? (
+            <Text
+              style={[
+                styles.accountAvatarInitial,
+                { color: theme.colors.accentStrong },
+              ]}
+            >
+              {profile_initial}
+            </Text>
+          ) : null}
+        </View>
+        {should_show_image ? (
+          <Image
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            onError={() => set_did_fail_to_load(true)}
+            onLoad={() => set_is_image_loaded(true)}
+            source={{ uri: trimmed_profile_photo }}
+            style={styles.accountAvatarImage}
+            transition={HEADER_ACCOUNT_AVATAR_TRANSITION_MS}
+          />
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
 function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
   const trimmed_avatar_url = `${avatar_url || ''}`.trim();
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
@@ -613,6 +708,17 @@ function get_source_avatar_initial(source = '') {
   }
 }
 
+function get_profile_initial(profile_name = '') {
+  const trimmed_profile_name = `${profile_name || ''}`.trim();
+  const initial = trimmed_profile_name.charAt(0).toUpperCase();
+
+  if (initial) {
+    return initial;
+  } else {
+    return 'M';
+  }
+}
+
 function format_entry_timestamp(raw_date = '') {
   if (!raw_date) {
     return '';
@@ -686,11 +792,51 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
   },
+  headerControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: HEADER_ACCOUNT_GAP,
+  },
   segmentWrap: {
     overflow: 'hidden',
   },
+  accountButton: {
+    width: HEADER_ACCOUNT_BUTTON_SIZE,
+    height: HEADER_ACCOUNT_BUTTON_SIZE,
+    borderRadius: HEADER_ACCOUNT_BUTTON_SIZE / 2,
+    borderWidth: 1,
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  accountAvatarFrame: {
+    width: '100%',
+    height: '100%',
+    borderRadius: HEADER_ACCOUNT_BUTTON_SIZE / 2,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountAvatarPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountAvatarInitial: {
+    fontFamily: 'Newsreader_700Bold',
+    fontSize: 16,
+    lineHeight: 18,
+  },
+  accountAvatarImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
   segmentedControl: {
     position: 'relative',
+    flex: 1,
     flexDirection: 'row',
     borderRadius: 16,
     borderWidth: 1,
