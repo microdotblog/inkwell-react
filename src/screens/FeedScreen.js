@@ -9,13 +9,16 @@ import {
 } from 'react-native';
 import { useScrollToTop } from '@react-navigation/native';
 import { observer } from 'mobx-react';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Extrapolation,
   interpolate,
+  runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 import AuthBackground from '../components/auth/AuthBackground';
@@ -36,6 +39,10 @@ const HEADER_TOP_PADDING = 10;
 const SEGMENT_COLLAPSE_DISTANCE = 74;
 const SEGMENT_WRAP_MAX_HEIGHT = 50;
 const LIST_TOP_GAP = 12;
+const SEGMENT_SWIPE_DISTANCE = 56;
+const SEGMENT_SWIPE_VELOCITY = 620;
+const SEGMENT_SWIPE_NUDGE = 24;
+const SEGMENT_CONTROL_INSET = 3;
 
 function FeedScreen({ isDark = false }) {
   const theme = getAuthTheme(isDark);
@@ -49,7 +56,11 @@ function FeedScreen({ isDark = false }) {
   const header_top_inset = insets.top + HEADER_TOP_PADDING;
   const list_top_inset = header_top_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
   const list_ref = React.useRef(null);
+  const [segment_frames, set_segment_frames] = React.useState({});
   const scroll_y = useSharedValue(0);
+  const swipe_nudge_x = useSharedValue(0);
+  const active_segment_offset = useSharedValue(0);
+  const active_segment_width = useSharedValue(0);
   const is_loading_initial =
     (Feed.is_bootstrapping && visible_timeline_entries.length === 0) ||
     (!has_bootstrapped && !error_message && visible_timeline_entries.length === 0);
@@ -72,10 +83,107 @@ function FeedScreen({ isDark = false }) {
     },
   });
 
-  const handle_segment_press = (segment) => {
+  const handle_segment_press = React.useCallback((segment) => {
     Feed.set_active_segment(segment);
     scroll_to_top_ref.current.scrollToTop();
-  };
+  }, []);
+
+  const handle_segment_swipe = React.useCallback((direction) => {
+    const current_index = SEGMENT_OPTIONS.findIndex(option => option.key === active_segment);
+    if (current_index < 0) {
+      return;
+    }
+
+    const next_index = current_index + direction;
+    const next_option = SEGMENT_OPTIONS[next_index];
+    if (!next_option) {
+      return;
+    }
+
+    handle_segment_press(next_option.key);
+  }, [active_segment, handle_segment_press]);
+
+  const update_segment_frame = React.useCallback((segment, layout) => {
+    set_segment_frames((current_frames) => {
+      const previous_frame = current_frames[segment];
+      if (
+        previous_frame &&
+        previous_frame.x === layout.x &&
+        previous_frame.width === layout.width
+      ) {
+        return current_frames;
+      }
+
+      return {
+        ...current_frames,
+        [segment]: {
+          width: layout.width,
+          x: layout.x,
+        },
+      };
+    });
+  }, []);
+
+  const swipe_gesture = React.useMemo(() => {
+    return Gesture.Pan()
+      .activeOffsetX([-18, 18])
+      .failOffsetY([-14, 14])
+      .onUpdate((event) => {
+        const next_nudge = clamp_swipe_nudge(event.translationX * 0.22);
+        swipe_nudge_x.value = next_nudge;
+      })
+      .onEnd((event) => {
+        const has_enough_distance = Math.abs(event.translationX) >= SEGMENT_SWIPE_DISTANCE;
+        const has_enough_velocity = Math.abs(event.velocityX) >= SEGMENT_SWIPE_VELOCITY;
+
+        swipe_nudge_x.value = withTiming(0, {
+          duration: 180,
+        });
+
+        if (!has_enough_distance && !has_enough_velocity) {
+          return;
+        }
+
+        if (has_enough_distance) {
+          runOnJS(handle_segment_swipe)(event.translationX < 0 ? 1 : -1);
+        } else if (event.velocityX < 0) {
+          runOnJS(handle_segment_swipe)(1);
+        } else {
+          runOnJS(handle_segment_swipe)(-1);
+        }
+      })
+      .onFinalize(() => {
+        swipe_nudge_x.value = withTiming(0, {
+          duration: 180,
+        });
+      });
+  }, [handle_segment_swipe, swipe_nudge_x]);
+
+  React.useEffect(() => {
+    const active_frame = segment_frames[active_segment];
+    active_segment_offset.value = withTiming(active_frame?.x || 0, {
+      duration: 220,
+    });
+    active_segment_width.value = withTiming(active_frame?.width || 0, {
+      duration: 220,
+    });
+  }, [active_segment, active_segment_offset, active_segment_width, segment_frames]);
+
+  const content_nudge_style = useAnimatedStyle(() => {
+    return {
+      opacity: interpolate(
+        Math.abs(swipe_nudge_x.value),
+        [0, SEGMENT_SWIPE_NUDGE],
+        [1, 0.985],
+        Extrapolation.CLAMP
+      ),
+      transform: [
+        {
+          translateX: swipe_nudge_x.value,
+        },
+      ],
+    };
+  }, []);
 
   const segment_wrap_style = useAnimatedStyle(() => {
     return {
@@ -106,25 +214,44 @@ function FeedScreen({ isDark = false }) {
             Extrapolation.CLAMP
           ),
         },
+        {
+          translateX: swipe_nudge_x.value * 0.4,
+        },
       ],
+    };
+  }, []);
+
+  const active_segment_style = useAnimatedStyle(() => {
+    return {
+      opacity: active_segment_width.value > 0 ? 1 : 0,
+      transform: [
+        {
+          translateX: active_segment_offset.value + swipe_nudge_x.value * 0.18,
+        },
+      ],
+      width: active_segment_width.value,
     };
   }, []);
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
-      {render_content({
-        active_segment,
-        list_top_inset,
-        on_scroll,
-        theme,
-        is_loading_initial,
-        is_refreshing,
-        error_message,
-        has_any_timeline_entries,
-        list_ref,
-        visible_timeline_entries,
-      })}
+      <GestureDetector gesture={swipe_gesture}>
+        <Animated.View collapsable={false} style={[styles.contentSurface, content_nudge_style]}>
+          {render_content({
+            active_segment,
+            list_top_inset,
+            on_scroll,
+            theme,
+            is_loading_initial,
+            is_refreshing,
+            error_message,
+            has_any_timeline_entries,
+            list_ref,
+            visible_timeline_entries,
+          })}
+        </Animated.View>
+      </GestureDetector>
       <View pointerEvents="box-none" style={styles.headerOverlay}>
         <View style={[styles.header, { paddingTop: header_top_inset }]}>
           <Animated.View style={[styles.segmentWrap, segment_wrap_style]}>
@@ -138,6 +265,16 @@ function FeedScreen({ isDark = false }) {
                 },
               ]}
             >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.activeSegmentPill,
+                  {
+                    backgroundColor: theme.colors.accent,
+                  },
+                  active_segment_style,
+                ]}
+              />
               {SEGMENT_OPTIONS.map((option) => {
                 const is_active = option.key === active_segment;
 
@@ -146,14 +283,12 @@ function FeedScreen({ isDark = false }) {
                     accessibilityRole="button"
                     accessibilityState={{ selected: is_active }}
                     key={option.key}
+                    onLayout={(event) => {
+                      update_segment_frame(option.key, event.nativeEvent.layout);
+                    }}
                     onPress={() => handle_segment_press(option.key)}
                     style={[
                       styles.segmentButton,
-                      is_active
-                        ? {
-                            backgroundColor: theme.colors.accent,
-                          }
-                        : null,
                     ]}
                   >
                     <Text
@@ -402,6 +537,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
+  contentSurface: {
+    flex: 1,
+  },
   list: {
     flex: 1,
   },
@@ -419,6 +557,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   segmentedControl: {
+    position: 'relative',
     flexDirection: 'row',
     borderRadius: 16,
     borderWidth: 1,
@@ -431,6 +570,13 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 3,
   },
+  activeSegmentPill: {
+    position: 'absolute',
+    top: SEGMENT_CONTROL_INSET,
+    bottom: SEGMENT_CONTROL_INSET,
+    left: 0,
+    borderRadius: 12,
+  },
   segmentButton: {
     flex: 1,
     minHeight: 34,
@@ -438,6 +584,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
+    position: 'relative',
+    zIndex: 1,
   },
   segmentLabel: {
     fontSize: 13,
@@ -525,3 +673,8 @@ const styles = StyleSheet.create({
 });
 
 export default observer(FeedScreen);
+
+function clamp_swipe_nudge(value = 0) {
+  'worklet';
+  return Math.max(Math.min(value, SEGMENT_SWIPE_NUDGE), -SEGMENT_SWIPE_NUDGE);
+}
