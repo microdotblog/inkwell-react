@@ -131,7 +131,8 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         theme={theme}
       />
       <ScrollView
-        bounces={false}
+        alwaysBounceVertical
+        bounces
         contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[
           styles.content,
