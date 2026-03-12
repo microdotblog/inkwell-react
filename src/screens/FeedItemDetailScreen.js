@@ -1,10 +1,12 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Linking,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
   useWindowDimensions,
@@ -13,7 +15,10 @@ import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import RenderHtml, {
   HTMLContentModel,
+  HTMLElementModel,
+  TNodeChildrenRenderer,
   defaultHTMLElementModels,
+  useTNodeChildrenProps,
 } from 'react-native-render-html';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,6 +36,15 @@ const READER_TITLE_LINE_HEIGHT = 50;
 const READER_TITLE_TOP_MARGIN = 18;
 const READER_PARAGRAPH_SPACING = 18;
 const IOS_HEADER_TITLE_REVEAL_OFFSET = 12;
+const RECAP_EMAIL_DAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
 const READER_IGNORED_DOM_TAGS = [
   'script',
   'style',
@@ -52,14 +66,22 @@ const READER_HTML_MODELS = {
   img: defaultHTMLElementModels.img.extend({
     contentModel: HTMLContentModel.mixed,
   }),
+  'recap-quote': HTMLElementModel.fromCustomModel({
+    tagName: 'recap-quote',
+    contentModel: HTMLContentModel.block,
+  }),
 };
 
 function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const theme = getAuthTheme(isDark);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const detail_mode = resolve_detail_mode(route?.params?.mode);
   const entry_id = `${route?.params?.entry_id || ''}`.trim();
-  const entry = Feed.timeline_entry_snapshot(entry_id);
+  const entry =
+    detail_mode === 'entry' ? Feed.timeline_entry_snapshot(entry_id) : null;
+  const recap =
+    detail_mode === 'recap' ? Feed.active_recap_snapshot() : null;
   const source_label = `${entry?.source || 'Feed'}`.trim() || 'Feed';
   const reader_title = resolve_reader_title(entry);
   const formatted_date = format_reader_date(entry?.published_at);
@@ -69,10 +91,53 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const should_show_reader_title = Boolean(reader_title);
   const reader_html = create_reader_body_html(entry);
   const sanitized_reader_html = sanitize_reader_html(reader_html);
-  const has_renderable_body = Boolean(sanitized_reader_html);
+  const recap_entry_count = recap?.entry_ids?.length || 0;
+  const recap_html = `${recap?.html || ''}`.trim();
+  const decorated_recap_html = decorate_recap_html(recap_html);
+  const sanitized_recap_html = sanitize_reader_html(decorated_recap_html);
+  const has_entry_body = Boolean(sanitized_reader_html);
+  const has_recap_body = Boolean(sanitized_recap_html);
+  const is_loading_recap_email_settings =
+    Feed.is_loading_recap_email_settings;
+  const is_saving_recap_email_settings =
+    Feed.is_saving_recap_email_settings;
+  const recap_email_day = Feed.recap_email_day;
+  const is_recap_email_enabled = Feed.is_recap_email_enabled();
+  const recap_bookmark_error_message = Feed.recap_bookmark_error_message;
+  const recap_bookmarked_quote_urls = Feed.recap_bookmarked_quote_urls.slice();
+  const bookmarking_recap_quote_url =
+    `${Feed.bookmarking_recap_quote_url || ''}`.trim();
   const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
     React.useState(false);
   const is_ios_header_title_visible_ref = React.useRef(false);
+  const header_title =
+    detail_mode === 'recap' ? 'Reading Recap' : source_label;
+  const recap_renderers = React.useMemo(() => {
+    const bookmarked_quote_url_set = new Set(recap_bookmarked_quote_urls);
+
+    return {
+      'recap-quote': (props) => {
+        return (
+          <RecapQuoteRenderer
+            {...props}
+            bookmarked_quote_url_set={bookmarked_quote_url_set}
+            bookmarking_quote_url={bookmarking_recap_quote_url}
+            onBookmarkPress={(bookmark_url) =>
+              Feed.bookmark_recap_quote(bookmark_url)
+            }
+            theme={theme}
+          />
+        );
+      },
+    };
+  }, [
+    bookmarking_recap_quote_url,
+    recap_bookmarked_quote_urls.join('|'),
+    theme,
+  ]);
+  const recap_dom_visitors = React.useMemo(() => {
+    return create_recap_dom_visitors(theme);
+  }, [theme]);
 
   const handle_scroll = React.useCallback((event) => {
     if (Platform.OS !== 'ios') {
@@ -90,20 +155,27 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     set_is_ios_header_title_visible(next_visibility);
   }, []);
 
+  React.useEffect(() => {
+    if (detail_mode === 'recap' && recap) {
+      Feed.load_recap_email_settings();
+    }
+  }, [detail_mode, recap?.requested_at]);
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerBackButtonDisplayMode: 'minimal',
       headerStyle: {
         backgroundColor: theme.colors.canvas,
       },
-      headerRight: original_url
-        ? () => (
-            <HeaderLinkButton
-              onPress={() => open_external_url(original_url)}
-              theme={theme}
-            />
-          )
-        : undefined,
+      headerRight:
+        detail_mode === 'entry' && original_url
+          ? () => (
+              <HeaderLinkButton
+                onPress={() => open_external_url(original_url)}
+                theme={theme}
+              />
+            )
+          : undefined,
       headerShadowVisible: false,
       headerTintColor: theme.colors.ink,
       headerTitleStyle: {
@@ -113,21 +185,24 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       },
       title:
         Platform.OS === 'ios'
-          ? (is_ios_header_title_visible ? source_label : '')
-          : source_label,
+          ? is_ios_header_title_visible
+            ? header_title
+            : ''
+          : header_title,
     });
   }, [
+    detail_mode,
+    header_title,
     is_ios_header_title_visible,
     navigation,
     original_url,
-    source_label,
     theme,
   ]);
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground
-        intensity={entry ? 0.1 : 1}
+        intensity={detail_mode === 'recap' || entry ? 0.1 : 1}
         theme={theme}
       />
       <ScrollView
@@ -145,195 +220,516 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
-        {entry ? (
-          <View style={styles.readerColumn}>
-            <View
-              style={[
-                styles.masthead,
-                {
-                  borderBottomColor: theme.colors.line,
-                },
-              ]}
-            >
-              <View style={styles.feedHeaderRow}>
-                <FeedDetailAvatar
-                  avatar_url={entry.avatar_url}
-                  source={source_label}
-                  size={READER_AVATAR_SIZE}
-                  theme={theme}
-                />
-                <View style={styles.feedMeta}>
-                  <View style={styles.feedTitleRow}>
-                    <MetaLink
-                      color={theme.colors.ink}
-                      label={source_label}
-                      onPress={source_url ? () => open_external_url(source_url) : null}
-                      style={styles.sourceLabel}
-                    />
-                  </View>
-                  {source_host || formatted_date ? (
-                    <View style={styles.feedDetailsRow}>
-                      {source_host ? (
-                        <Text
-                          style={[
-                            styles.hostLabel,
-                            { color: theme.colors.inkSoft },
-                          ]}
-                        >
-                          {source_host}
-                        </Text>
-                      ) : null}
-                      {source_host && formatted_date ? (
-                        <Text
-                          style={[
-                            styles.feedDetailSeparator,
-                            { color: theme.colors.inkSoft },
-                          ]}
-                        >
-                          •
-                        </Text>
-                      ) : null}
-                      {formatted_date ? (
-                        <MetaLink
-                          color={theme.colors.inkSoft}
-                          label={formatted_date}
-                          onPress={original_url ? () => open_external_url(original_url) : null}
-                          style={styles.dateLabel}
-                        />
-                      ) : null}
-                    </View>
-                  ) : null}
-                </View>
-              </View>
+        {detail_mode === 'entry' && entry ? (
+          <EntryReaderView
+            entry={entry}
+            formatted_date={formatted_date}
+            has_renderable_body={has_entry_body}
+            original_url={original_url}
+            reader_html={sanitized_reader_html}
+            reader_title={reader_title}
+            should_show_reader_title={should_show_reader_title}
+            source_host={source_host}
+            source_label={source_label}
+            source_url={source_url}
+            theme={theme}
+            width={width}
+          />
+        ) : null}
 
-              {should_show_reader_title ? (
-                <View style={styles.titleWrap}>
-                  <Text style={[styles.title, { color: theme.colors.ink }]}>
-                    {reader_title}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+        {detail_mode === 'recap' && recap ? (
+          <RecapReaderView
+            has_renderable_body={has_recap_body}
+            is_loading_recap_email_settings={is_loading_recap_email_settings}
+            is_recap_email_enabled={is_recap_email_enabled}
+            is_saving_recap_email_settings={is_saving_recap_email_settings}
+            recap_bookmark_error_message={recap_bookmark_error_message}
+            recap_email_day={recap_email_day}
+            recap_entry_count={recap_entry_count}
+            recap_html={sanitized_recap_html}
+            recap_dom_visitors={recap_dom_visitors}
+            recap_renderers={recap_renderers}
+            theme={theme}
+            width={width}
+          />
+        ) : null}
 
-            <View style={styles.bodySection}>
-              {has_renderable_body ? (
-                <RenderHtml
-                  baseStyle={{
-                    color: theme.colors.ink,
-                    fontSize: 18,
-                    lineHeight: 29,
-                  }}
-                  classesStyles={{
-                    lead: {
-                      color: theme.colors.inkSoft,
-                    },
-                  }}
-                  contentWidth={Math.max(
-                    Math.min(
-                      width - READER_HORIZONTAL_PADDING * 2,
-                      READER_COLUMN_MAX_WIDTH,
-                    ),
-                    0,
-                  )}
-                  customHTMLElementModels={READER_HTML_MODELS}
-                  enableExperimentalMarginCollapsing
-                  ignoredDomTags={READER_IGNORED_DOM_TAGS}
-                  renderersProps={{
-                    a: {
-                      onPress: (_event, href) => {
-                        if (href) {
-                          open_external_url(href);
-                        }
-                      },
-                    },
-                  }}
-                  source={{
-                    html: sanitized_reader_html,
-                  }}
-                  tagsStyles={{
-                    a: {
-                      color: theme.colors.accentStrong,
-                      textDecorationLine: 'none',
-                    },
-                    blockquote: {
-                      borderLeftColor: theme.colors.line,
-                      borderLeftWidth: 3,
-                      color: theme.colors.inkSoft,
-                      marginLeft: 0,
-                      paddingLeft: 16,
-                    },
-                    body: {
-                      color: theme.colors.ink,
-                      fontSize: 18,
-                      lineHeight: 29,
-                    },
-                    h1: {
-                      color: theme.colors.ink,
-                      fontFamily: 'Newsreader_600SemiBold',
-                      fontSize: 30,
-                      lineHeight: 36,
-                    },
-                    h2: {
-                      color: theme.colors.ink,
-                      fontFamily: 'Newsreader_600SemiBold',
-                      fontSize: 26,
-                      lineHeight: 32,
-                    },
-                    h3: {
-                      color: theme.colors.ink,
-                      fontFamily: 'Newsreader_600SemiBold',
-                      fontSize: 22,
-                      lineHeight: 28,
-                    },
-                    li: {
-                      color: theme.colors.ink,
-                      lineHeight: 29,
-                    },
-                    p: {
-                      color: theme.colors.ink,
-                      marginBottom: READER_PARAGRAPH_SPACING,
-                      marginTop: 0,
-                    },
-                    pre: {
-                      backgroundColor: theme.colors.badge,
-                      borderColor: theme.colors.line,
-                      borderRadius: 16,
-                      borderWidth: 1,
-                      color: theme.colors.ink,
-                      padding: 16,
-                    },
-                    ul: {
-                      color: theme.colors.ink,
-                    },
-                    ol: {
-                      color: theme.colors.ink,
-                    },
-                  }}
-                />
-              ) : (
-                <UnavailableBodyCard
-                  can_open_original={Boolean(original_url)}
-                  on_open_original={() => open_external_url(original_url)}
-                  theme={theme}
-                />
-              )}
-            </View>
-          </View>
-        ) : (
-          <View style={styles.unavailableScreen}>
-            <View style={styles.unavailableCopy}>
-              <Text style={[styles.unavailableTitle, { color: theme.colors.ink }]}>
-                This post isn&apos;t available right now.
-              </Text>
-              <Text style={[styles.unavailableBody, { color: theme.colors.inkSoft }]}>
-                It may have scrolled out of the current timeline, or the feed refreshed before the
-                reader finished opening it.
-              </Text>
-            </View>
-          </View>
-        )}
+        {detail_mode === 'entry' && !entry ? (
+          <UnavailableScreen
+            body="It may have scrolled out of the current timeline, or the feed refreshed before the reader finished opening it."
+            theme={theme}
+            title="This post isn't available right now."
+          />
+        ) : null}
+
+        {detail_mode === 'recap' && !recap ? (
+          <UnavailableScreen
+            body="Build a Reading Recap from the Fading segment first, then open it here."
+            theme={theme}
+            title="This recap isn't available right now."
+          />
+        ) : null}
       </ScrollView>
     </View>
+  );
+}
+
+function EntryReaderView({
+  entry,
+  formatted_date,
+  has_renderable_body = false,
+  original_url = '',
+  reader_html = '',
+  reader_title = '',
+  should_show_reader_title = false,
+  source_host = '',
+  source_label = '',
+  source_url = '',
+  theme,
+  width = 0,
+}) {
+  return (
+    <View style={styles.readerColumn}>
+      <View
+        style={[
+          styles.masthead,
+          {
+            borderBottomColor: theme.colors.line,
+          },
+        ]}
+      >
+        <View style={styles.feedHeaderRow}>
+          <FeedDetailAvatar
+            avatar_url={entry.avatar_url}
+            source={source_label}
+            size={READER_AVATAR_SIZE}
+            theme={theme}
+          />
+          <View style={styles.feedMeta}>
+            <View style={styles.feedTitleRow}>
+              <MetaLink
+                color={theme.colors.ink}
+                label={source_label}
+                onPress={source_url ? () => open_external_url(source_url) : null}
+                style={styles.sourceLabel}
+              />
+            </View>
+            {source_host || formatted_date ? (
+              <View style={styles.feedDetailsRow}>
+                {source_host ? (
+                  <Text style={[styles.hostLabel, { color: theme.colors.inkSoft }]}>
+                    {source_host}
+                  </Text>
+                ) : null}
+                {source_host && formatted_date ? (
+                  <Text
+                    style={[
+                      styles.feedDetailSeparator,
+                      { color: theme.colors.inkSoft },
+                    ]}
+                  >
+                    •
+                  </Text>
+                ) : null}
+                {formatted_date ? (
+                  <MetaLink
+                    color={theme.colors.inkSoft}
+                    label={formatted_date}
+                    onPress={
+                      original_url ? () => open_external_url(original_url) : null
+                    }
+                    style={styles.dateLabel}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        {should_show_reader_title ? (
+          <View style={styles.titleWrap}>
+            <Text style={[styles.title, { color: theme.colors.ink }]}>
+              {reader_title}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.bodySection}>
+        {has_renderable_body ? (
+          <ReaderHtml
+            html={reader_html}
+            theme={theme}
+            width={width}
+          />
+        ) : (
+          <UnavailableBodyCard
+            body="This item doesn't include readable body content in the current timeline payload."
+            can_open_original={Boolean(original_url)}
+            on_open_original={() => open_external_url(original_url)}
+            theme={theme}
+            title="No readable preview yet."
+          />
+        )}
+      </View>
+    </View>
+  );
+}
+
+function RecapReaderView({
+  has_renderable_body = false,
+  is_loading_recap_email_settings = false,
+  is_recap_email_enabled = false,
+  is_saving_recap_email_settings = false,
+  recap_bookmark_error_message = '',
+  recap_email_day = '',
+  recap_entry_count = 0,
+  recap_html = '',
+  recap_dom_visitors,
+  recap_renderers,
+  theme,
+  width = 0,
+}) {
+  return (
+    <View style={styles.readerColumn}>
+      <View
+        style={[
+          styles.masthead,
+          {
+            borderBottomColor: theme.colors.line,
+          },
+        ]}
+      >
+        <Text
+          style={[styles.recapEyebrow, { color: theme.colors.accentStrong }]}
+        >
+          Fading
+        </Text>
+        <View style={styles.titleWrapCompact}>
+          <Text style={[styles.title, { color: theme.colors.ink }]}>
+            Reading Recap
+          </Text>
+        </View>
+        <Text style={[styles.recapBody, { color: theme.colors.inkSoft }]}>
+          {get_recap_summary_copy(recap_entry_count)}
+        </Text>
+      </View>
+
+      <View style={styles.bodySection}>
+        <RecapEmailSettingsCard
+          is_enabled={is_recap_email_enabled}
+          is_loading={is_loading_recap_email_settings}
+          is_saving={is_saving_recap_email_settings}
+          selected_day={recap_email_day}
+          theme={theme}
+          onSelectDay={(dayofweek) => {
+            Feed.update_recap_email_day(dayofweek);
+          }}
+          onToggleEnabled={(is_enabled) => {
+            if (is_enabled) {
+              Feed.update_recap_email_day(recap_email_day || 'Friday');
+            } else {
+              Feed.update_recap_email_day('');
+            }
+          }}
+        />
+
+        {recap_bookmark_error_message ? (
+          <Text style={[styles.recapBookmarkError, { color: theme.colors.accentStrong }]}>
+            {recap_bookmark_error_message}
+          </Text>
+        ) : null}
+
+        {has_renderable_body ? (
+          <ReaderHtml
+            classes_styles={build_recap_classes_styles(theme)}
+            custom_element_models={READER_HTML_MODELS}
+            dom_visitors={recap_dom_visitors}
+            html={recap_html}
+            renderers={recap_renderers}
+            theme={theme}
+            width={width}
+          />
+        ) : (
+          <UnavailableBodyCard
+            body="We couldn't render the current recap payload."
+            can_open_original={false}
+            theme={theme}
+            title="No recap yet."
+          />
+        )}
+      </View>
+    </View>
+  );
+}
+
+function ReaderHtml({
+  classes_styles,
+  custom_element_models = READER_HTML_MODELS,
+  dom_visitors,
+  html = '',
+  renderers,
+  theme,
+  width = 0,
+}) {
+  return (
+    <RenderHtml
+      baseStyle={{
+        color: theme.colors.ink,
+        fontSize: 18,
+        lineHeight: 29,
+      }}
+      classesStyles={{
+        lead: {
+          color: theme.colors.inkSoft,
+        },
+        ...classes_styles,
+      }}
+      contentWidth={Math.max(
+        Math.min(width - READER_HORIZONTAL_PADDING * 2, READER_COLUMN_MAX_WIDTH),
+        0,
+      )}
+      customHTMLElementModels={custom_element_models}
+      domVisitors={dom_visitors}
+      enableExperimentalMarginCollapsing
+      ignoredDomTags={READER_IGNORED_DOM_TAGS}
+      renderers={renderers}
+      renderersProps={{
+        a: {
+          onPress: (_event, href) => {
+            if (href) {
+              open_external_url(href);
+            }
+          },
+        },
+      }}
+      source={{
+        html,
+      }}
+      tagsStyles={{
+        a: {
+          color: theme.colors.accentStrong,
+          textDecorationLine: 'none',
+        },
+        blockquote: {
+          borderLeftColor: theme.colors.line,
+          borderLeftWidth: 3,
+          color: theme.colors.inkSoft,
+          marginLeft: 0,
+          paddingLeft: 16,
+        },
+        body: {
+          color: theme.colors.ink,
+          fontSize: 18,
+          lineHeight: 29,
+        },
+        h1: {
+          color: theme.colors.ink,
+          fontFamily: 'Newsreader_600SemiBold',
+          fontSize: 30,
+          lineHeight: 36,
+        },
+        h2: {
+          color: theme.colors.ink,
+          fontFamily: 'Newsreader_600SemiBold',
+          fontSize: 26,
+          lineHeight: 32,
+        },
+        h3: {
+          color: theme.colors.ink,
+          fontFamily: 'Newsreader_600SemiBold',
+          fontSize: 22,
+          lineHeight: 28,
+        },
+        li: {
+          color: theme.colors.ink,
+          lineHeight: 29,
+        },
+        p: {
+          color: theme.colors.ink,
+          marginBottom: READER_PARAGRAPH_SPACING,
+          marginTop: 0,
+        },
+        pre: {
+          backgroundColor: theme.colors.badge,
+          borderColor: theme.colors.line,
+          borderRadius: 16,
+          borderWidth: 1,
+          color: theme.colors.ink,
+          padding: 16,
+        },
+        ul: {
+          color: theme.colors.ink,
+        },
+        ol: {
+          color: theme.colors.ink,
+        },
+      }}
+    />
+  );
+}
+
+function RecapQuoteRenderer({
+  bookmarked_quote_url_set,
+  bookmarking_quote_url = '',
+  onBookmarkPress,
+  theme,
+  ...props
+}) {
+  const tchildren_props = useTNodeChildrenProps(props);
+  const bookmark_url = normalize_http_url(
+    props?.tnode?.attributes?.['data-bookmark-url'],
+  );
+  const is_bookmarked = bookmark_url
+    ? bookmarked_quote_url_set.has(bookmark_url)
+    : false;
+  const is_loading =
+    bookmark_url && bookmark_url === bookmarking_quote_url;
+  const label = is_bookmarked
+    ? 'Bookmarked'
+    : is_loading
+      ? 'Saving...'
+      : 'Bookmark';
+
+  return (
+    <View style={styles.recapQuoteRow}>
+      <View style={styles.recapQuoteMain}>
+        <TNodeChildrenRenderer {...tchildren_props} />
+      </View>
+      {bookmark_url ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={is_bookmarked || is_loading}
+          onPress={() => onBookmarkPress(bookmark_url)}
+          style={({ pressed }) => {
+            return [
+              styles.recapQuoteButton,
+              {
+                backgroundColor: theme.colors.badge,
+                borderColor: theme.colors.line,
+                opacity: is_bookmarked || is_loading ? 0.72 : pressed ? 0.84 : 1,
+              },
+            ];
+          }}
+        >
+          <Text
+            style={[
+              styles.recapQuoteButtonLabel,
+              {
+                color: is_bookmarked
+                  ? theme.colors.accentStrong
+                  : theme.colors.inkSoft,
+              },
+            ]}
+          >
+            {label}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function RecapEmailSettingsCard({
+  is_enabled = false,
+  is_loading = false,
+  is_saving = false,
+  onSelectDay,
+  onToggleEnabled,
+  selected_day = '',
+  theme,
+}) {
+  return (
+    <View
+      style={[
+        styles.recapSettingsCard,
+        {
+          backgroundColor: theme.colors.badge,
+          borderColor: theme.colors.line,
+        },
+      ]}
+    >
+      <View style={styles.recapSettingsHeader}>
+        <View style={styles.recapSettingsCopy}>
+          <Text style={[styles.recapSettingsTitle, { color: theme.colors.ink }]}>
+            Weekly email
+          </Text>
+          <Text style={[styles.recapSettingsBody, { color: theme.colors.inkSoft }]}>
+            Send Reading Recap in weekly email on:
+          </Text>
+        </View>
+        {is_loading || is_saving ? (
+          <ActivityIndicator
+            color={theme.colors.accentStrong}
+            size="small"
+          />
+        ) : null}
+        <Switch
+          disabled={is_loading || is_saving}
+          onValueChange={onToggleEnabled}
+          thumbColor={theme.colors.white}
+          trackColor={{
+            false: theme.colors.line,
+            true: theme.colors.accentStrong,
+          }}
+          value={is_enabled}
+        />
+      </View>
+
+      <View style={styles.recapDayWrap}>
+        {RECAP_EMAIL_DAYS.map((dayofweek) => {
+          return (
+            <RecapDayChip
+              dayofweek={dayofweek}
+              disabled={!is_enabled || is_loading || is_saving}
+              is_selected={selected_day === dayofweek}
+              key={dayofweek}
+              onPress={() => onSelectDay(dayofweek)}
+              theme={theme}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function RecapDayChip({
+  dayofweek = '',
+  disabled = false,
+  is_selected = false,
+  onPress,
+  theme,
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => {
+        return [
+          styles.recapDayChip,
+          {
+            backgroundColor: is_selected
+              ? theme.colors.accent
+              : theme.colors.paper,
+            borderColor: is_selected ? theme.colors.accent : theme.colors.line,
+            opacity: disabled ? 0.48 : pressed ? 0.84 : 1,
+          },
+        ];
+      }}
+    >
+      <Text
+        style={[
+          styles.recapDayChipLabel,
+          {
+            color: is_selected ? theme.colors.white : theme.colors.inkSoft,
+          },
+        ]}
+      >
+        {dayofweek.slice(0, 3)}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -359,11 +755,7 @@ function MetaLink({ color, label, onPress, style }) {
   }
 
   if (!onPress) {
-    return (
-      <Text style={[style, { color }]}>
-        {label}
-      </Text>
-    );
+    return <Text style={[style, { color }]}>{label}</Text>;
   } else {
     return (
       <Pressable
@@ -371,15 +763,34 @@ function MetaLink({ color, label, onPress, style }) {
         hitSlop={6}
         onPress={onPress}
       >
-        <Text style={[style, { color }]}>
-          {label}
-        </Text>
+        <Text style={[style, { color }]}>{label}</Text>
       </Pressable>
     );
   }
 }
 
-function UnavailableBodyCard({ can_open_original = false, on_open_original, theme }) {
+function UnavailableScreen({ body = '', theme, title = '' }) {
+  return (
+    <View style={styles.unavailableScreen}>
+      <View style={styles.unavailableCopy}>
+        <Text style={[styles.unavailableTitle, { color: theme.colors.ink }]}>
+          {title}
+        </Text>
+        <Text style={[styles.unavailableBody, { color: theme.colors.inkSoft }]}>
+          {body}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function UnavailableBodyCard({
+  body = '',
+  can_open_original = false,
+  on_open_original,
+  theme,
+  title = '',
+}) {
   return (
     <View
       style={[
@@ -392,10 +803,10 @@ function UnavailableBodyCard({ can_open_original = false, on_open_original, them
     >
       <View style={styles.unavailableCopy}>
         <Text style={[styles.unavailableTitle, { color: theme.colors.ink }]}>
-          No readable preview yet.
+          {title}
         </Text>
         <Text style={[styles.unavailableBody, { color: theme.colors.inkSoft }]}>
-          This item doesn&apos;t include readable body content in the current timeline payload.
+          {body}
         </Text>
       </View>
 
@@ -497,9 +908,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   masthead: {
+    borderBottomWidth: 1,
     paddingBottom: 24,
     paddingTop: Platform.OS === 'ios' ? 0 : 10,
-    borderBottomWidth: 1,
   },
   feedHeaderRow: {
     alignItems: 'center',
@@ -511,8 +922,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   feedTitleRow: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
   },
   sourceLabel: {
     fontSize: 18,
@@ -545,8 +956,96 @@ const styles = StyleSheet.create({
   titleWrap: {
     marginTop: READER_TITLE_TOP_MARGIN,
   },
+  titleWrapCompact: {
+    marginTop: 8,
+  },
+  recapEyebrow: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  recapBody: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginTop: 10,
+    maxWidth: 420,
+  },
   bodySection: {
     paddingTop: Platform.OS === 'ios' ? 20 : 24,
+  },
+  recapSettingsCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 16,
+    marginBottom: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+  },
+  recapSettingsHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  recapSettingsCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  recapSettingsTitle: {
+    fontFamily: 'Newsreader_600SemiBold',
+    fontSize: 24,
+    lineHeight: 28,
+  },
+  recapSettingsBody: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  recapDayWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  recapDayChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    minWidth: 54,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  recapDayChipLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+  recapBookmarkError: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  recapQuoteRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  recapQuoteMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  recapQuoteButton: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 34,
+    paddingHorizontal: 12,
+  },
+  recapQuoteButtonLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
   },
   headerAction: {
     paddingHorizontal: 2,
@@ -563,8 +1062,8 @@ const styles = StyleSheet.create({
   },
   unavailableScreen: {
     maxWidth: READER_COLUMN_MAX_WIDTH,
-    width: '100%',
     paddingTop: 40,
+    width: '100%',
   },
   unavailableCopy: {
     gap: 8,
@@ -623,6 +1122,30 @@ function create_reader_body_html(entry = null) {
   return '';
 }
 
+function decorate_recap_html(markup = '') {
+  const trimmed_markup = `${markup || ''}`.trim();
+
+  if (!trimmed_markup) {
+    return '';
+  }
+
+  return trimmed_markup.replace(
+    /<p>(\s*💬\s*Quoting from\s*<a[\s\S]*?<\/a>)<\/p>/gi,
+    (_match, quote_markup) => {
+      const href_match =
+        quote_markup.match(/\shref\s*=\s*(['"])(.*?)\1/i) ||
+        quote_markup.match(/\shref\s*=\s*([^\s>"']+)/i);
+      const raw_url = href_match?.[2] || href_match?.[1] || '';
+      const bookmark_url = normalize_http_url(raw_url);
+      const bookmark_attribute = bookmark_url
+        ? ` data-bookmark-url="${escape_html_attribute(bookmark_url)}"`
+        : '';
+
+      return `<recap-quote${bookmark_attribute}><p>${quote_markup}</p></recap-quote>`;
+    },
+  );
+}
+
 function sanitize_reader_html(markup = '') {
   const trimmed_markup = `${markup || ''}`.trim();
 
@@ -631,27 +1154,294 @@ function sanitize_reader_html(markup = '') {
   }
 
   return trimmed_markup
-    .replace(/<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta)\b[^>]*>[\s\S]*?<\s*\/\s*\1>/gi, '')
-    .replace(/<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta)\b[^>]*\/?>/gi, '')
+    .replace(
+      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta)\b[^>]*>[\s\S]*?<\s*\/\s*\1>/gi,
+      '',
+    )
+    .replace(
+      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta)\b[^>]*\/?>/gi,
+      '',
+    )
     .replace(/\son[a-z]+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi, '')
-    .replace(/\s(href|src)\s*=\s*(['"])(.*?)\2/gi, (_match, attribute_name, quote, raw_url) => {
-      const safe_url = normalize_http_url(raw_url);
+    .replace(
+      /\s(href|src)\s*=\s*(['"])(.*?)\2/gi,
+      (_match, attribute_name, quote, raw_url) => {
+        const safe_url = normalize_http_url(raw_url);
 
-      if (!safe_url) {
-        return '';
+        if (!safe_url) {
+          return '';
+        }
+
+        return ` ${attribute_name}=${quote}${safe_url}${quote}`;
+      },
+    )
+    .replace(
+      /\s(href|src)\s*=\s*([^\s>"']+)/gi,
+      (_match, attribute_name, raw_url) => {
+        const safe_url = normalize_http_url(raw_url);
+
+        if (!safe_url) {
+          return '';
+        }
+
+        return ` ${attribute_name}="${safe_url}"`;
+      },
+    );
+}
+
+function resolve_detail_mode(raw_mode = '') {
+  const normalized_mode = `${raw_mode || ''}`.trim().toLowerCase();
+
+  if (normalized_mode === 'recap') {
+    return 'recap';
+  } else {
+    return 'entry';
+  }
+}
+
+function build_recap_classes_styles(theme) {
+  return {
+    'reading-recap': {
+      borderRadius: 18,
+      marginBottom: 24,
+      paddingHorizontal: 18,
+      paddingVertical: 16,
+    },
+    'reading-header': {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 16,
+      marginTop: 2,
+    },
+    topics: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
+    'recap-topic': {
+      borderRadius: 999,
+      color: theme.colors.inkSoft,
+      fontSize: 11,
+      fontWeight: '700',
+      lineHeight: 14,
+      overflow: 'hidden',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    'reading-recap-photos': {
+      marginBottom: 24,
+      marginTop: 24,
+    },
+  };
+}
+
+function create_recap_dom_visitors(theme) {
+  return {
+    onElement(element) {
+      if (!element || !element.attribs) {
+        return;
       }
 
-      return ` ${attribute_name}=${quote}${safe_url}${quote}`;
-    })
-    .replace(/\s(href|src)\s*=\s*([^\s>"']+)/gi, (_match, attribute_name, raw_url) => {
-      const safe_url = normalize_http_url(raw_url);
+      if (has_dom_class_name(element, 'reading-recap')) {
+        const recap_colors = resolve_recap_colors(element.attribs, theme);
 
-      if (!safe_url) {
-        return '';
+        if (recap_colors.background_color) {
+          append_dom_style(
+            element,
+            `background-color: ${recap_colors.background_color};`,
+          );
+        }
       }
 
-      return ` ${attribute_name}="${safe_url}"`;
-    });
+      if (is_recap_topic_element(element)) {
+        const recap_element = find_dom_ancestor_by_class(
+          element,
+          'reading-recap',
+        );
+        const recap_colors = resolve_recap_colors(
+          recap_element?.attribs,
+          theme,
+        );
+
+        append_dom_class(element, 'recap-topic');
+
+        if (recap_colors.topics_background_color) {
+          append_dom_style(
+            element,
+            `background-color: ${recap_colors.topics_background_color};`,
+          );
+        }
+      }
+
+      if (
+        element.name === 'blockquote' &&
+        find_dom_ancestor_by_class(element, 'reading-recap')
+      ) {
+        const recap_element = find_dom_ancestor_by_class(
+          element,
+          'reading-recap',
+        );
+        const recap_colors = resolve_recap_colors(
+          recap_element?.attribs,
+          theme,
+        );
+
+        if (recap_colors.blockquote_background_color) {
+          append_dom_style(
+            element,
+            `background-color: ${recap_colors.blockquote_background_color};`,
+          );
+        }
+
+        if (recap_colors.blockquote_border_color) {
+          append_dom_style(
+            element,
+            `border-left-color: ${recap_colors.blockquote_border_color}; border-left-width: 3px;`,
+          );
+        }
+      }
+
+      if (
+        element.name === 'img' &&
+        find_dom_ancestor_by_class(element, 'reading-recap')
+      ) {
+        if (element.parent?.name === 'h2') {
+          append_dom_style(
+            element,
+            'border-radius: 999px; height: 20px; width: 20px;',
+          );
+        } else {
+          append_dom_style(element, 'border-radius: 5px;');
+        }
+      }
+    },
+  };
+}
+
+function resolve_recap_colors(attribs = {}, theme) {
+  const light_color = normalize_recap_color(attribs?.['data-color-light']);
+  const dark_color = normalize_recap_color(
+    attribs?.['data-color-dark'] || attribs?.['data-color-right'],
+  );
+  const recap_base_color = theme.isDark
+    ? dark_color || light_color
+    : light_color || dark_color;
+
+  return {
+    background_color: with_recap_color_opacity(recap_base_color, '80'),
+    blockquote_background_color: with_recap_color_opacity(
+      recap_base_color,
+      '99',
+    ),
+    blockquote_border_color: with_recap_color_opacity(
+      recap_base_color,
+      'ff',
+    ),
+    topics_background_color: with_recap_color_opacity(
+      recap_base_color,
+      'e6',
+    ),
+  };
+}
+
+function has_dom_class_name(element, class_name = '') {
+  const class_names = `${element?.attribs?.class || ''}`
+    .split(/\s+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return class_names.includes(class_name);
+}
+
+function find_dom_ancestor_by_class(element, class_name = '') {
+  let current_element = element?.parent || null;
+
+  while (current_element) {
+    if (has_dom_class_name(current_element, class_name)) {
+      return current_element;
+    }
+
+    current_element = current_element.parent || null;
+  }
+
+  return null;
+}
+
+function is_recap_topic_element(element) {
+  if (element?.name !== 'span') {
+    return false;
+  }
+
+  return has_dom_class_name(element.parent, 'topics');
+}
+
+function append_dom_class(element, class_name = '') {
+  const existing_class_name = `${element?.attribs?.class || ''}`.trim();
+
+  if (!class_name || has_dom_class_name(element, class_name)) {
+    return;
+  }
+
+  if (existing_class_name) {
+    element.attribs.class = `${existing_class_name} ${class_name}`;
+  } else {
+    element.attribs.class = class_name;
+  }
+}
+
+function append_dom_style(element, next_style = '') {
+  const trimmed_next_style = `${next_style || ''}`.trim();
+
+  if (!trimmed_next_style) {
+    return;
+  }
+
+  const existing_style = `${element?.attribs?.style || ''}`.trim();
+
+  if (!existing_style) {
+    element.attribs.style = trimmed_next_style;
+  } else if (existing_style.endsWith(';')) {
+    element.attribs.style = `${existing_style} ${trimmed_next_style}`;
+  } else {
+    element.attribs.style = `${existing_style}; ${trimmed_next_style}`;
+  }
+}
+
+function normalize_recap_color(raw_color = '') {
+  const normalized_color = `${raw_color || ''}`.trim();
+
+  if (!/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalized_color)) {
+    return '';
+  }
+
+  const hex = normalized_color.slice(1);
+
+  if (hex.length === 3 || hex.length === 4) {
+    return `#${[...hex]
+      .map((character) => `${character}${character}`)
+      .join('')}`;
+  } else {
+    return `#${hex}`;
+  }
+}
+
+function with_recap_color_opacity(color_value = '', opacity_hex = '80') {
+  const normalized_color = normalize_recap_color(color_value);
+
+  if (!normalized_color) {
+    return '';
+  }
+
+  const base_color =
+    normalized_color.length === 9 ? normalized_color.slice(0, 7) : normalized_color;
+  const safe_opacity = /^[0-9a-f]{2}$/i.test(`${opacity_hex || ''}`)
+    ? `${opacity_hex}`.toLowerCase()
+    : '80';
+
+  return `${base_color}${safe_opacity}`;
 }
 
 function resolve_reader_title(entry = null) {
@@ -669,7 +1459,8 @@ function resolve_reader_title(entry = null) {
         return '';
       }
 
-      const shared_prefix = title.startsWith(summary) || summary.startsWith(title);
+      const shared_prefix =
+        title.startsWith(summary) || summary.startsWith(title);
       const prefix_length = Math.min(title.length, summary.length);
 
       if (shared_prefix && prefix_length >= 40) {
@@ -705,6 +1496,13 @@ function format_reader_date(raw_date = '') {
     month: 'short',
     year: 'numeric',
   });
+}
+
+function get_recap_summary_copy(count = 0) {
+  const normalized_count = Number.isFinite(count) ? Math.max(count, 0) : 0;
+  const noun = normalized_count === 1 ? 'post' : 'posts';
+
+  return `${normalized_count} older ${noun}, grouped into one recap.`;
 }
 
 function normalize_http_url(raw_url = '') {
@@ -773,4 +1571,8 @@ function escape_html(value = '') {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function escape_html_attribute(value = '') {
+  return escape_html(value);
 }

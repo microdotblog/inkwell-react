@@ -1,11 +1,15 @@
 import { flow, getSnapshot, types } from 'mobx-state-tree';
 
 import {
+  create_micro_blog_bookmark,
+  fetch_recap_email_settings,
   fetch_micro_blog_feed_entries,
   fetch_micro_blog_feed_icons,
   fetch_micro_blog_feed_subscriptions,
   fetch_micro_blog_feed_unread_entry_ids,
   mark_micro_blog_feed_entries_read,
+  summarize_micro_blog_feed_entries,
+  update_recap_email_settings,
 } from '../api/MicroBlogFeeds';
 import Tokens from './Tokens';
 
@@ -34,11 +38,26 @@ const TimelineEntry = types.model('TimelineEntry', {
   age_bucket: types.optional(types.string, 'day-7'),
 });
 
+const RecapSession = types.model('RecapSession', {
+  html: types.optional(types.string, ''),
+  entry_ids: types.optional(types.array(types.string), []),
+  requested_at: types.optional(types.string, ''),
+});
+
 const SEGMENT_BUCKETS = {
   today: ['day-1'],
   recent: ['day-2', 'day-3'],
   fading: ['day-4', 'day-5', 'day-6', 'day-7'],
 };
+const RECAP_EMAIL_DAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
 
 const Feed = types
   .model('Feed', {
@@ -50,10 +69,22 @@ const Feed = types
     is_bootstrapping: types.optional(types.boolean, false),
     has_bootstrapped: types.optional(types.boolean, false),
     error_message: types.maybeNull(types.string),
+    active_recap: types.maybeNull(RecapSession),
+    is_generating_recap: types.optional(types.boolean, false),
+    recap_error_message: types.maybeNull(types.string),
+    recap_email_day: types.optional(types.string, ''),
+    is_loading_recap_email_settings: types.optional(types.boolean, false),
+    is_saving_recap_email_settings: types.optional(types.boolean, false),
+    recap_bookmarked_quote_urls: types.optional(types.array(types.string), []),
+    bookmarking_recap_quote_url: types.maybeNull(types.string),
+    recap_bookmark_error_message: types.maybeNull(types.string),
   })
   .volatile(() => ({
     local_read_entry_ids: new Set(),
     pending_read_sync_entry_ids: new Set(),
+    recap_request_token: 0,
+    recap_email_request_token: 0,
+    recap_bookmark_request_token: 0,
   }))
   .actions((self) => ({
     clear_error() {
@@ -79,6 +110,7 @@ const Feed = types
       self.error_message = null;
       self.clear_local_read_state();
       self.clear_feed_data();
+      self.clear_active_recap();
     },
 
     set_active_segment(segment = 'today') {
@@ -98,6 +130,271 @@ const Feed = types
     set_search_query(search_query = '') {
       self.search_query = `${search_query || ''}`;
     },
+
+    clear_active_recap() {
+      self.recap_request_token += 1;
+      self.recap_email_request_token += 1;
+      self.recap_bookmark_request_token += 1;
+      self.active_recap = null;
+      self.is_generating_recap = false;
+      self.recap_error_message = null;
+      self.recap_email_day = '';
+      self.is_loading_recap_email_settings = false;
+      self.is_saving_recap_email_settings = false;
+      self.recap_bookmarked_quote_urls.replace([]);
+      self.bookmarking_recap_quote_url = null;
+      self.recap_bookmark_error_message = null;
+    },
+
+    open_fading_recap: flow(function* () {
+      if (!self.can_open_fading_recap() || self.is_generating_recap) {
+        return false;
+      }
+
+      const summary_entries = self.visible_timeline_entries();
+      const entry_ids = normalize_unique_entry_ids(
+        summary_entries.map((timeline_entry) => {
+          return timeline_entry?.id;
+        }),
+      );
+
+      if (entry_ids.length === 0) {
+        return false;
+      }
+
+      self.recap_error_message = null;
+      self.recap_bookmark_error_message = null;
+      self.bookmarking_recap_quote_url = null;
+      self.is_generating_recap = true;
+      self.recap_request_token += 1;
+      const request_token = self.recap_request_token;
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          self.recap_error_message =
+            'Your Micro.blog session expired. Please sign in again.';
+          return false;
+        }
+
+        const html = yield summarize_micro_blog_feed_entries({
+          token: user_token,
+          entry_ids,
+        });
+
+        if (self.recap_request_token !== request_token) {
+          return false;
+        }
+
+        const normalized_html = `${html || ''}`.trim();
+
+        if (!normalized_html) {
+          self.recap_error_message =
+            'We could not build a reading recap right now.';
+          return false;
+        }
+
+        self.active_recap = {
+          html: normalized_html,
+          entry_ids,
+          requested_at: new Date().toISOString(),
+        };
+        self.recap_email_request_token += 1;
+        self.recap_bookmark_request_token += 1;
+        self.recap_email_day = '';
+        self.is_loading_recap_email_settings = false;
+        self.is_saving_recap_email_settings = false;
+        self.recap_bookmarked_quote_urls.replace([]);
+        self.bookmarking_recap_quote_url = null;
+        self.recap_bookmark_error_message = null;
+        self.recap_error_message = null;
+        return true;
+      } catch (error) {
+        if (self.recap_request_token === request_token) {
+          self.recap_error_message =
+            'We could not build a reading recap right now.';
+        }
+        return false;
+      } finally {
+        if (self.recap_request_token === request_token) {
+          self.is_generating_recap = false;
+        }
+      }
+    }),
+
+    load_recap_email_settings: flow(function* () {
+      if (!self.active_recap) {
+        return false;
+      }
+
+      const active_recap_requested_at = self.active_recap.requested_at;
+      self.is_loading_recap_email_settings = true;
+      self.recap_email_request_token += 1;
+      const request_token = self.recap_email_request_token;
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return false;
+        }
+
+        const settings = yield fetch_recap_email_settings({
+          token: user_token,
+        });
+
+        if (
+          self.recap_email_request_token !== request_token ||
+          !self.active_recap ||
+          self.active_recap.requested_at !== active_recap_requested_at
+        ) {
+          return false;
+        }
+
+        self.recap_email_day = normalize_recap_email_day(settings?.dayofweek);
+        return true;
+      } catch (error) {
+        if (
+          self.recap_email_request_token === request_token &&
+          self.active_recap &&
+          self.active_recap.requested_at === active_recap_requested_at
+        ) {
+          self.recap_email_day = '';
+        }
+        return false;
+      } finally {
+        if (
+          self.recap_email_request_token === request_token &&
+          self.active_recap &&
+          self.active_recap.requested_at === active_recap_requested_at
+        ) {
+          self.is_loading_recap_email_settings = false;
+        }
+      }
+    }),
+
+    update_recap_email_day: flow(function* (dayofweek = '') {
+      if (!self.active_recap || self.is_saving_recap_email_settings) {
+        return false;
+      }
+
+      const active_recap_requested_at = self.active_recap.requested_at;
+      const normalized_dayofweek = normalize_recap_email_day(dayofweek);
+      const previous_dayofweek = self.recap_email_day;
+
+      self.recap_email_day = normalized_dayofweek;
+      self.is_saving_recap_email_settings = true;
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          self.recap_email_day = previous_dayofweek;
+          return false;
+        }
+
+        const settings = yield update_recap_email_settings({
+          token: user_token,
+          dayofweek: normalized_dayofweek,
+        });
+
+        if (
+          !self.active_recap ||
+          self.active_recap.requested_at !== active_recap_requested_at
+        ) {
+          return false;
+        }
+
+        self.recap_email_day = normalize_recap_email_day(settings?.dayofweek);
+        return true;
+      } catch (error) {
+        if (
+          self.active_recap &&
+          self.active_recap.requested_at === active_recap_requested_at
+        ) {
+          self.recap_email_day = previous_dayofweek;
+        }
+        return false;
+      } finally {
+        if (
+          self.active_recap &&
+          self.active_recap.requested_at === active_recap_requested_at
+        ) {
+          self.is_saving_recap_email_settings = false;
+        }
+      }
+    }),
+
+    bookmark_recap_quote: flow(function* (bookmark_url = '') {
+      const normalized_bookmark_url = normalize_string(bookmark_url);
+
+      if (
+        !self.active_recap ||
+        !normalized_bookmark_url ||
+        self.bookmarking_recap_quote_url === normalized_bookmark_url ||
+        self.is_recap_quote_bookmarked(normalized_bookmark_url)
+      ) {
+        return false;
+      }
+
+      const active_recap_requested_at = self.active_recap.requested_at;
+      self.recap_bookmark_error_message = null;
+      self.bookmarking_recap_quote_url = normalized_bookmark_url;
+      self.recap_bookmark_request_token += 1;
+      const request_token = self.recap_bookmark_request_token;
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          self.recap_bookmark_error_message =
+            'Your Micro.blog session expired. Please sign in again.';
+          return false;
+        }
+
+        yield create_micro_blog_bookmark({
+          token: user_token,
+          bookmark_url: normalized_bookmark_url,
+        });
+
+        if (
+          self.recap_bookmark_request_token !== request_token ||
+          !self.active_recap ||
+          self.active_recap.requested_at !== active_recap_requested_at
+        ) {
+          return false;
+        }
+
+        self.recap_bookmarked_quote_urls.push(normalized_bookmark_url);
+        return true;
+      } catch (error) {
+        if (
+          self.recap_bookmark_request_token === request_token &&
+          self.active_recap &&
+          self.active_recap.requested_at === active_recap_requested_at
+        ) {
+          self.recap_bookmark_error_message =
+            'We could not bookmark that quote right now.';
+        }
+        return false;
+      } finally {
+        if (
+          self.recap_bookmark_request_token === request_token &&
+          self.bookmarking_recap_quote_url === normalized_bookmark_url
+        ) {
+          self.bookmarking_recap_quote_url = null;
+        }
+      }
+    }),
 
     apply_bootstrap_payload(
       subscriptions = [],
@@ -297,6 +594,44 @@ const Feed = types
     }),
   }))
   .views((self) => ({
+    can_open_fading_recap() {
+      if (self.active_segment !== 'fading' || self.is_search_active) {
+        return false;
+      }
+
+      return self.visible_timeline_entries().length > 0;
+    },
+
+    active_recap_snapshot() {
+      if (!self.active_recap) {
+        return null;
+      }
+
+      return getSnapshot(self.active_recap);
+    },
+
+    active_recap_entry_count() {
+      if (!self.active_recap) {
+        return 0;
+      }
+
+      return self.active_recap.entry_ids.length;
+    },
+
+    is_recap_email_enabled() {
+      return Boolean(self.recap_email_day);
+    },
+
+    is_recap_quote_bookmarked(bookmark_url = '') {
+      const normalized_bookmark_url = normalize_string(bookmark_url);
+
+      if (!normalized_bookmark_url) {
+        return false;
+      }
+
+      return self.recap_bookmarked_quote_urls.includes(normalized_bookmark_url);
+    },
+
     visible_timeline_entries() {
       const normalized_search_query = normalize_search_query(self.search_query);
       let timeline_entries = self.timeline_entries;
@@ -368,6 +703,24 @@ function normalize_segment(segment = 'today') {
 
 function normalize_search_query(search_query = '') {
   return `${search_query || ''}`.trim().toLowerCase();
+}
+
+function normalize_recap_email_day(dayofweek = '') {
+  const normalized_dayofweek = `${dayofweek || ''}`.trim().toLowerCase();
+
+  if (!normalized_dayofweek) {
+    return '';
+  }
+
+  const matching_day = RECAP_EMAIL_DAYS.find((day) => {
+    return day.toLowerCase() === normalized_dayofweek;
+  });
+
+  if (matching_day) {
+    return matching_day;
+  } else {
+    return '';
+  }
 }
 
 function timeline_entry_matches_search(

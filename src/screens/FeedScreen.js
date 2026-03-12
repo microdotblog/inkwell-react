@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Keyboard,
   Pressable,
@@ -73,6 +74,8 @@ function FeedScreen({ navigation, isDark = false }) {
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
   const visible_timeline_entries = Feed.visible_timeline_entries();
   const error_message = Feed.error_message;
+  const recap_error_message = Feed.recap_error_message;
+  const is_generating_recap = Feed.is_generating_recap;
   const background_intensity = visible_timeline_entries.length > 0 ? 0.14 : 1;
   const list_top_inset = insets.top + LIST_TOP_PADDING;
   const footer_bottom_inset = insets.bottom + FOOTER_FLOAT_GAP;
@@ -198,6 +201,18 @@ function FeedScreen({ navigation, isDark = false }) {
     } else {
       navigation.navigate('Account');
     }
+  }, [navigation]);
+
+  const handle_recap_press = React.useCallback(async () => {
+    const did_open_recap = await Feed.open_fading_recap();
+
+    if (!did_open_recap) {
+      return;
+    }
+
+    navigation.navigate('FeedItemDetail', {
+      mode: 'recap',
+    });
   }, [navigation]);
 
   const handle_segment_swipe = React.useCallback(
@@ -404,8 +419,11 @@ function FeedScreen({ navigation, isDark = false }) {
             error_message,
             has_any_timeline_entries,
             list_ref,
+            is_generating_recap,
             on_entry_press: handle_entry_press,
+            on_open_recap: handle_recap_press,
             search_query,
+            recap_error_message,
             visible_timeline_entries,
           })}
         </Animated.View>
@@ -525,8 +543,11 @@ function render_content({
   error_message,
   has_any_timeline_entries,
   list_ref,
+  is_generating_recap,
   on_entry_press,
+  on_open_recap,
   search_query,
+  recap_error_message,
   visible_timeline_entries,
 }) {
   if (is_loading_initial) {
@@ -610,6 +631,21 @@ function render_content({
               </View>
             </AuthCard>
           )
+        }
+        ListHeaderComponent={
+          should_show_recap_card({
+            active_segment,
+            is_search_active,
+            visible_timeline_entries,
+          }) ? (
+            <FeedRecapSummaryCard
+              count={visible_timeline_entries.length}
+              error_message={recap_error_message}
+              is_loading={is_generating_recap || is_refreshing}
+              onPress={on_open_recap}
+              theme={theme}
+            />
+          ) : null
         }
         onScroll={on_scroll}
         progressViewOffset={list_top_inset}
@@ -698,6 +734,72 @@ function FeedTimelineRow({ entry, onPress, theme }) {
         ) : null}
       </View>
     </Pressable>
+  );
+}
+
+function FeedRecapSummaryCard({
+  count = 0,
+  error_message = '',
+  is_loading = false,
+  onPress,
+  theme,
+}) {
+  const summary_label = get_recap_summary_label(count);
+
+  return (
+    <View
+      style={[
+        styles.recapCard,
+        {
+          backgroundColor: theme.colors.badge,
+          borderColor: theme.colors.line,
+          shadowColor: theme.colors.shadow,
+        },
+      ]}
+    >
+      <View style={styles.recapCopy}>
+        <Text style={[styles.recapEyebrow, { color: theme.colors.accentStrong }]}>
+          Fading
+        </Text>
+        <Text style={[styles.recapTitle, { color: theme.colors.ink }]}>
+          Reading Recap
+        </Text>
+        <Text style={[styles.recapBody, { color: theme.colors.inkSoft }]}>
+          {summary_label}
+        </Text>
+        {error_message ? (
+          <Text style={[styles.recapError, { color: theme.colors.accentStrong }]}>
+            {error_message}
+          </Text>
+        ) : null}
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        disabled={is_loading}
+        onPress={onPress}
+        style={({ pressed }) => {
+          return [
+            styles.recapButton,
+            {
+              backgroundColor: theme.colors.accent,
+              opacity: is_loading ? 0.72 : pressed ? 0.86 : 1,
+            },
+          ];
+        }}
+      >
+        {is_loading ? (
+          <ActivityIndicator
+            color={theme.colors.white}
+            size="small"
+          />
+        ) : (
+          <Text style={[styles.recapButtonLabel, { color: theme.colors.white }]}>
+            Reading Recap
+          </Text>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -1022,6 +1124,25 @@ function get_empty_state_body(
   }
 }
 
+function should_show_recap_card({
+  active_segment = 'today',
+  is_search_active = false,
+  visible_timeline_entries = [],
+}) {
+  if (active_segment !== 'fading' || is_search_active) {
+    return false;
+  }
+
+  return visible_timeline_entries.length > 0;
+}
+
+function get_recap_summary_label(count = 0) {
+  const normalized_count = Number.isFinite(count) ? Math.max(count, 0) : 0;
+  const noun = normalized_count === 1 ? 'post' : 'posts';
+
+  return `${normalized_count} older ${noun}, grouped`;
+}
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -1204,6 +1325,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
     gap: 14,
+  },
+  recapCard: {
+    borderWidth: 1,
+    borderRadius: 28,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    gap: 18,
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  recapCopy: {
+    gap: 8,
+  },
+  recapEyebrow: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  recapTitle: {
+    fontFamily: 'Newsreader_600SemiBold',
+    fontSize: 30,
+    lineHeight: 34,
+  },
+  recapBody: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  recapError: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  recapButton: {
+    alignSelf: 'flex-start',
+    minHeight: 42,
+    minWidth: 142,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recapButtonLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
   },
   rowHeader: {
     flexDirection: 'row',

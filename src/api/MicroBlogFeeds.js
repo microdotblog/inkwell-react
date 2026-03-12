@@ -2,6 +2,8 @@ import { MICRO_BLOG_AUTH_URL } from './MicroBlogAuth';
 
 const MICRO_BLOG_FEEDS_BASE_URL = new URL(MICRO_BLOG_AUTH_URL).origin;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const RECAP_POLL_DELAY_MS = 5000;
+const RECAP_POLL_MAX_ATTEMPTS = 25;
 const TIMELINE_WINDOW_DAYS = 7;
 
 export function get_micro_blog_feeds_base_url() {
@@ -114,6 +116,176 @@ export async function mark_micro_blog_feed_entries_read({
   }
 }
 
+export async function summarize_micro_blog_feed_entries({
+  token = '',
+  entry_ids = [],
+} = {}) {
+  const normalized_entry_ids = normalize_entry_payload_ids(entry_ids);
+
+  if (normalized_entry_ids.length === 0) {
+    return '';
+  }
+
+  const trimmed_token = `${token || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error('A Micro.blog token is required to summarize feeds.');
+  }
+
+  const url = new URL('/feeds/recap', `${MICRO_BLOG_FEEDS_BASE_URL}/`);
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    Accept: 'text/html',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+
+  for (let attempt = 1; attempt <= RECAP_POLL_MAX_ATTEMPTS; attempt += 1) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(normalized_entry_ids),
+    });
+
+    if (response.status === 202) {
+      if (attempt < RECAP_POLL_MAX_ATTEMPTS) {
+        await delay(RECAP_POLL_DELAY_MS);
+        continue;
+      }
+
+      return '';
+    }
+
+    const response_text = await response.text();
+
+    if (!response.ok) {
+      throw create_request_error(
+        'Feeds recap request failed.',
+        response.status,
+        response_text,
+      );
+    }
+
+    return response_text;
+  }
+
+  return '';
+}
+
+export async function fetch_recap_email_settings({ token = '' } = {}) {
+  const payload = await fetch_micro_blog_feeds_json('/feeds/recap/email', {
+    token,
+  });
+
+  return {
+    dayofweek: `${payload?.dayofweek || ''}`.trim(),
+  };
+}
+
+export async function update_recap_email_settings({
+  token = '',
+  dayofweek = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const normalized_dayofweek = `${dayofweek || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error(
+      'A Micro.blog token is required to update recap email settings.',
+    );
+  }
+
+  const url = new URL('/feeds/recap/email', `${MICRO_BLOG_FEEDS_BASE_URL}/`);
+  const headers = new Headers({
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const body = new URLSearchParams({
+    dayofweek: normalized_dayofweek,
+  });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: body.toString(),
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Feeds recap email settings update failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return {
+      dayofweek: normalized_dayofweek,
+    };
+  }
+
+  try {
+    const payload = JSON.parse(response_text);
+
+    return {
+      dayofweek: `${payload?.dayofweek || normalized_dayofweek}`.trim(),
+    };
+  } catch (error) {
+    return {
+      dayofweek: normalized_dayofweek,
+    };
+  }
+}
+
+export async function create_micro_blog_bookmark({
+  token = '',
+  bookmark_url = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_bookmark_url = `${bookmark_url || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error('A Micro.blog token is required to create bookmarks.');
+  }
+
+  if (!trimmed_bookmark_url) {
+    throw create_request_error('A bookmark URL is required to create a bookmark.');
+  }
+
+  const headers = new Headers({
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const body = new URLSearchParams({
+    'bookmark-of': trimmed_bookmark_url,
+  });
+  const response = await fetch('https://micro.blog/micropub', {
+    method: 'POST',
+    headers,
+    body: body.toString(),
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Micro.blog bookmark request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    return {};
+  }
+}
+
 async function fetch_micro_blog_feeds_json(
   path,
   { token = '', headers: custom_headers, ...options } = {},
@@ -203,6 +375,12 @@ function create_request_error(message, status = null, response_text = '') {
   error.status = status;
   error.response_text = response_text;
   return error;
+}
+
+function delay(duration_ms = 0) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, duration_ms);
+  });
 }
 
 function normalize_entry_payload_ids(entry_ids = []) {
