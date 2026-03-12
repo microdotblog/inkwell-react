@@ -40,13 +40,16 @@ const SEGMENT_OPTIONS = [
 ];
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const SCREEN_HORIZONTAL_PADDING = 20;
-const HEADER_TOP_PADDING = 10;
-const SEGMENT_COLLAPSE_DISTANCE = 74;
+const LIST_TOP_PADDING = 12;
 const SEGMENT_WRAP_MAX_HEIGHT = 50;
 const HEADER_ACCOUNT_BUTTON_SIZE = 40;
 const HEADER_ACCOUNT_GAP = 12;
 const HEADER_ACCOUNT_AVATAR_TRANSITION_MS = 180;
 const LIST_TOP_GAP = 12;
+const FOOTER_FLOAT_GAP = 8;
+const FOOTER_TOP_PADDING = 10;
+const FOOTER_SCROLL_DELTA_THRESHOLD = 6;
+const FOOTER_VISIBILITY_TOP_THRESHOLD = 24;
 const SEGMENT_SWIPE_DISTANCE = 56;
 const SEGMENT_SWIPE_VELOCITY = 620;
 const SEGMENT_SWIPE_NUDGE = 24;
@@ -67,14 +70,20 @@ function FeedScreen({ navigation, isDark = false }) {
   const visible_timeline_entries = Feed.visible_timeline_entries();
   const error_message = Feed.error_message;
   const background_intensity = visible_timeline_entries.length > 0 ? 0.14 : 1;
-  const header_top_inset = insets.top + HEADER_TOP_PADDING;
-  const list_top_inset =
-    header_top_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
+  const list_top_inset = insets.top + LIST_TOP_PADDING;
+  const footer_bottom_inset = insets.bottom + FOOTER_FLOAT_GAP;
+  const list_bottom_inset =
+    footer_bottom_inset +
+    FOOTER_TOP_PADDING +
+    SEGMENT_WRAP_MAX_HEIGHT +
+    LIST_TOP_GAP;
   const list_ref = React.useRef(null);
   const search_input_ref = React.useRef(null);
   const [segment_frames, set_segment_frames] = React.useState({});
   const scroll_y = useSharedValue(0);
+  const previous_scroll_y = useSharedValue(0);
   const swipe_nudge_x = useSharedValue(0);
+  const footer_visibility_progress = useSharedValue(1);
   const active_segment_offset = useSharedValue(0);
   const active_segment_width = useSharedValue(0);
   const is_loading_initial =
@@ -85,7 +94,8 @@ function FeedScreen({ navigation, isDark = false }) {
   const is_refreshing = Feed.is_bootstrapping && has_bootstrapped;
   const scroll_to_top_ref = React.useRef({
     scrollToTop: () => {
-      scroll_y.value = 0;
+      footer_visibility_progress.value = 1;
+      previous_scroll_y.value = scroll_y.value;
       list_ref.current?.scrollToOffset?.({
         animated: true,
         offset: 0,
@@ -97,7 +107,32 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const on_scroll = useAnimatedScrollHandler({
     onScroll: (event) => {
-      scroll_y.value = Math.max(event.contentOffset.y, 0);
+      const next_scroll_y = Math.max(event.contentOffset.y, 0);
+      const scroll_delta = next_scroll_y - previous_scroll_y.value;
+
+      scroll_y.value = next_scroll_y;
+
+      if (is_search_active || next_scroll_y <= FOOTER_VISIBILITY_TOP_THRESHOLD) {
+        if (footer_visibility_progress.value !== 1) {
+          footer_visibility_progress.value = withTiming(1, {
+            duration: 180,
+          });
+        }
+      } else if (scroll_delta >= FOOTER_SCROLL_DELTA_THRESHOLD) {
+        if (footer_visibility_progress.value !== 0) {
+          footer_visibility_progress.value = withTiming(0, {
+            duration: 180,
+          });
+        }
+      } else if (scroll_delta <= -FOOTER_SCROLL_DELTA_THRESHOLD) {
+        if (footer_visibility_progress.value !== 1) {
+          footer_visibility_progress.value = withTiming(1, {
+            duration: 180,
+          });
+        }
+      }
+
+      previous_scroll_y.value = next_scroll_y;
     },
   });
 
@@ -115,6 +150,8 @@ function FeedScreen({ navigation, isDark = false }) {
 
     Feed.show_search();
     scroll_y.value = 0;
+    previous_scroll_y.value = 0;
+    footer_visibility_progress.value = 1;
     list_ref.current?.scrollToOffset?.({
       animated: false,
       offset: 0,
@@ -125,6 +162,8 @@ function FeedScreen({ navigation, isDark = false }) {
     (next_search_query = '') => {
       Feed.set_search_query(next_search_query);
       scroll_y.value = 0;
+      previous_scroll_y.value = 0;
+      footer_visibility_progress.value = 1;
       list_ref.current?.scrollToOffset?.({
         animated: false,
         offset: 0,
@@ -242,9 +281,12 @@ function FeedScreen({ navigation, isDark = false }) {
 
   React.useEffect(() => {
     if (is_search_active) {
+      footer_visibility_progress.value = withTiming(1, {
+        duration: 180,
+      });
       search_input_ref.current?.focus?.();
     }
-  }, [is_search_active]);
+  }, [footer_visibility_progress, is_search_active]);
 
   React.useEffect(() => {
     const active_frame = segment_frames[active_segment];
@@ -277,34 +319,19 @@ function FeedScreen({ navigation, isDark = false }) {
     };
   }, []);
 
-  const segment_wrap_style = useAnimatedStyle(() => {
+  const footer_wrap_style = useAnimatedStyle(() => {
     const segment_nudge_x = -swipe_nudge_x.value;
+    const hidden_footer_offset =
+      footer_bottom_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
 
     return {
-      height: interpolate(
-        scroll_y.value,
-        [0, SEGMENT_COLLAPSE_DISTANCE],
-        [SEGMENT_WRAP_MAX_HEIGHT, 0],
-        Extrapolation.CLAMP,
-      ),
-      marginTop: interpolate(
-        scroll_y.value,
-        [0, SEGMENT_COLLAPSE_DISTANCE],
-        [2, 0],
-        Extrapolation.CLAMP,
-      ),
-      opacity: interpolate(
-        scroll_y.value,
-        [0, SEGMENT_COLLAPSE_DISTANCE * 0.82],
-        [1, 0],
-        Extrapolation.CLAMP,
-      ),
+      opacity: footer_visibility_progress.value,
       transform: [
         {
           translateY: interpolate(
-            scroll_y.value,
-            [0, SEGMENT_COLLAPSE_DISTANCE],
-            [0, -18],
+            footer_visibility_progress.value,
+            [0, 1],
+            [hidden_footer_offset, 0],
             Extrapolation.CLAMP,
           ),
         },
@@ -313,7 +340,31 @@ function FeedScreen({ navigation, isDark = false }) {
         },
       ],
     };
-  }, []);
+  }, [footer_bottom_inset]);
+
+  const footer_backdrop_style = useAnimatedStyle(() => {
+    const hidden_footer_offset =
+      footer_bottom_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
+
+    return {
+      opacity: interpolate(
+        footer_visibility_progress.value,
+        [0, 1],
+        [0, 1],
+        Extrapolation.CLAMP,
+      ),
+      transform: [
+        {
+          translateY: interpolate(
+            footer_visibility_progress.value,
+            [0, 1],
+            [hidden_footer_offset * 0.75, 0],
+            Extrapolation.CLAMP,
+          ),
+        },
+      ],
+    };
+  }, [footer_bottom_inset]);
 
   const active_segment_style = useAnimatedStyle(() => {
     const segment_nudge_x = -swipe_nudge_x.value;
@@ -340,6 +391,7 @@ function FeedScreen({ navigation, isDark = false }) {
           {render_content({
             active_segment,
             is_search_active,
+            list_bottom_inset,
             list_top_inset,
             on_scroll,
             theme,
@@ -354,9 +406,27 @@ function FeedScreen({ navigation, isDark = false }) {
           })}
         </Animated.View>
       </GestureDetector>
-      <View pointerEvents="box-none" style={styles.headerOverlay}>
-        <View style={[styles.header, { paddingTop: header_top_inset }]}>
-          <Animated.View style={[styles.segmentWrap, segment_wrap_style]}>
+      <View pointerEvents="box-none" style={styles.footerOverlay}>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.footerBackdrop,
+            {
+              backgroundColor: resolve_footer_backdrop_color(isDark),
+            },
+            footer_backdrop_style,
+          ]}
+        />
+        <View
+          style={[
+            styles.footer,
+            {
+              paddingBottom: footer_bottom_inset,
+              paddingTop: FOOTER_TOP_PADDING,
+            },
+          ]}
+        >
+          <Animated.View style={[styles.footerWrap, footer_wrap_style]}>
             <View style={styles.headerControlsRow}>
               <AccountHeaderButton
                 onPress={handle_account_press}
@@ -442,6 +512,7 @@ function FeedScreen({ navigation, isDark = false }) {
 function render_content({
   active_segment,
   is_search_active,
+  list_bottom_inset,
   list_top_inset,
   on_scroll,
   theme,
@@ -460,6 +531,7 @@ function render_content({
         style={[
           styles.stateScreen,
           {
+            paddingBottom: list_bottom_inset,
             paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
             paddingTop: list_top_inset,
           },
@@ -483,6 +555,7 @@ function render_content({
         contentContainerStyle={[
           styles.listContent,
           {
+            paddingBottom: list_bottom_inset,
             paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
             paddingTop: list_top_inset,
           },
@@ -955,23 +1028,28 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
-  headerOverlay: {
+  footerOverlay: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
     zIndex: 2,
   },
-  header: {
+  footer: {
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
+  },
+  footerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   headerControlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: HEADER_ACCOUNT_GAP,
   },
-  segmentWrap: {
-    overflow: 'hidden',
+  footerWrap: {
+    marginBottom: 0,
   },
   accountButton: {
     width: HEADER_ACCOUNT_BUTTON_SIZE,
@@ -1110,7 +1188,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   listContent: {
-    paddingBottom: 104,
     gap: 14,
   },
   listContentEmpty: {
@@ -1188,4 +1265,12 @@ export default observer(FeedScreen);
 function clamp_swipe_nudge(value = 0) {
   'worklet';
   return Math.max(Math.min(value, SEGMENT_SWIPE_NUDGE), -SEGMENT_SWIPE_NUDGE);
+}
+
+function resolve_footer_backdrop_color(is_dark = false) {
+  if (is_dark) {
+    return 'rgba(17, 24, 33, 0.76)';
+  } else {
+    return 'rgba(246, 241, 230, 0.82)';
+  }
 }
