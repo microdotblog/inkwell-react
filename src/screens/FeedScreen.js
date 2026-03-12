@@ -2,10 +2,12 @@ import React from 'react';
 import {
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useScrollToTop } from '@react-navigation/native';
 import { observer } from 'mobx-react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -36,18 +38,37 @@ function FeedScreen({ isDark = false }) {
   const theme = getAuthTheme(isDark);
   const active_segment = Feed.active_segment;
   const has_bootstrapped = Feed.has_bootstrapped;
+  const has_any_timeline_entries = Feed.timeline_entries.length > 0;
   const visible_timeline_entries = Feed.visible_timeline_entries();
   const error_message = Feed.error_message;
+  const list_ref = React.useRef(null);
   const scroll_y = useSharedValue(0);
   const is_loading_initial =
     (Feed.is_bootstrapping && visible_timeline_entries.length === 0) ||
     (!has_bootstrapped && !error_message && visible_timeline_entries.length === 0);
+  const is_refreshing = Feed.is_bootstrapping && has_bootstrapped;
+  const scroll_to_top_ref = React.useRef({
+    scrollToTop: () => {
+      scroll_y.value = 0;
+      list_ref.current?.scrollToOffset?.({
+        animated: true,
+        offset: 0,
+      });
+    },
+  });
+
+  useScrollToTop(scroll_to_top_ref);
 
   const on_scroll = useAnimatedScrollHandler({
     onScroll: (event) => {
       scroll_y.value = Math.max(event.contentOffset.y, 0);
     },
   });
+
+  const handle_segment_press = (segment) => {
+    Feed.set_active_segment(segment);
+    scroll_to_top_ref.current.scrollToTop();
+  };
 
   const segment_wrap_style = useAnimatedStyle(() => {
     return {
@@ -106,7 +127,7 @@ function FeedScreen({ isDark = false }) {
                     accessibilityRole="button"
                     accessibilityState={{ selected: is_active }}
                     key={option.key}
-                    onPress={() => Feed.set_active_segment(option.key)}
+                    onPress={() => handle_segment_press(option.key)}
                     style={[
                       styles.segmentButton,
                       is_active
@@ -139,7 +160,10 @@ function FeedScreen({ isDark = false }) {
             on_scroll,
             theme,
             is_loading_initial,
+            is_refreshing,
             error_message,
+            has_any_timeline_entries,
+            list_ref,
             visible_timeline_entries,
           })}
         </View>
@@ -153,7 +177,10 @@ function render_content({
   on_scroll,
   theme,
   is_loading_initial,
+  is_refreshing,
   error_message,
+  has_any_timeline_entries,
+  list_ref,
   visible_timeline_entries,
 }) {
   if (is_loading_initial) {
@@ -168,36 +195,51 @@ function render_content({
         />
       </AuthCard>
     );
-  } else if (error_message) {
-    return (
-      <AuthCard style={styles.stateCard} theme={theme}>
-        <View style={styles.stateCopy}>
-          <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>Couldn't load your feed</Text>
-          <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>{error_message}</Text>
-        </View>
-        <PrimaryButton label="Try again" onPress={Feed.retry_bootstrap} theme={theme} />
-      </AuthCard>
-    );
-  } else if (visible_timeline_entries.length === 0) {
-    return (
-      <AuthCard style={styles.stateCard} theme={theme}>
-        <View style={styles.stateCopy}>
-          <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
-            {get_empty_state_title(active_segment)}
-          </Text>
-          <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
-            {get_empty_state_body(active_segment)}
-          </Text>
-        </View>
-      </AuthCard>
-    );
   } else {
     return (
       <AnimatedFlatList
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          visible_timeline_entries.length === 0 ? styles.listContentEmpty : null,
+        ]}
         data={visible_timeline_entries}
         keyExtractor={item => item.id}
+        ListEmptyComponent={
+          error_message && !has_any_timeline_entries ? (
+            <AuthCard style={styles.stateCard} theme={theme}>
+              <View style={styles.stateCopy}>
+                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                  Couldn't load your feed
+                </Text>
+                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                  {error_message}
+                </Text>
+              </View>
+              <PrimaryButton label="Try again" onPress={Feed.retry_bootstrap} theme={theme} />
+            </AuthCard>
+          ) : (
+            <AuthCard style={styles.stateCard} theme={theme}>
+              <View style={styles.stateCopy}>
+                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                  {get_empty_state_title(active_segment)}
+                </Text>
+                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                  {get_empty_state_body(active_segment)}
+                </Text>
+              </View>
+            </AuthCard>
+          )
+        }
         onScroll={on_scroll}
+        ref={list_ref}
+        refreshControl={
+          <RefreshControl
+            colors={[theme.colors.accentStrong]}
+            onRefresh={Feed.retry_bootstrap}
+            refreshing={is_refreshing}
+            tintColor={theme.colors.accentStrong}
+          />
+        }
         renderItem={({ item }) => {
           return <FeedTimelineRow entry={item} theme={theme} />;
         }}
@@ -401,6 +443,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 104,
     gap: 14,
+  },
+  listContentEmpty: {
+    flexGrow: 1,
   },
   rowCard: {
     borderWidth: 1,

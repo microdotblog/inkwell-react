@@ -1,4 +1,4 @@
-import { flow, types } from 'mobx-state-tree';
+import { flow, getSnapshot, types } from 'mobx-state-tree';
 
 import {
   fetch_micro_blog_feed_entries,
@@ -110,7 +110,6 @@ const Feed = types
         self.has_bootstrapped = true;
         return true;
       } catch (error) {
-        self.clear_feed_data();
         self.has_bootstrapped = true;
 
         if (error?.status === 401 || error?.status === 403) {
@@ -132,12 +131,16 @@ const Feed = types
   .views(self => ({
     visible_timeline_entries() {
       const segment_buckets = SEGMENT_BUCKETS[self.active_segment];
-      if (!segment_buckets) {
-        return self.timeline_entries.slice();
-      }
+      const timeline_entries = !segment_buckets
+        ? self.timeline_entries
+        : self.timeline_entries.filter(timeline_entry => {
+            return segment_buckets.includes(timeline_entry.age_bucket);
+          });
 
-      return self.timeline_entries.filter(timeline_entry => {
-        return segment_buckets.includes(timeline_entry.age_bucket);
+      // FlatList can temporarily hold onto older items while a refresh replaces the MST array.
+      // Returning snapshots here prevents the UI from reading dead model nodes between renders.
+      return timeline_entries.map(timeline_entry => {
+        return getSnapshot(timeline_entry);
       });
     },
   }))
