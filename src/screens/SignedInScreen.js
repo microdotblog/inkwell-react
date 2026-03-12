@@ -27,10 +27,10 @@ function SignedInScreen({ isDark = false }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.hero}>
-            <Text style={[styles.eyebrow, { color: theme.colors.accentStrong }]}>Session ready</Text>
-            <Text style={[styles.title, { color: theme.colors.ink }]}>You're signed in.</Text>
+            <Text style={[styles.eyebrow, { color: theme.colors.accentStrong }]}>Account</Text>
+            <Text style={[styles.title, { color: theme.colors.ink }]}>Signed in with Micro.blog.</Text>
             <Text style={[styles.body, { color: theme.colors.inkSoft }]}>
-              Inkwell now has the Micro.blog token it needs for the next reader features.
+              Your reader is connected and ready to keep syncing with this account.
             </Text>
           </View>
 

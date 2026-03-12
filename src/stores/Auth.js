@@ -18,6 +18,7 @@ const Auth = types
   .model('Auth', {
     is_hydrating: types.optional(types.boolean, false),
     is_signing_in: types.optional(types.boolean, false),
+    loading_phase: types.optional(types.string, 'idle'),
     error_message: types.maybeNull(types.string),
     profile_name: types.maybeNull(types.string),
     profile_url: types.maybeNull(types.string),
@@ -34,6 +35,16 @@ const Auth = types
 
     set_error(message = null) {
       self.error_message = message;
+    },
+
+    set_loading_phase(phase = 'idle') {
+      const trimmed_phase = `${phase || ''}`.trim();
+
+      if (trimmed_phase === 'connecting' || trimmed_phase === 'verifying') {
+        self.loading_phase = trimmed_phase;
+      } else {
+        self.loading_phase = 'idle';
+      }
     },
 
     clear_session_data() {
@@ -75,6 +86,7 @@ const Auth = types
 
         const initial_url = yield Linking.getInitialURL();
         if (self.can_handle_auth_callback(initial_url) && Tokens.has_pending_oauth_state()) {
+          self.set_loading_phase('verifying');
           yield self.complete_sign_in_callback(initial_url);
           self.is_hydrating = false;
           return;
@@ -88,6 +100,7 @@ const Auth = types
         }
 
         try {
+          self.set_loading_phase('verifying');
           const verify_payload = yield verify_micro_blog_token(stored_token);
           self.apply_session_payloads(null, verify_payload);
         } catch (error) {
@@ -97,6 +110,7 @@ const Auth = types
         }
       } finally {
         self.is_hydrating = false;
+        self.set_loading_phase();
       }
     }),
 
@@ -107,6 +121,7 @@ const Auth = types
 
       self.clear_error();
       self.is_signing_in = true;
+      self.set_loading_phase('connecting');
 
       try {
         yield Tokens.hydrate();
@@ -145,11 +160,12 @@ const Auth = types
         self.set_error('We could not open Micro.blog sign in. Please try again.');
         return false;
       } finally {
-        self.is_signing_in = false;
+        self.finish_sign_in();
       }
     }),
 
     complete_sign_in_callback: flow(function* (raw_url = '') {
+      self.set_loading_phase('verifying');
       const { code, state } = extract_micro_blog_callback_params(raw_url);
       const expected_state = Tokens.get_pending_oauth_state();
 
@@ -193,6 +209,10 @@ const Auth = types
         self.clear_session_data();
         self.set_error('We could not finish signing you in. Please try again.');
         return false;
+      } finally {
+        if (!self.is_hydrating) {
+          self.set_loading_phase();
+        }
       }
     }),
 
@@ -200,13 +220,20 @@ const Auth = types
       yield Tokens.clear_all();
       self.clear_session_data();
       self.set_error(message);
+      self.set_loading_phase();
     }),
 
     sign_out: flow(function* () {
       yield Tokens.clear_all();
       self.clear_session_data();
       self.clear_error();
+      self.set_loading_phase();
     }),
+
+    finish_sign_in() {
+      self.is_signing_in = false;
+      self.set_loading_phase();
+    },
   }))
   .views(self => ({
     is_loading() {
