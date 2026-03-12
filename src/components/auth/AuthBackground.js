@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing,
@@ -10,10 +10,18 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-export default function AuthBackground({ theme }) {
+export default function AuthBackground({ theme, intensity = 1 }) {
+  const backgroundOpacity = useSharedValue(intensity);
   const glowShift = useSharedValue(0);
   const topShift = useSharedValue(0);
   const bottomShift = useSharedValue(0);
+
+  React.useEffect(() => {
+    backgroundOpacity.value = withTiming(intensity, {
+      duration: 380,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [backgroundOpacity, intensity]);
 
   React.useEffect(() => {
     glowShift.value = withRepeat(
@@ -92,8 +100,14 @@ export default function AuthBackground({ theme }) {
     };
   }, []);
 
+  const containerStyle = useAnimatedStyle(() => {
+    return {
+      opacity: backgroundOpacity.value,
+    };
+  }, []);
+
   return (
-    <View pointerEvents="none" style={styles.container}>
+    <Animated.View pointerEvents="none" style={[styles.container, containerStyle]}>
       <LinearGradient
         colors={theme.gradients.background}
         start={{ x: 0, y: 0 }}
@@ -124,7 +138,7 @@ export default function AuthBackground({ theme }) {
           style={styles.orbFill}
         />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 

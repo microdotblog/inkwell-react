@@ -41,6 +41,7 @@ function FeedScreen({ isDark = false }) {
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
   const visible_timeline_entries = Feed.visible_timeline_entries();
   const error_message = Feed.error_message;
+  const background_intensity = visible_timeline_entries.length > 0 ? 0.14 : 1;
   const list_ref = React.useRef(null);
   const scroll_y = useSharedValue(0);
   const is_loading_initial =
@@ -105,7 +106,7 @@ function FeedScreen({ isDark = false }) {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
-      <AuthBackground theme={theme} />
+      <AuthBackground intensity={background_intensity} theme={theme} />
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.header}>
           <Animated.View style={[styles.segmentWrap, segment_wrap_style]}>
