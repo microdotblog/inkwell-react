@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useScrollToTop } from '@react-navigation/native';
 import { observer } from 'mobx-react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -31,17 +31,23 @@ const SEGMENT_OPTIONS = [
   { key: 'fading', label: 'Fading' },
 ];
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+const SCREEN_HORIZONTAL_PADDING = 20;
+const HEADER_TOP_PADDING = 10;
 const SEGMENT_COLLAPSE_DISTANCE = 74;
 const SEGMENT_WRAP_MAX_HEIGHT = 50;
+const LIST_TOP_GAP = 12;
 
 function FeedScreen({ isDark = false }) {
   const theme = getAuthTheme(isDark);
+  const insets = useSafeAreaInsets();
   const active_segment = Feed.active_segment;
   const has_bootstrapped = Feed.has_bootstrapped;
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
   const visible_timeline_entries = Feed.visible_timeline_entries();
   const error_message = Feed.error_message;
   const background_intensity = visible_timeline_entries.length > 0 ? 0.14 : 1;
+  const header_top_inset = insets.top + HEADER_TOP_PADDING;
+  const list_top_inset = header_top_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
   const list_ref = React.useRef(null);
   const scroll_y = useSharedValue(0);
   const is_loading_initial =
@@ -107,8 +113,20 @@ function FeedScreen({ isDark = false }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.header}>
+      {render_content({
+        active_segment,
+        list_top_inset,
+        on_scroll,
+        theme,
+        is_loading_initial,
+        is_refreshing,
+        error_message,
+        has_any_timeline_entries,
+        list_ref,
+        visible_timeline_entries,
+      })}
+      <View pointerEvents="box-none" style={styles.headerOverlay}>
+        <View style={[styles.header, { paddingTop: header_top_inset }]}>
           <Animated.View style={[styles.segmentWrap, segment_wrap_style]}>
             <View
               style={[
@@ -154,27 +172,14 @@ function FeedScreen({ isDark = false }) {
             </View>
           </Animated.View>
         </View>
-
-        <View style={styles.content}>
-          {render_content({
-            active_segment,
-            on_scroll,
-            theme,
-            is_loading_initial,
-            is_refreshing,
-            error_message,
-            has_any_timeline_entries,
-            list_ref,
-            visible_timeline_entries,
-          })}
-        </View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
 
 function render_content({
   active_segment,
+  list_top_inset,
   on_scroll,
   theme,
   is_loading_initial,
@@ -186,21 +191,36 @@ function render_content({
 }) {
   if (is_loading_initial) {
     return (
-      <AuthCard style={styles.stateCard} theme={theme}>
-        <RssLoadingView
-          body="Fetching subscriptions and recent entries for your first timeline."
-          compact
-          phase="loading_feeds"
-          theme={theme}
-          title="Loading your feed"
-        />
-      </AuthCard>
+      <View
+        style={[
+          styles.stateScreen,
+          {
+            paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
+            paddingTop: list_top_inset,
+          },
+        ]}
+      >
+        <AuthCard style={styles.stateCard} theme={theme}>
+          <RssLoadingView
+            body="Fetching subscriptions and recent entries for your first timeline."
+            compact
+            phase="loading_feeds"
+            theme={theme}
+            title="Loading your feed"
+          />
+        </AuthCard>
+      </View>
     );
   } else {
     return (
       <AnimatedFlatList
+        contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[
           styles.listContent,
+          {
+            paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
+            paddingTop: list_top_inset,
+          },
           visible_timeline_entries.length === 0 ? styles.listContentEmpty : null,
         ]}
         data={visible_timeline_entries}
@@ -232,11 +252,13 @@ function render_content({
           )
         }
         onScroll={on_scroll}
+        progressViewOffset={list_top_inset}
         ref={list_ref}
         refreshControl={
           <RefreshControl
             colors={[theme.colors.accentStrong]}
             onRefresh={Feed.retry_bootstrap}
+            progressViewOffset={list_top_inset}
             refreshing={is_refreshing}
             tintColor={theme.colors.accentStrong}
           />
@@ -246,6 +268,7 @@ function render_content({
         }}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        style={styles.list}
       />
     );
   }
@@ -379,12 +402,18 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  safeArea: {
+  list: {
     flex: 1,
   },
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+  },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
   },
   segmentWrap: {
     overflow: 'hidden',
@@ -414,10 +443,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  content: {
+  stateScreen: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 8,
   },
   stateCard: {
     marginTop: 12,
