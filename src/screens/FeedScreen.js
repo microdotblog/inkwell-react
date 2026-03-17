@@ -679,7 +679,9 @@ function render_content({
 function FeedTimelineRow({ entry, onPress, theme }) {
   const source_label = entry.source || 'Feed';
   const title = resolve_entry_title(entry);
-  const summary = resolve_entry_summary(entry);
+  const has_title = Boolean(title);
+  const summary = resolve_entry_summary(entry, title);
+  const should_show_body = has_title || Boolean(summary);
   const timestamp = format_entry_timestamp(entry.published_at);
   const row_opacity = entry.is_read ? READ_ROW_OPACITY : 1;
 
@@ -717,22 +719,26 @@ function FeedTimelineRow({ entry, onPress, theme }) {
         </Text>
       </View>
 
-      <View style={styles.rowBody}>
-        <Text
-          numberOfLines={2}
-          style={[styles.rowTitle, { color: theme.colors.ink }]}
-        >
-          {title}
-        </Text>
-        {summary ? (
-          <Text
-            numberOfLines={3}
-            style={[styles.rowSummary, { color: theme.colors.inkSoft }]}
-          >
-            {summary}
-          </Text>
-        ) : null}
-      </View>
+      {should_show_body ? (
+        <View style={styles.rowBody}>
+          {has_title ? (
+            <Text
+              numberOfLines={2}
+              style={[styles.rowTitle, { color: theme.colors.ink }]}
+            >
+              {title}
+            </Text>
+          ) : null}
+          {summary ? (
+            <Text
+              numberOfLines={3}
+              style={[styles.rowSummary, { color: theme.colors.inkSoft }]}
+            >
+              {summary}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -1009,27 +1015,30 @@ function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
 }
 
 function resolve_entry_title(entry) {
-  const title = `${entry?.title || ''}`.trim();
-  const summary = `${entry?.summary || ''}`.replace(/\s+/g, ' ').trim();
+  const title = normalize_entry_text(entry?.title);
 
   if (title) {
     return title;
-  } else if (summary) {
-    return summary;
   } else {
-    return 'Untitled post';
+    return '';
   }
 }
 
-function resolve_entry_summary(entry) {
-  const title = `${entry?.title || ''}`.trim();
-  const summary = `${entry?.summary || ''}`.replace(/\s+/g, ' ').trim();
+function resolve_entry_summary(entry, title = '') {
+  const normalized_title = normalize_entry_text(title || entry?.title);
+  const summary = normalize_entry_text(entry?.summary);
 
-  if (!summary || summary === title) {
+  if (!summary) {
+    return '';
+  } else if (normalized_title && summary === normalized_title) {
     return '';
   } else {
     return summary;
   }
+}
+
+function normalize_entry_text(value = '') {
+  return `${value || ''}`.replace(/\s+/g, ' ').trim();
 }
 
 function get_source_avatar_initial(source = '') {
