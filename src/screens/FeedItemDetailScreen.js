@@ -6,11 +6,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
   useWindowDimensions,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import RenderHtml, {
@@ -20,6 +20,11 @@ import RenderHtml, {
   defaultHTMLElementModels,
   useTNodeChildrenProps,
 } from 'react-native-render-html';
+import Animated, {
+  FadeInDown,
+  FadeOutUp,
+  LinearTransition,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
@@ -37,6 +42,9 @@ const READER_TITLE_TOP_MARGIN = 18;
 const READER_PARAGRAPH_SPACING = 18;
 const IOS_HEADER_TITLE_REVEAL_OFFSET = 12;
 const RECAP_FAVICON_SIZE = 22;
+const RECAP_SETTINGS_LAYOUT_TRANSITION = LinearTransition.duration(180);
+const RECAP_SETTINGS_ROW_ENTERING = FadeInDown.duration(180);
+const RECAP_SETTINGS_ROW_EXITING = FadeOutUp.duration(140);
 const RECAP_EMAIL_DAYS = [
   'Monday',
   'Tuesday',
@@ -478,16 +486,7 @@ function RecapReaderView({
           is_saving={is_saving_recap_email_settings}
           selected_day={recap_email_day}
           theme={theme}
-          onSelectDay={(dayofweek) => {
-            Feed.update_recap_email_day(dayofweek);
-          }}
-          onToggleEnabled={(is_enabled) => {
-            if (is_enabled) {
-              Feed.update_recap_email_day(recap_email_day || 'Friday');
-            } else {
-              Feed.update_recap_email_day('');
-            }
-          }}
+          onSelectDay={(dayofweek) => Feed.update_recap_email_day(dayofweek)}
         />
 
         {recap_bookmark_error_message ? (
@@ -850,12 +849,45 @@ function RecapEmailSettingsCard({
   is_loading = false,
   is_saving = false,
   onSelectDay,
-  onToggleEnabled,
   selected_day = '',
   theme,
 }) {
+  const [is_expanded, set_is_expanded] = React.useState(false);
+  const is_busy = is_loading || is_saving;
+  const is_showing_loading_summary =
+    is_loading && !is_saving && !selected_day;
+  const summary_label = is_showing_loading_summary
+    ? 'Loading...'
+    : is_enabled
+      ? get_recap_day_summary_label(selected_day)
+      : 'Off';
+  const summary_selection_kind = is_enabled ? 'accent' : 'neutral';
+  const helper_copy = get_recap_email_settings_copy({
+    is_enabled,
+    is_expanded,
+    is_showing_loading_summary,
+    selected_day,
+  });
+
+  async function handle_day_selection(next_dayofweek = '') {
+    if (typeof onSelectDay !== 'function' || is_busy) {
+      return;
+    }
+
+    if (`${next_dayofweek || ''}`.trim() === `${selected_day || ''}`.trim()) {
+      set_is_expanded(false);
+      return;
+    }
+
+    const did_save = await onSelectDay(next_dayofweek);
+
+    if (did_save) {
+      set_is_expanded(false);
+    }
+  }
+
   return (
-    <View
+    <Animated.View
       style={[
         styles.recapSettingsCard,
         {
@@ -863,14 +895,38 @@ function RecapEmailSettingsCard({
           borderColor: theme.colors.line,
         },
       ]}
+      layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
     >
       <View style={styles.recapSettingsHeader}>
         <View style={styles.recapSettingsCopy}>
-          <Text style={[styles.recapSettingsTitle, { color: theme.colors.ink }]}>
-            Weekly email
-          </Text>
+          <Animated.View
+            layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
+            style={styles.recapSettingsTitleRow}
+          >
+            <Text style={[styles.recapSettingsTitle, { color: theme.colors.ink }]}>
+              Weekly email
+            </Text>
+            {!is_expanded ? (
+              <Animated.View
+                entering={RECAP_SETTINGS_ROW_ENTERING}
+                exiting={RECAP_SETTINGS_ROW_EXITING}
+                layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
+              >
+                <RecapDayChip
+                  disabled={is_showing_loading_summary || is_busy}
+                  icon_name="expand-more"
+                  is_compact
+                  is_selected
+                  label={summary_label}
+                  onPress={() => set_is_expanded(true)}
+                  selection_kind={summary_selection_kind}
+                  theme={theme}
+                />
+              </Animated.View>
+            ) : null}
+          </Animated.View>
           <Text style={[styles.recapSettingsBody, { color: theme.colors.inkSoft }]}>
-            Send Reading Recap in weekly email on:
+            {helper_copy}
           </Text>
         </View>
         {is_loading || is_saving ? (
@@ -879,43 +935,91 @@ function RecapEmailSettingsCard({
             size="small"
           />
         ) : null}
-        <Switch
-          disabled={is_loading || is_saving}
-          onValueChange={onToggleEnabled}
-          thumbColor={theme.colors.white}
-          trackColor={{
-            false: theme.colors.line,
-            true: theme.colors.accentStrong,
-          }}
-          value={is_enabled}
-        />
       </View>
 
-      <View style={styles.recapDayWrap}>
-        {RECAP_EMAIL_DAYS.map((dayofweek) => {
-          return (
-            <RecapDayChip
-              dayofweek={dayofweek}
-              disabled={!is_enabled || is_loading || is_saving}
-              is_selected={selected_day === dayofweek}
-              key={dayofweek}
-              onPress={() => onSelectDay(dayofweek)}
-              theme={theme}
-            />
-          );
-        })}
-      </View>
-    </View>
+      {is_expanded ? (
+        <Animated.View
+          entering={RECAP_SETTINGS_ROW_ENTERING}
+          exiting={RECAP_SETTINGS_ROW_EXITING}
+          layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
+          style={styles.recapDayWrap}
+        >
+          {RECAP_EMAIL_DAYS.map((dayofweek) => {
+            return (
+              <RecapDayChip
+                disabled={is_busy}
+                is_selected={selected_day === dayofweek}
+                key={dayofweek}
+                label={get_recap_day_chip_label(dayofweek)}
+                onPress={() => handle_day_selection(dayofweek)}
+                selection_kind="accent"
+                theme={theme}
+              />
+            );
+          })}
+
+          <RecapDayChip
+            disabled={is_busy}
+            is_selected={!selected_day}
+            label="Off"
+            onPress={() => handle_day_selection('')}
+            selection_kind="destructive"
+            theme={theme}
+          />
+        </Animated.View>
+      ) : null}
+    </Animated.View>
   );
 }
 
 function RecapDayChip({
-  dayofweek = '',
   disabled = false,
+  icon_name = '',
+  is_compact = false,
   is_selected = false,
+  label = '',
   onPress,
+  selection_kind = 'accent',
   theme,
 }) {
+  const uses_accent_selection =
+    is_selected && selection_kind === 'accent';
+  const uses_neutral_selection =
+    is_selected && selection_kind === 'neutral';
+  const uses_destructive_selection =
+    is_selected && selection_kind === 'destructive';
+  const uses_destructive_treatment =
+    selection_kind === 'destructive';
+  let background_color = theme.colors.paper;
+  let border_color = theme.colors.line;
+  let label_color = theme.colors.inkSoft;
+
+  if (uses_accent_selection) {
+    background_color = theme.colors.accent;
+    border_color = theme.colors.accent;
+    label_color = theme.colors.white;
+  } else if (uses_neutral_selection) {
+    background_color = theme.colors.paperMuted;
+    border_color = theme.colors.inkSoft;
+    label_color = theme.colors.ink;
+  } else if (uses_destructive_selection) {
+    background_color = theme.isDark
+      ? 'rgba(188, 84, 110, 0.28)'
+      : 'rgba(166, 47, 73, 0.12)';
+    border_color = theme.isDark
+      ? 'rgba(255, 160, 182, 0.4)'
+      : 'rgba(166, 47, 73, 0.3)';
+    label_color = theme.isDark ? '#ffb5c6' : '#942c49';
+  } else if (uses_destructive_treatment) {
+    background_color = theme.isDark
+      ? 'rgba(188, 84, 110, 0.12)'
+      : 'rgba(166, 47, 73, 0.05)';
+    border_color = theme.isDark
+      ? 'rgba(255, 160, 182, 0.22)'
+      : 'rgba(166, 47, 73, 0.18)';
+    label_color = theme.isDark ? '#f2a6ba' : '#a63b58';
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -924,11 +1028,11 @@ function RecapDayChip({
       style={({ pressed }) => {
         return [
           styles.recapDayChip,
+          is_compact ? styles.recapDayChipCompact : null,
+          icon_name ? styles.recapDayChipWithIcon : null,
           {
-            backgroundColor: is_selected
-              ? theme.colors.accent
-              : theme.colors.paper,
-            borderColor: is_selected ? theme.colors.accent : theme.colors.line,
+            backgroundColor: background_color,
+            borderColor: border_color,
             opacity: disabled ? 0.48 : pressed ? 0.84 : 1,
           },
         ];
@@ -938,12 +1042,19 @@ function RecapDayChip({
         style={[
           styles.recapDayChipLabel,
           {
-            color: is_selected ? theme.colors.white : theme.colors.inkSoft,
+            color: label_color,
           },
         ]}
       >
-        {dayofweek.slice(0, 3)}
+        {label}
       </Text>
+      {icon_name ? (
+        <MaterialIcons
+          color={label_color}
+          name={icon_name}
+          size={is_compact ? 16 : 18}
+        />
+      ) : null}
     </Pressable>
   );
 }
@@ -1198,7 +1309,13 @@ const styles = StyleSheet.create({
   },
   recapSettingsCopy: {
     flex: 1,
-    gap: 4,
+    gap: 8,
+  },
+  recapSettingsTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
   },
   recapSettingsTitle: {
     fontFamily: 'Newsreader_600SemiBold',
@@ -1215,11 +1332,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   recapDayChip: {
+    alignItems: 'center',
     borderRadius: 999,
     borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
     minWidth: 54,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  recapDayChipCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  recapDayChipWithIcon: {
+    paddingRight: 10,
   },
   recapDayChipLabel: {
     fontSize: 13,
@@ -2038,6 +2166,41 @@ function get_recap_summary_copy(count = 0) {
   const noun = normalized_count === 1 ? 'post' : 'posts';
 
   return `${normalized_count} older ${noun}, grouped into one recap.`;
+}
+
+function get_recap_day_chip_label(dayofweek = '') {
+  const trimmed_dayofweek = `${dayofweek || ''}`.trim();
+
+  if (!trimmed_dayofweek) {
+    return '';
+  }
+
+  return trimmed_dayofweek.slice(0, 3);
+}
+
+function get_recap_day_summary_label(dayofweek = '') {
+  return `${dayofweek || ''}`.trim();
+}
+
+function get_recap_email_settings_copy({
+  is_enabled = false,
+  is_expanded = false,
+  is_showing_loading_summary = false,
+  selected_day = '',
+} = {}) {
+  if (is_showing_loading_summary) {
+    return 'Loading your weekly email setting.';
+  }
+
+  if (is_expanded) {
+    return 'Choose a day for Reading Recap, or turn weekly email off.';
+  }
+
+  if (is_enabled && selected_day) {
+    return `Reading Recap is included in weekly email every ${selected_day}.`;
+  }
+
+  return 'Reading Recap is not included in weekly email.';
 }
 
 function normalize_http_url(raw_url = '') {
