@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing,
@@ -10,11 +11,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+const AUTH_WAVE_BACKGROUND = require('../../../assets/images/auth-wave-background.jpg');
+
 export default function AuthBackground({ theme, intensity = 1 }) {
   const backgroundOpacity = useSharedValue(intensity);
+  const waveShift = useSharedValue(0);
   const glowShift = useSharedValue(0);
-  const topShift = useSharedValue(0);
-  const bottomShift = useSharedValue(0);
 
   React.useEffect(() => {
     backgroundOpacity.value = withTiming(intensity, {
@@ -24,78 +26,66 @@ export default function AuthBackground({ theme, intensity = 1 }) {
   }, [backgroundOpacity, intensity]);
 
   React.useEffect(() => {
+    waveShift.value = withRepeat(
+      withSequence(
+        withTiming(1, {
+          duration: 14000,
+          easing: Easing.inOut(Easing.sin),
+        }),
+        withTiming(0, {
+          duration: 14000,
+          easing: Easing.inOut(Easing.sin),
+        })
+      ),
+      -1,
+      false
+    );
+
     glowShift.value = withRepeat(
       withSequence(
         withTiming(1, {
-          duration: 7200,
+          duration: 16000,
           easing: Easing.inOut(Easing.sin),
         }),
         withTiming(0, {
-          duration: 7200,
+          duration: 16000,
           easing: Easing.inOut(Easing.sin),
         })
       ),
       -1,
       false
     );
+  }, [glowShift, waveShift]);
 
-    topShift.value = withRepeat(
-      withSequence(
-        withTiming(1, {
-          duration: 8400,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        withTiming(0, {
-          duration: 8400,
-          easing: Easing.inOut(Easing.sin),
-        })
-      ),
-      -1,
-      false
-    );
-
-    bottomShift.value = withRepeat(
-      withSequence(
-        withTiming(1, {
-          duration: 9000,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        withTiming(0, {
-          duration: 9000,
-          easing: Easing.inOut(Easing.sin),
-        })
-      ),
-      -1,
-      false
-    );
-  }, [bottomShift, glowShift, topShift]);
-
-  const heroGlowStyle = useAnimatedStyle(() => {
+  const waveStyle = useAnimatedStyle(() => {
     return {
+      opacity: theme.background.imageOpacity - waveShift.value * 0.06,
       transform: [
-        { translateX: glowShift.value * -10 },
-        { translateY: glowShift.value * 14 },
-        { scale: 1 + glowShift.value * 0.04 },
+        { translateX: -20 + waveShift.value * 34 },
+        { translateY: -14 + waveShift.value * 22 },
+        { scale: theme.background.waveScale + waveShift.value * 0.03 },
+      ],
+    };
+  }, [theme]);
+
+  const tintStyle = useAnimatedStyle(() => {
+    return {
+      opacity: 0.84 - glowShift.value * 0.08,
+      transform: [
+        { translateX: -10 + glowShift.value * 20 },
+        { translateY: -12 + glowShift.value * 18 },
+        { scale: 1.02 + glowShift.value * 0.03 },
       ],
     };
   }, []);
 
-  const topOrbStyle = useAnimatedStyle(() => {
+  const glowStyle = useAnimatedStyle(() => {
     return {
+      opacity: 0.66 + glowShift.value * 0.14,
       transform: [
-        { translateX: topShift.value * -12 },
-        { translateY: topShift.value * 10 },
-        { scale: 1 + topShift.value * 0.03 },
-      ],
-    };
-  }, []);
-
-  const bottomOrbStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: bottomShift.value * 16 },
-        { translateY: bottomShift.value * -10 },
-        { scale: 1 + bottomShift.value * 0.035 },
+        { translateX: 12 - glowShift.value * 28 },
+        { translateY: -18 + glowShift.value * 30 },
+        { scale: 1.04 + glowShift.value * 0.05 },
       ],
     };
   }, []);
@@ -109,35 +99,45 @@ export default function AuthBackground({ theme, intensity = 1 }) {
   return (
     <Animated.View pointerEvents="none" style={[styles.container, containerStyle]}>
       <LinearGradient
-        colors={theme.gradients.background}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        colors={theme.background.base}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
         style={styles.canvas}
       />
-      <Animated.View style={[styles.heroGlow, heroGlowStyle]}>
-        <LinearGradient
-          colors={theme.gradients.heroGlow}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.orbFill}
+
+      <Animated.View style={[styles.waveLayer, waveStyle]}>
+        <Image
+          contentFit="cover"
+          source={AUTH_WAVE_BACKGROUND}
+          style={styles.waveImage}
+          transition={0}
         />
       </Animated.View>
-      <Animated.View style={[styles.topOrb, topOrbStyle]}>
+
+      <Animated.View style={[styles.canvas, tintStyle]}>
         <LinearGradient
-          colors={theme.gradients.topOrb}
-          start={{ x: 0.3, y: 0.1 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.orbFill}
+          colors={theme.background.tint}
+          start={{ x: 0.4, y: 0 }}
+          end={{ x: 0.6, y: 1 }}
+          style={styles.canvas}
         />
       </Animated.View>
-      <Animated.View style={[styles.bottomOrb, bottomOrbStyle]}>
+
+      <Animated.View style={[styles.glowLayer, glowStyle]}>
         <LinearGradient
-          colors={theme.gradients.bottomOrb}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.orbFill}
+          colors={theme.background.glow}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.canvas}
         />
       </Animated.View>
+
+      <LinearGradient
+        colors={theme.background.edge}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.canvas}
+      />
     </Animated.View>
   );
 }
@@ -145,36 +145,22 @@ export default function AuthBackground({ theme, intensity = 1 }) {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
   },
   canvas: {
     ...StyleSheet.absoluteFillObject,
   },
-  orbFill: {
+  waveLayer: {
+    position: 'absolute',
+    top: -72,
+    right: -72,
+    bottom: -72,
+    left: -72,
+  },
+  waveImage: {
     flex: 1,
-    borderRadius: 999,
   },
-  heroGlow: {
-    position: 'absolute',
-    top: -90,
-    right: -40,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-  },
-  topOrb: {
-    position: 'absolute',
-    top: 90,
-    right: -70,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-  },
-  bottomOrb: {
-    position: 'absolute',
-    bottom: -110,
-    left: -30,
-    width: 280,
-    height: 280,
-    borderRadius: 140,
+  glowLayer: {
+    ...StyleSheet.absoluteFillObject,
   },
 });
