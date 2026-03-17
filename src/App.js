@@ -20,7 +20,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 function App() {
   const isDark = AppStore.theme === 'dark';
-  const theme = getAuthTheme(isDark);
+  const accent_palette_id = AppStore.accent_palette_id;
+  const theme = getAuthTheme(isDark, accent_palette_id);
   const is_signed_in = Auth.is_signed_in();
   const is_auth_loading = Auth.is_loading();
   const is_feed_bootstrapping = Feed.is_bootstrapping;

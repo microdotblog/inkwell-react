@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
 import RssLoadingView from '../components/loading/RssLoadingView';
+import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
 export default function RssLoadingScreen({
@@ -13,7 +14,8 @@ export default function RssLoadingScreen({
   title = '',
   body = '',
 }) {
-  const theme = getAuthTheme(isDark);
+  const accent_palette_id = AppStore.accent_palette_id;
+  const theme = getAuthTheme(isDark, accent_palette_id);
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>

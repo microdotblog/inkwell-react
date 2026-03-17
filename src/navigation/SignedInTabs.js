@@ -5,12 +5,14 @@ import { observer } from 'mobx-react';
 import FeedItemDetailScreen from '../screens/FeedItemDetailScreen';
 import FeedScreen from '../screens/FeedScreen';
 import SignedInScreen from '../screens/SignedInScreen';
+import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
 const Stack = createNativeStackNavigator();
 
 function SignedInTabs({ isDark = false }) {
-  const theme = getAuthTheme(isDark);
+  const accent_palette_id = AppStore.accent_palette_id;
+  const theme = getAuthTheme(isDark, accent_palette_id);
 
   return (
     <Stack.Navigator

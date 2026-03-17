@@ -31,6 +31,7 @@ import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import RssLoadingView from '../components/loading/RssLoadingView';
 import Auth from '../stores/Auth';
+import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -64,7 +65,8 @@ const READ_ROW_OPACITY = 0.56;
 const FEED_AVATAR_TRANSITION_MS = 180;
 
 function FeedScreen({ navigation, isDark = false }) {
-  const theme = getAuthTheme(isDark);
+  const accent_palette_id = AppStore.accent_palette_id;
+  const theme = getAuthTheme(isDark, accent_palette_id);
   const insets = useSafeAreaInsets();
   const active_segment = Feed.active_segment;
   const is_search_active = Feed.is_search_active;
@@ -434,7 +436,7 @@ function FeedScreen({ navigation, isDark = false }) {
           style={[
             styles.footerBackdrop,
             {
-              backgroundColor: resolve_footer_backdrop_color(isDark),
+              backgroundColor: resolve_footer_backdrop_color(theme),
             },
             footer_backdrop_style,
           ]}
@@ -757,7 +759,7 @@ function FeedRecapSummaryCard({
       style={[
         styles.recapCard,
         {
-          backgroundColor: resolve_recap_card_background_color(theme.isDark),
+          backgroundColor: resolve_recap_card_background_color(theme),
           borderColor: theme.colors.line,
           shadowColor: theme.colors.shadow,
         },
@@ -1460,18 +1462,29 @@ function clamp_swipe_nudge(value = 0) {
   return Math.max(Math.min(value, SEGMENT_SWIPE_NUDGE), -SEGMENT_SWIPE_NUDGE);
 }
 
-function resolve_footer_backdrop_color(is_dark = false) {
-  if (is_dark) {
-    return 'rgba(17, 24, 33, 0.76)';
-  } else {
-    return 'rgba(246, 241, 230, 0.82)';
-  }
+function resolve_footer_backdrop_color(theme) {
+  return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.78 : 0.84);
 }
 
-function resolve_recap_card_background_color(is_dark = false) {
-  if (is_dark) {
-    return 'rgba(22, 30, 41, 0.92)';
-  } else {
-    return 'rgba(255, 252, 246, 0.9)';
+function resolve_recap_card_background_color(theme) {
+  return theme?.colors?.badge || theme?.colors?.paper || '#ffffff';
+}
+
+function with_color_opacity(color_value = '', opacity = 1) {
+  const normalized_color = `${color_value || ''}`.trim();
+  const normalized_opacity = Number.isFinite(opacity)
+    ? Math.min(Math.max(opacity, 0), 1)
+    : 1;
+  const hex_match = normalized_color.match(/^#([0-9a-f]{6})$/i);
+
+  if (!hex_match) {
+    return normalized_color || 'rgba(255, 255, 255, 0.84)';
   }
+
+  const hex = hex_match[1];
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${normalized_opacity})`;
 }

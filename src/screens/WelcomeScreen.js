@@ -15,10 +15,12 @@ import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth from '../stores/Auth';
+import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
 function WelcomeScreen({ isDark = false }) {
-  const theme = getAuthTheme(isDark);
+  const accent_palette_id = AppStore.accent_palette_id;
+  const theme = getAuthTheme(isDark, accent_palette_id);
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(26);
   const is_signing_in = Auth.is_loading();

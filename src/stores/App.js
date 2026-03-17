@@ -1,11 +1,19 @@
 import { AppState, Appearance } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { flow, types } from 'mobx-state-tree';
 
+import {
+  DEFAULT_ACCENT_PALETTE_ID,
+  normalizeAccentPaletteId,
+} from '../theme/authTheme';
 import Auth from './Auth';
+
+const APP_PREFERENCES_STORAGE_KEY = 'AppPreferences';
 
 const AppStore = types
   .model('App', {
     theme: types.optional(types.string, 'light'),
+    accent_palette_id: types.optional(types.string, DEFAULT_ACCENT_PALETTE_ID),
     is_hydrating: types.optional(types.boolean, true),
   })
   .volatile(() => ({
@@ -16,6 +24,10 @@ const AppStore = types
   .actions(self => ({
     set_theme(theme = 'light') {
       self.theme = theme === 'dark' ? 'dark' : 'light';
+    },
+
+    apply_accent_palette(accent_palette_id = DEFAULT_ACCENT_PALETTE_ID) {
+      self.accent_palette_id = normalizeAccentPaletteId(accent_palette_id);
     },
 
     sync_current_theme() {
@@ -48,10 +60,55 @@ const AppStore = types
       self.appearance_subscription = null;
     },
 
+    hydrate_preferences: flow(function* () {
+      try {
+        const data = yield SecureStore.getItemAsync(APP_PREFERENCES_STORAGE_KEY);
+
+        if (!data) {
+          self.apply_accent_palette(DEFAULT_ACCENT_PALETTE_ID);
+          return;
+        }
+
+        const parsed_preferences = JSON.parse(data);
+        self.apply_accent_palette(parsed_preferences?.accent_palette_id);
+      } catch (error) {
+        self.apply_accent_palette(DEFAULT_ACCENT_PALETTE_ID);
+      }
+    }),
+
+    persist_preferences: flow(function* () {
+      const normalized_palette_id = normalizeAccentPaletteId(self.accent_palette_id);
+
+      if (normalized_palette_id === DEFAULT_ACCENT_PALETTE_ID) {
+        yield SecureStore.deleteItemAsync(APP_PREFERENCES_STORAGE_KEY);
+        return;
+      }
+
+      yield SecureStore.setItemAsync(
+        APP_PREFERENCES_STORAGE_KEY,
+        JSON.stringify({
+          accent_palette_id: normalized_palette_id,
+        }),
+      );
+    }),
+
+    set_accent_palette: flow(function* (accent_palette_id = DEFAULT_ACCENT_PALETTE_ID) {
+      const normalized_palette_id = normalizeAccentPaletteId(accent_palette_id);
+
+      if (self.accent_palette_id === normalized_palette_id) {
+        return self.accent_palette_id;
+      }
+
+      self.apply_accent_palette(normalized_palette_id);
+      yield self.persist_preferences();
+      return self.accent_palette_id;
+    }),
+
     hydrate: flow(function* () {
       self.is_hydrating = true;
 
       try {
+        yield self.hydrate_preferences();
         yield Auth.hydrate();
       } finally {
         self.is_hydrating = false;

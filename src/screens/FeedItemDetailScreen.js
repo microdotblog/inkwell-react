@@ -28,6 +28,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
+import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -102,7 +103,8 @@ const READER_HTML_MODELS = {
 };
 
 function FeedItemDetailScreen({ navigation, route, isDark = false }) {
-  const theme = getAuthTheme(isDark);
+  const accent_palette_id = AppStore.accent_palette_id;
+  const theme = getAuthTheme(isDark, accent_palette_id);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const detail_mode = resolve_detail_mode(route?.params?.mode);
