@@ -751,7 +751,7 @@ function FeedRecapSummaryCard({
       style={[
         styles.recapCard,
         {
-          backgroundColor: theme.colors.badge,
+          backgroundColor: resolve_recap_card_background_color(theme.isDark),
           borderColor: theme.colors.line,
           shadowColor: theme.colors.shadow,
         },
@@ -1456,5 +1456,13 @@ function resolve_footer_backdrop_color(is_dark = false) {
     return 'rgba(17, 24, 33, 0.76)';
   } else {
     return 'rgba(246, 241, 230, 0.82)';
+  }
+}
+
+function resolve_recap_card_background_color(is_dark = false) {
+  if (is_dark) {
+    return 'rgba(22, 30, 41, 0.92)';
+  } else {
+    return 'rgba(255, 252, 246, 0.9)';
   }
 }
