@@ -461,11 +461,6 @@ function RecapReaderView({
           },
         ]}
       >
-        <Text
-          style={[styles.recapEyebrow, { color: theme.colors.accentStrong }]}
-        >
-          Fading
-        </Text>
         <View style={styles.titleWrapCompact}>
           <Text style={[styles.title, { color: theme.colors.ink }]}>
             Reading Recap
@@ -1178,12 +1173,6 @@ const styles = StyleSheet.create({
   },
   titleWrapCompact: {
     marginTop: 8,
-  },
-  recapEyebrow: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
   },
   recapBody: {
     fontSize: 16,
