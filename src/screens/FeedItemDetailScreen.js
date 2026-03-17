@@ -15,8 +15,8 @@ import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import RenderHtml, {
   HTMLContentModel,
+  TChildrenRenderer,
   HTMLElementModel,
-  TNodeChildrenRenderer,
   defaultHTMLElementModels,
   useTNodeChildrenProps,
 } from 'react-native-render-html';
@@ -36,6 +36,7 @@ const READER_TITLE_LINE_HEIGHT = 50;
 const READER_TITLE_TOP_MARGIN = 18;
 const READER_PARAGRAPH_SPACING = 18;
 const IOS_HEADER_TITLE_REVEAL_OFFSET = 12;
+const RECAP_FAVICON_SIZE = 22;
 const RECAP_EMAIL_DAYS = [
   'Monday',
   'Tuesday',
@@ -65,6 +66,26 @@ const READER_IGNORED_DOM_TAGS = [
 const READER_HTML_MODELS = {
   img: defaultHTMLElementModels.img.extend({
     contentModel: HTMLContentModel.mixed,
+  }),
+  'recap-card': HTMLElementModel.fromCustomModel({
+    tagName: 'recap-card',
+    contentModel: HTMLContentModel.block,
+  }),
+  'recap-header-group': HTMLElementModel.fromCustomModel({
+    tagName: 'recap-header-group',
+    contentModel: HTMLContentModel.block,
+  }),
+  'recap-header': HTMLElementModel.fromCustomModel({
+    tagName: 'recap-header',
+    contentModel: HTMLContentModel.mixed,
+  }),
+  'recap-topics': HTMLElementModel.fromCustomModel({
+    tagName: 'recap-topics',
+    contentModel: HTMLContentModel.block,
+  }),
+  'recap-photo-strip': HTMLElementModel.fromCustomModel({
+    tagName: 'recap-photo-strip',
+    contentModel: HTMLContentModel.block,
   }),
   'recap-quote': HTMLElementModel.fromCustomModel({
     tagName: 'recap-quote',
@@ -116,6 +137,46 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     const bookmarked_quote_url_set = new Set(recap_bookmarked_quote_urls);
 
     return {
+      'recap-card': (props) => {
+        return (
+          <RecapCardRenderer
+            {...props}
+            theme={theme}
+          />
+        );
+      },
+      'recap-header-group': (props) => {
+        return (
+          <RecapHeaderGroupRenderer
+            {...props}
+            theme={theme}
+          />
+        );
+      },
+      'recap-header': (props) => {
+        return (
+          <RecapHeaderRenderer
+            {...props}
+            theme={theme}
+          />
+        );
+      },
+      'recap-topics': (props) => {
+        return (
+          <RecapTopicsRenderer
+            {...props}
+            theme={theme}
+          />
+        );
+      },
+      'recap-photo-strip': (props) => {
+        return (
+          <RecapPhotoStripRenderer
+            {...props}
+            theme={theme}
+          />
+        );
+      },
       'recap-quote': (props) => {
         return (
           <RecapQuoteRenderer
@@ -569,6 +630,110 @@ function ReaderHtml({
   );
 }
 
+function RecapCardRenderer({ theme, ...props }) {
+  const tchildren_props = useTNodeChildrenProps(props);
+  const recap_colors = resolve_recap_colors(props?.tnode?.attributes, theme);
+
+  return (
+    <View
+      style={[
+        props.style,
+        styles.recapCard,
+        {
+          backgroundColor: recap_colors.background_color || theme.colors.badge,
+          borderColor: recap_colors.border_color || theme.colors.line,
+        },
+      ]}
+    >
+      <TChildrenRenderer {...tchildren_props} />
+    </View>
+  );
+}
+
+function RecapHeaderGroupRenderer({ ...props }) {
+  const tchildren_props = useTNodeChildrenProps(props);
+
+  return (
+    <View style={[props.style, styles.recapHeaderGroup]}>
+      <TChildrenRenderer {...tchildren_props} />
+    </View>
+  );
+}
+
+function RecapHeaderRenderer({ theme, ...props }) {
+  const title = normalize_reader_text(extract_tnode_text(props.tnode));
+  const icon_url = find_tnode_image_source(props.tnode);
+
+  return (
+    <View style={[props.style, styles.recapHeader]}>
+      <RecapFavicon
+        icon_url={icon_url}
+        source={title}
+        theme={theme}
+      />
+      <Text style={[styles.recapHeaderTitle, { color: theme.colors.ink }]}>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+function RecapTopicsRenderer({ ...props }) {
+  const topic_labels = extract_recap_topic_labels(props.tnode);
+  const recap_card = find_tnode_ancestor_by_tag(props.tnode, 'recap-card');
+  const recap_colors = resolve_recap_colors(recap_card?.attributes, props.theme);
+
+  if (topic_labels.length === 0) {
+    const tchildren_props = useTNodeChildrenProps(props);
+
+    return (
+      <View style={[props.style, styles.recapTopics]}>
+        <TChildrenRenderer {...tchildren_props} />
+      </View>
+    );
+  } else {
+    return (
+      <View style={[props.style, styles.recapTopics]}>
+        {topic_labels.map((topic_label) => {
+          return (
+            <View
+              key={topic_label}
+              style={[
+                styles.recapTopicPill,
+                {
+                  backgroundColor:
+                    recap_colors.topics_background_color || props.theme.colors.badge,
+                  borderColor:
+                    recap_colors.topics_border_color || props.theme.colors.line,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.recapTopicLabel,
+                  { color: props.theme.colors.ink },
+                ]}
+              >
+                {topic_label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+}
+
+function RecapPhotoStripRenderer({ ...props }) {
+  const tchildren_props = useTNodeChildrenProps(props);
+
+  return (
+    <View style={[props.style, styles.recapPhotoStrip]}>
+      <TChildrenRenderer {...tchildren_props} />
+    </View>
+  );
+}
+
 function RecapQuoteRenderer({
   bookmarked_quote_url_set,
   bookmarking_quote_url = '',
@@ -594,7 +759,7 @@ function RecapQuoteRenderer({
   return (
     <View style={styles.recapQuoteRow}>
       <View style={styles.recapQuoteMain}>
-        <TNodeChildrenRenderer {...tchildren_props} />
+        <TChildrenRenderer {...tchildren_props} />
       </View>
       {bookmark_url ? (
         <Pressable
@@ -625,6 +790,61 @@ function RecapQuoteRenderer({
             {label}
           </Text>
         </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function RecapFavicon({
+  icon_url = '',
+  source = '',
+  theme,
+}) {
+  const trimmed_icon_url = `${icon_url || ''}`.trim();
+  const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
+  const [is_image_loaded, set_is_image_loaded] = React.useState(false);
+  const should_show_image = trimmed_icon_url && !did_fail_to_load;
+  const should_show_initial =
+    !trimmed_icon_url || did_fail_to_load || !is_image_loaded;
+  const initial = get_source_avatar_initial(source);
+
+  React.useEffect(() => {
+    set_did_fail_to_load(false);
+    set_is_image_loaded(false);
+  }, [trimmed_icon_url]);
+
+  return (
+    <View
+      style={[
+        styles.recapFaviconFrame,
+        {
+          backgroundColor: theme.colors.paper,
+          borderColor: theme.colors.line,
+          height: RECAP_FAVICON_SIZE,
+          width: RECAP_FAVICON_SIZE,
+        },
+      ]}
+    >
+      {should_show_initial ? (
+        <Text
+          style={[
+            styles.recapFaviconInitial,
+            { color: theme.colors.accentStrong },
+          ]}
+        >
+          {initial}
+        </Text>
+      ) : null}
+      {should_show_image ? (
+        <Image
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          onError={() => set_did_fail_to_load(true)}
+          onLoad={() => set_is_image_loaded(true)}
+          source={{ uri: trimmed_icon_url }}
+          style={styles.recapFaviconImage}
+          transition={READER_AVATAR_TRANSITION_MS}
+        />
       ) : null}
     </View>
   );
@@ -1023,6 +1243,80 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 14,
   },
+  recapCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    marginBottom: 22,
+    overflow: 'hidden',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+  },
+  recapHeaderGroup: {
+    alignItems: 'center',
+    columnGap: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 14,
+    rowGap: 8,
+  },
+  recapHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 1,
+    gap: 10,
+    minWidth: 0,
+  },
+  recapHeaderTitle: {
+    flexShrink: 1,
+    fontFamily: 'Newsreader_600SemiBold',
+    fontSize: 28,
+    lineHeight: 32,
+  },
+  recapFaviconFrame: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  recapFaviconInitial: {
+    fontFamily: 'Newsreader_700Bold',
+    fontSize: 13,
+    lineHeight: 15,
+  },
+  recapFaviconImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  recapTopics: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    gap: 6,
+    marginLeft: 'auto',
+  },
+  recapTopicPill: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 34,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  recapTopicLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  recapPhotoStrip: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
+    marginTop: 2,
+  },
   recapQuoteRow: {
     alignItems: 'flex-start',
     flexDirection: 'row',
@@ -1201,29 +1495,17 @@ function resolve_detail_mode(raw_mode = '') {
 
 function build_recap_classes_styles(theme) {
   return {
-    'reading-recap': {
-      borderRadius: 18,
-      marginBottom: 24,
-      paddingHorizontal: 18,
-      paddingVertical: 16,
-    },
-    'reading-header': {
-      alignItems: 'center',
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-      marginBottom: 16,
-      marginTop: 2,
-    },
-    topics: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
+    'recap-summary': {
+      color: theme.colors.inkSoft,
+      fontSize: 15,
+      lineHeight: 23,
+      marginBottom: 18,
+      marginTop: 0,
     },
     'recap-topic': {
+      borderWidth: 1,
       borderRadius: 999,
-      color: theme.colors.inkSoft,
+      color: theme.colors.ink,
       fontSize: 11,
       fontWeight: '700',
       lineHeight: 14,
@@ -1231,9 +1513,47 @@ function build_recap_classes_styles(theme) {
       paddingHorizontal: 8,
       paddingVertical: 4,
     },
-    'reading-recap-photos': {
-      marginBottom: 24,
-      marginTop: 24,
+    'recap-photo-link': {
+      borderRadius: 14,
+      overflow: 'hidden',
+    },
+    'recap-photo-image': {
+      borderRadius: 14,
+      height: 96,
+      width: 96,
+    },
+    'recap-blockquote': {
+      color: theme.colors.ink,
+      marginBottom: 20,
+      marginLeft: 0,
+      marginTop: 0,
+      paddingBottom: 14,
+      paddingLeft: 16,
+      paddingRight: 16,
+      paddingTop: 14,
+    },
+    'recap-posts-label': {
+      color: theme.colors.ink,
+      fontFamily: 'Newsreader_600SemiBold',
+      fontSize: 18,
+      lineHeight: 24,
+      marginBottom: 10,
+      marginTop: 4,
+    },
+    'recap-post-list': {
+      marginBottom: 0,
+      marginTop: 0,
+      paddingLeft: 18,
+    },
+    'recap-post-item': {
+      color: theme.colors.inkSoft,
+      fontSize: 15,
+      lineHeight: 22,
+      marginBottom: 8,
+    },
+    'recap-post-link': {
+      color: theme.colors.accentStrong,
+      fontWeight: '600',
     },
   };
 }
@@ -1245,22 +1565,51 @@ function create_recap_dom_visitors(theme) {
         return;
       }
 
-      if (has_dom_class_name(element, 'reading-recap')) {
-        const recap_colors = resolve_recap_colors(element.attribs, theme);
-
-        if (recap_colors.background_color) {
-          append_dom_style(
-            element,
-            `background-color: ${recap_colors.background_color};`,
-          );
-        }
+      if (is_recap_card_element(element)) {
+        rename_dom_element(element, 'recap-card');
+        append_dom_class(element, 'recap-card');
       }
 
-      if (is_recap_topic_element(element)) {
-        const recap_element = find_dom_ancestor_by_class(
-          element,
-          'reading-recap',
-        );
+      const recap_element = is_recap_dom_node(element)
+        ? element
+        : find_recap_dom_ancestor(element);
+
+      if (!recap_element) {
+        return;
+      }
+
+      if (has_dom_class_name(element, 'reading-header')) {
+        rename_dom_element(element, 'recap-header-group');
+      }
+
+      if (element.name === 'h2') {
+        rename_dom_element(element, 'recap-header');
+      }
+
+      if (has_dom_class_name(element, 'topics')) {
+        rename_dom_element(element, 'recap-topics');
+      }
+
+      if (element.name === 'p' && has_dom_class_name(element, 'reading-recap-photos')) {
+        rename_dom_element(element, 'recap-photo-strip');
+      }
+
+      if (
+        element.name === 'a' &&
+        element.parent?.name === 'recap-photo-strip'
+      ) {
+        append_dom_class(element, 'recap-photo-link');
+      }
+
+      if (
+        element.name === 'img' &&
+        element.parent?.name === 'a' &&
+        element.parent?.parent?.name === 'recap-photo-strip'
+      ) {
+        append_dom_class(element, 'recap-photo-image');
+      }
+
+      if (element.name === 'span' && element.parent?.name === 'recap-topics') {
         const recap_colors = resolve_recap_colors(
           recap_element?.attribs,
           theme,
@@ -1274,20 +1623,30 @@ function create_recap_dom_visitors(theme) {
             `background-color: ${recap_colors.topics_background_color};`,
           );
         }
+
+        if (recap_colors.topics_border_color) {
+          append_dom_style(
+            element,
+            `border-color: ${recap_colors.topics_border_color};`,
+          );
+        }
       }
 
-      if (
-        element.name === 'blockquote' &&
-        find_dom_ancestor_by_class(element, 'reading-recap')
-      ) {
-        const recap_element = find_dom_ancestor_by_class(
-          element,
-          'reading-recap',
-        );
+      if (is_recap_summary_paragraph(element)) {
+        append_dom_class(element, 'recap-summary');
+      }
+
+      if (is_recap_recent_posts_label(element)) {
+        append_dom_class(element, 'recap-posts-label');
+      }
+
+      if (element.name === 'blockquote') {
         const recap_colors = resolve_recap_colors(
           recap_element?.attribs,
           theme,
         );
+
+        append_dom_class(element, 'recap-blockquote');
 
         if (recap_colors.blockquote_background_color) {
           append_dom_style(
@@ -1305,17 +1664,22 @@ function create_recap_dom_visitors(theme) {
       }
 
       if (
-        element.name === 'img' &&
-        find_dom_ancestor_by_class(element, 'reading-recap')
+        element.name === 'ul' &&
+        is_direct_child_of_recap_card(element)
       ) {
-        if (element.parent?.name === 'h2') {
-          append_dom_style(
-            element,
-            'border-radius: 999px; height: 20px; width: 20px;',
-          );
-        } else {
-          append_dom_style(element, 'border-radius: 5px;');
-        }
+        append_dom_class(element, 'recap-post-list');
+      }
+
+      if (
+        element.name === 'li' &&
+        element.parent?.name === 'ul' &&
+        is_direct_child_of_recap_card(element.parent)
+      ) {
+        append_dom_class(element, 'recap-post-item');
+      }
+
+      if (element.name === 'a' && is_recap_post_link(element)) {
+        append_dom_class(element, 'recap-post-link');
       }
     },
   };
@@ -1331,10 +1695,17 @@ function resolve_recap_colors(attribs = {}, theme) {
     : light_color || dark_color;
 
   return {
-    background_color: with_recap_color_opacity(recap_base_color, '80'),
+    background_color: with_recap_color_opacity(
+      recap_base_color,
+      theme.isDark ? 'd9' : 'a6',
+    ),
+    border_color: with_recap_color_opacity(
+      recap_base_color,
+      theme.isDark ? 'ff' : 'bf',
+    ),
     blockquote_background_color: with_recap_color_opacity(
       recap_base_color,
-      '99',
+      theme.isDark ? 'ee' : 'cc',
     ),
     blockquote_border_color: with_recap_color_opacity(
       recap_base_color,
@@ -1342,7 +1713,11 @@ function resolve_recap_colors(attribs = {}, theme) {
     ),
     topics_background_color: with_recap_color_opacity(
       recap_base_color,
-      'e6',
+      theme.isDark ? 'ff' : 'f0',
+    ),
+    topics_border_color: with_recap_color_opacity(
+      recap_base_color,
+      'ff',
     ),
   };
 }
@@ -1356,11 +1731,33 @@ function has_dom_class_name(element, class_name = '') {
   return class_names.includes(class_name);
 }
 
-function find_dom_ancestor_by_class(element, class_name = '') {
+function is_recap_card_element(element) {
+  if (!element?.attribs) {
+    return false;
+  }
+
+  return Boolean(
+    has_dom_class_name(element, 'reading-recap') ||
+      normalize_recap_color(element.attribs?.['data-color-light']) ||
+      normalize_recap_color(
+        element.attribs?.['data-color-dark'] || element.attribs?.['data-color-right'],
+      ),
+  );
+}
+
+function is_recap_dom_node(element) {
+  if (!element) {
+    return false;
+  }
+
+  return element.name === 'recap-card' || has_dom_class_name(element, 'reading-recap');
+}
+
+function find_recap_dom_ancestor(element) {
   let current_element = element?.parent || null;
 
   while (current_element) {
-    if (has_dom_class_name(current_element, class_name)) {
+    if (is_recap_dom_node(current_element)) {
       return current_element;
     }
 
@@ -1370,12 +1767,93 @@ function find_dom_ancestor_by_class(element, class_name = '') {
   return null;
 }
 
-function is_recap_topic_element(element) {
-  if (element?.name !== 'span') {
+function is_direct_child_of_recap_card(element) {
+  return is_recap_dom_node(element?.parent);
+}
+
+function find_previous_dom_tag_sibling(element) {
+  let current_element = element?.prev || null;
+
+  while (current_element) {
+    if (current_element.type === 'tag') {
+      return current_element;
+    }
+
+    current_element = current_element.prev || null;
+  }
+
+  return null;
+}
+
+function is_recap_summary_paragraph(element) {
+  if (element?.name !== 'p' || !is_direct_child_of_recap_card(element)) {
     return false;
   }
 
-  return has_dom_class_name(element.parent, 'topics');
+  if (
+    has_dom_class_name(element, 'reading-recap-photos') ||
+    is_recap_recent_posts_label(element)
+  ) {
+    return false;
+  }
+
+  const previous_tag_sibling = find_previous_dom_tag_sibling(element);
+
+  if (!previous_tag_sibling) {
+    return false;
+  }
+
+  return (
+    previous_tag_sibling.name === 'h2' ||
+    previous_tag_sibling.name === 'recap-header' ||
+    has_dom_class_name(previous_tag_sibling, 'reading-header') ||
+    previous_tag_sibling.name === 'recap-header-group'
+  );
+}
+
+function is_recap_recent_posts_label(element) {
+  if (element?.name !== 'p' || !is_direct_child_of_recap_card(element)) {
+    return false;
+  }
+
+  return normalize_dom_text_content(element).toLowerCase() === 'recent posts:';
+}
+
+function normalize_dom_text_content(element) {
+  return get_dom_text_content(element).replace(/\s+/g, ' ').trim();
+}
+
+function get_dom_text_content(element) {
+  if (!element) {
+    return '';
+  }
+
+  if (element.type === 'text') {
+    return `${element.data || ''}`;
+  }
+
+  if (!Array.isArray(element.children)) {
+    return '';
+  }
+
+  return element.children.map((child) => get_dom_text_content(child)).join('');
+}
+
+function is_recap_post_link(element) {
+  if (element?.name !== 'a' || element.parent?.name !== 'li') {
+    return false;
+  }
+
+  return element.parent?.parent?.name === 'ul' &&
+    is_direct_child_of_recap_card(element.parent.parent);
+}
+
+function rename_dom_element(element, next_name = '') {
+  if (!element || !next_name) {
+    return;
+  }
+
+  element.name = next_name;
 }
 
 function append_dom_class(element, class_name = '') {
@@ -1408,6 +1886,74 @@ function append_dom_style(element, next_style = '') {
   } else {
     element.attribs.style = `${existing_style}; ${trimmed_next_style}`;
   }
+}
+
+function extract_tnode_text(tnode) {
+  if (!tnode) {
+    return '';
+  }
+
+  if (tnode.type === 'text') {
+    return `${tnode.data || ''}`;
+  }
+
+  return (tnode.children || []).map((child) => extract_tnode_text(child)).join('');
+}
+
+function extract_recap_topic_labels(tnode) {
+  if (!tnode) {
+    return [];
+  }
+
+  const direct_labels = (tnode.children || [])
+    .map((child) => normalize_reader_text(extract_tnode_text(child)))
+    .filter(Boolean);
+
+  if (direct_labels.length > 0) {
+    return [...new Set(direct_labels)];
+  }
+
+  const fallback_label = normalize_reader_text(extract_tnode_text(tnode));
+
+  if (!fallback_label) {
+    return [];
+  }
+
+  return [fallback_label];
+}
+
+function find_tnode_ancestor_by_tag(tnode, tag_name = '') {
+  let current_tnode = tnode?.parent || null;
+
+  while (current_tnode) {
+    if (current_tnode.tagName === tag_name) {
+      return current_tnode;
+    }
+
+    current_tnode = current_tnode.parent || null;
+  }
+
+  return null;
+}
+
+function find_tnode_image_source(tnode) {
+  if (!tnode) {
+    return '';
+  }
+
+  if (tnode.tagName === 'img') {
+    return normalize_http_url(tnode.attributes?.src);
+  }
+
+  for (const child of tnode.children || []) {
+    const child_source = find_tnode_image_source(child);
+
+    if (child_source) {
+      return child_source;
+    }
+  }
+
+  return '';
 }
 
 function normalize_recap_color(raw_color = '') {
