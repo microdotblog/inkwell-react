@@ -10,6 +10,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
@@ -105,6 +106,7 @@ const READER_HTML_MODELS = {
 function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const detail_mode = resolve_detail_mode(route?.params?.mode);
@@ -143,6 +145,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const is_ios_header_title_visible_ref = React.useRef(false);
   const header_title =
     detail_mode === 'recap' ? 'Reading Recap' : source_label;
+  const content_top_padding =
+    header_height + (Platform.OS === 'ios' ? 0 : 12);
+  const header_background_color =
+    resolve_translucent_header_background_color(theme, Platform.OS);
   const recap_renderers = React.useMemo(() => {
     const bookmarked_quote_url_set = new Set(recap_bookmarked_quote_urls);
 
@@ -235,9 +241,21 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerBackButtonDisplayMode: 'minimal',
+      headerBackground: () => (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.headerBackdrop,
+            {
+              backgroundColor: header_background_color,
+            },
+          ]}
+        />
+      ),
       headerStyle: {
-        backgroundColor: theme.colors.canvas,
+        backgroundColor: 'transparent',
       },
+      headerTransparent: true,
       headerRight:
         detail_mode === 'entry' && original_url
           ? () => (
@@ -263,6 +281,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     });
   }, [
     detail_mode,
+    header_background_color,
     header_title,
     is_ios_header_title_visible,
     navigation,
@@ -285,6 +304,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           {
             paddingBottom: insets.bottom + READER_BOTTOM_PADDING,
             paddingHorizontal: READER_HORIZONTAL_PADDING,
+            paddingTop: content_top_padding,
           },
         ]}
         onScroll={handle_scroll}
@@ -1229,7 +1249,9 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     flexGrow: 1,
-    paddingTop: Platform.OS === 'ios' ? 0 : 12,
+  },
+  headerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
   },
   readerColumn: {
     maxWidth: READER_COLUMN_MAX_WIDTH,
@@ -1518,6 +1540,42 @@ const styles = StyleSheet.create({
 });
 
 export default observer(FeedItemDetailScreen);
+
+function resolve_translucent_header_background_color(
+  theme,
+  platform = Platform.OS,
+) {
+  if (platform === 'ios') {
+    return with_color_opacity(
+      theme?.colors?.canvas,
+      theme?.isDark ? 0.18 : 0.14,
+    );
+  }
+
+  return with_color_opacity(
+    theme?.colors?.canvas,
+    theme?.isDark ? 0.78 : 0.84,
+  );
+}
+
+function with_color_opacity(color_value = '', opacity = 1) {
+  const normalized_color = `${color_value || ''}`.trim();
+  const normalized_opacity = Number.isFinite(opacity)
+    ? Math.min(Math.max(opacity, 0), 1)
+    : 1;
+  const hex_match = normalized_color.match(/^#([0-9a-f]{6})$/i);
+
+  if (!hex_match) {
+    return normalized_color || 'rgba(255, 255, 255, 0.84)';
+  }
+
+  const hex = hex_match[1];
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${normalized_opacity})`;
+}
 
 function create_reader_body_html(entry = null) {
   const content = `${entry?.content || ''}`.trim();
