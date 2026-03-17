@@ -86,6 +86,7 @@ function FeedScreen({ navigation, isDark = false }) {
     FOOTER_TOP_PADDING +
     SEGMENT_WRAP_MAX_HEIGHT +
     LIST_TOP_GAP;
+  const footer_visibility_bottom_threshold = list_bottom_inset;
   const list_ref = React.useRef(null);
   const search_input_ref = React.useRef(null);
   const [segment_frames, set_segment_frames] = React.useState({});
@@ -118,10 +119,19 @@ function FeedScreen({ navigation, isDark = false }) {
     onScroll: (event) => {
       const next_scroll_y = Math.max(event.contentOffset.y, 0);
       const scroll_delta = next_scroll_y - previous_scroll_y.value;
+      const viewport_bottom =
+        next_scroll_y + event.layoutMeasurement.height;
+      const is_at_bottom =
+        viewport_bottom >=
+        event.contentSize.height - footer_visibility_bottom_threshold;
 
       scroll_y.value = next_scroll_y;
 
-      if (is_search_active || next_scroll_y <= FOOTER_VISIBILITY_TOP_THRESHOLD) {
+      if (
+        is_search_active ||
+        next_scroll_y <= FOOTER_VISIBILITY_TOP_THRESHOLD ||
+        is_at_bottom
+      ) {
         if (footer_visibility_progress.value !== 1) {
           footer_visibility_progress.value = withTiming(1, {
             duration: 180,
