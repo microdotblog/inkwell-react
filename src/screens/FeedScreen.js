@@ -351,7 +351,6 @@ function FeedScreen({ navigation, isDark = false }) {
   }, []);
 
   const footer_wrap_style = useAnimatedStyle(() => {
-    const segment_nudge_x = -swipe_nudge_x.value;
     const hidden_footer_offset =
       footer_bottom_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
 
@@ -365,9 +364,6 @@ function FeedScreen({ navigation, isDark = false }) {
             [hidden_footer_offset, 0],
             Extrapolation.CLAMP,
           ),
-        },
-        {
-          translateX: segment_nudge_x * 0.4,
         },
       ],
     };
