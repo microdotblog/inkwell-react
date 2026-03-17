@@ -758,47 +758,54 @@ function FeedRecapSummaryCard({
       ]}
     >
       <View style={styles.recapCopy}>
-        <Text style={[styles.recapEyebrow, { color: theme.colors.accentStrong }]}>
-          Fading
-        </Text>
-        <Text style={[styles.recapTitle, { color: theme.colors.ink }]}>
-          Reading Recap
-        </Text>
-        <Text style={[styles.recapBody, { color: theme.colors.inkSoft }]}>
-          {summary_label}
-        </Text>
+        <View style={styles.recapSummaryRow}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={is_loading}
+            onPress={onPress}
+            style={({ pressed }) => {
+              return [
+                styles.recapButton,
+                {
+                  backgroundColor: theme.colors.accentSoft,
+                  borderColor: theme.colors.line,
+                  opacity: is_loading ? 0.72 : pressed ? 0.86 : 1,
+                },
+              ];
+            }}
+          >
+            {is_loading ? (
+              <ActivityIndicator
+                color={theme.colors.accentStrong}
+                size="small"
+              />
+            ) : (
+              <Text
+                style={[
+                  styles.recapButtonLabel,
+                  { color: theme.colors.accentStrong },
+                ]}
+              >
+                Reading Recap
+              </Text>
+            )}
+          </Pressable>
+          <Text
+            style={[
+              styles.recapBody,
+              styles.recapBodyInline,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
+            {summary_label}
+          </Text>
+        </View>
         {error_message ? (
           <Text style={[styles.recapError, { color: theme.colors.accentStrong }]}>
             {error_message}
           </Text>
         ) : null}
       </View>
-
-      <Pressable
-        accessibilityRole="button"
-        disabled={is_loading}
-        onPress={onPress}
-        style={({ pressed }) => {
-          return [
-            styles.recapButton,
-            {
-              backgroundColor: theme.colors.accent,
-              opacity: is_loading ? 0.72 : pressed ? 0.86 : 1,
-            },
-          ];
-        }}
-      >
-        {is_loading ? (
-          <ActivityIndicator
-            color={theme.colors.white}
-            size="small"
-          />
-        ) : (
-          <Text style={[styles.recapButtonLabel, { color: theme.colors.white }]}>
-            Reading Recap
-          </Text>
-        )}
-      </Pressable>
     </View>
   );
 }
@@ -1330,7 +1337,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 28,
     paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingVertical: 16,
     gap: 18,
     shadowOffset: {
       width: 0,
@@ -1341,40 +1348,41 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   recapCopy: {
-    gap: 8,
+    gap: 12,
   },
-  recapEyebrow: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  recapTitle: {
-    fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 30,
-    lineHeight: 34,
+  recapSummaryRow: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   recapBody: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  recapBodyInline: {
+    flexShrink: 1,
+    textAlign: 'right',
   },
   recapError: {
     fontSize: 14,
     lineHeight: 20,
   },
   recapButton: {
-    alignSelf: 'flex-start',
-    minHeight: 42,
-    minWidth: 142,
-    paddingHorizontal: 18,
+    minHeight: 34,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   recapButtonLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   rowHeader: {
     flexDirection: 'row',
