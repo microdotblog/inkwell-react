@@ -20,6 +20,7 @@ import Animated, {
   Extrapolation,
   interpolate,
   runOnJS,
+  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -53,6 +54,7 @@ const LIST_TOP_GAP = 12;
 const FOOTER_FLOAT_GAP = 2;
 const FOOTER_TOP_PADDING = 10;
 const FOOTER_SCROLL_DELTA_THRESHOLD = 6;
+const FOOTER_TOUCH_BLOCK_THRESHOLD = 0.05;
 const FOOTER_VISIBILITY_TOP_THRESHOLD = 24;
 const SEGMENT_SWIPE_DISTANCE = 56;
 const SEGMENT_SWIPE_VELOCITY = 620;
@@ -96,6 +98,8 @@ function FeedScreen({ navigation, isDark = false }) {
   const footer_visibility_progress = useSharedValue(1);
   const active_segment_offset = useSharedValue(0);
   const active_segment_width = useSharedValue(0);
+  const [should_block_footer_touches, set_should_block_footer_touches] =
+    React.useState(true);
   const is_loading_initial =
     (Feed.is_bootstrapping && visible_timeline_entries.length === 0) ||
     (!has_bootstrapped &&
@@ -189,6 +193,19 @@ function FeedScreen({ navigation, isDark = false }) {
       });
     },
     [scroll_y],
+  );
+
+  const update_footer_touch_blocking = React.useCallback(
+    (next_should_block = false) => {
+      set_should_block_footer_touches((current_value) => {
+        if (current_value === next_should_block) {
+          return current_value;
+        } else {
+          return next_should_block;
+        }
+      });
+    },
+    [],
   );
 
   const handle_entry_press = React.useCallback(
@@ -318,6 +335,20 @@ function FeedScreen({ navigation, isDark = false }) {
       search_input_ref.current?.focus?.();
     }
   }, [footer_visibility_progress, is_search_active]);
+
+  useAnimatedReaction(
+    () => {
+      return footer_visibility_progress.value > FOOTER_TOUCH_BLOCK_THRESHOLD;
+    },
+    (next_should_block, previous_should_block) => {
+      if (next_should_block === previous_should_block) {
+        return;
+      }
+
+      runOnJS(update_footer_touch_blocking)(next_should_block);
+    },
+    [update_footer_touch_blocking],
+  );
 
   React.useEffect(() => {
     const active_frame = segment_frames[active_segment];
@@ -456,6 +487,15 @@ function FeedScreen({ navigation, isDark = false }) {
             },
           ]}
         >
+          <View
+            accessibilityElementsHidden
+            accessible={false}
+            importantForAccessibility="no-hide-descendants"
+            onMoveShouldSetResponder={() => should_block_footer_touches}
+            onStartShouldSetResponder={() => should_block_footer_touches}
+            pointerEvents={should_block_footer_touches ? 'auto' : 'none'}
+            style={styles.footerTouchShield}
+          />
           <Animated.View style={[styles.footerWrap, footer_wrap_style]}>
             <View style={styles.headerControlsRow}>
               <AccountHeaderButton
@@ -1186,8 +1226,14 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
+    position: 'relative',
   },
   footerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  footerTouchShield: {
     ...StyleSheet.absoluteFillObject,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -1199,6 +1245,8 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     marginBottom: 0,
+    position: 'relative',
+    zIndex: 1,
   },
   accountButton: {
     width: HEADER_ACCOUNT_BUTTON_SIZE,
