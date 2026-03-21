@@ -741,13 +741,106 @@ function RecapTopicsRenderer({ ...props }) {
 }
 
 function RecapPhotoStripRenderer({ ...props }) {
-  const tchildren_props = useTNodeChildrenProps(props);
+  const photo_items = extract_recap_photo_items(props.tnode);
 
-  return (
-    <View style={[props.style, styles.recapPhotoStrip]}>
-      <TChildrenRenderer {...tchildren_props} />
+  if (photo_items.length === 0) {
+    const tchildren_props = useTNodeChildrenProps(props);
+
+    return (
+      <View style={[props.style, styles.recapPhotoStrip]}>
+        <TChildrenRenderer {...tchildren_props} />
+      </View>
+    );
+  } else {
+    return (
+      <View style={[props.style, styles.recapPhotoStrip]}>
+        {photo_items.map((photo_item) => {
+          return (
+            <RecapPhotoTile
+              href={photo_item.href}
+              image_alt={photo_item.image_alt}
+              image_url={photo_item.image_url}
+              key={photo_item.key}
+              theme={props.theme}
+            />
+          );
+        })}
+      </View>
+    );
+  }
+}
+
+function RecapPhotoTile({
+  href = '',
+  image_alt = '',
+  image_url = '',
+  theme,
+}) {
+  const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
+  const accessibility_label = image_alt || 'Recap image';
+  const is_link = Boolean(href);
+  const tile_content = did_fail_to_load ? (
+    <View
+      style={[
+        styles.recapPhotoTileFallback,
+        {
+          backgroundColor: theme.colors.paper,
+          borderColor: theme.colors.line,
+        },
+      ]}
+    >
+      {image_alt ? (
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.recapPhotoTileFallbackLabel,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
+          {image_alt}
+        </Text>
+      ) : null}
     </View>
+  ) : (
+    <Image
+      cachePolicy="memory-disk"
+      contentFit="cover"
+      onError={() => set_did_fail_to_load(true)}
+      source={{ uri: image_url }}
+      style={styles.recapPhotoTileImage}
+      transition={READER_AVATAR_TRANSITION_MS}
+    />
   );
+
+  if (is_link) {
+    return (
+      <Pressable
+        accessibilityLabel={accessibility_label}
+        accessibilityRole="link"
+        onPress={() => open_external_url(href)}
+        style={({ pressed }) => {
+          return [
+            styles.recapPhotoTile,
+            {
+              opacity: pressed ? 0.88 : 1,
+            },
+          ];
+        }}
+      >
+        {tile_content}
+      </Pressable>
+    );
+  } else {
+    return (
+      <View
+        accessibilityLabel={accessibility_label}
+        accessibilityRole="image"
+        style={styles.recapPhotoTile}
+      >
+        {tile_content}
+      </View>
+    );
+  }
 }
 
 function RecapQuoteRenderer({
@@ -1458,6 +1551,30 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     marginTop: 2,
   },
+  recapPhotoTile: {
+    borderRadius: 14,
+    height: 96,
+    overflow: 'hidden',
+    width: 96,
+  },
+  recapPhotoTileImage: {
+    height: '100%',
+    width: '100%',
+  },
+  recapPhotoTileFallback: {
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    height: '100%',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    width: '100%',
+  },
+  recapPhotoTileFallbackLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'center',
+  },
   recapQuoteRow: {
     alignItems: 'flex-start',
     flexDirection: 'row',
@@ -2099,6 +2216,47 @@ function extract_recap_topic_labels(tnode) {
   return [fallback_label];
 }
 
+function extract_recap_photo_items(tnode) {
+  if (!tnode) {
+    return [];
+  }
+
+  const photo_items = [];
+  const seen_keys = new Set();
+
+  traverse_tnode_descendants(tnode, (child) => {
+    if (child?.tagName !== 'img') {
+      return;
+    }
+
+    const image_url = normalize_http_url(child?.attributes?.src);
+
+    if (!image_url) {
+      return;
+    }
+
+    const photo_link = find_tnode_ancestor_by_tag(child, 'a');
+    const href = normalize_http_url(photo_link?.attributes?.href);
+    const image_alt = `${child?.attributes?.alt || ''}`.trim();
+    const key = `${href || image_url || 'recap-photo'}-${photo_items.length}`;
+
+    if (seen_keys.has(key)) {
+      return;
+    }
+
+    seen_keys.add(key);
+
+    photo_items.push({
+      href,
+      image_alt,
+      image_url,
+      key,
+    });
+  });
+
+  return photo_items;
+}
+
 function find_tnode_ancestor_by_tag(tnode, tag_name = '') {
   let current_tnode = tnode?.parent || null;
 
@@ -2131,6 +2289,37 @@ function find_tnode_image_source(tnode) {
   }
 
   return '';
+}
+
+function find_tnode_image_alt(tnode) {
+  if (!tnode) {
+    return '';
+  }
+
+  if (tnode.tagName === 'img') {
+    return `${tnode.attributes?.alt || ''}`.trim();
+  }
+
+  for (const child of tnode.children || []) {
+    const child_alt = find_tnode_image_alt(child);
+
+    if (child_alt) {
+      return child_alt;
+    }
+  }
+
+  return '';
+}
+
+function traverse_tnode_descendants(tnode, on_visit) {
+  if (!tnode || typeof on_visit !== 'function') {
+    return;
+  }
+
+  for (const child of tnode.children || []) {
+    on_visit(child);
+    traverse_tnode_descendants(child, on_visit);
+  }
 }
 
 function normalize_recap_color(raw_color = '') {
@@ -2264,7 +2453,7 @@ function get_recap_email_settings_copy({
 }
 
 function normalize_http_url(raw_url = '') {
-  const trimmed_url = `${raw_url || ''}`.trim();
+  const trimmed_url = decode_html_entities(`${raw_url || ''}`).trim();
 
   if (!trimmed_url) {
     return '';
@@ -2333,4 +2522,41 @@ function escape_html(value = '') {
 
 function escape_html_attribute(value = '') {
   return escape_html(value);
+}
+
+function decode_html_entities(value = '') {
+  return `${value || ''}`.replace(
+    /&(#x[0-9a-f]+|#\d+|amp|apos|gt|lt|nbsp|quot);/gi,
+    (match, entity) => {
+      const normalized_entity = `${entity || ''}`.toLowerCase();
+
+      if (normalized_entity === 'amp') {
+        return '&';
+      } else if (normalized_entity === 'apos') {
+        return "'";
+      } else if (normalized_entity === 'gt') {
+        return '>';
+      } else if (normalized_entity === 'lt') {
+        return '<';
+      } else if (normalized_entity === 'nbsp') {
+        return ' ';
+      } else if (normalized_entity === 'quot') {
+        return '"';
+      } else if (normalized_entity.startsWith('#x')) {
+        const code_point = Number.parseInt(normalized_entity.slice(2), 16);
+
+        if (Number.isInteger(code_point)) {
+          return String.fromCodePoint(code_point);
+        }
+      } else if (normalized_entity.startsWith('#')) {
+        const code_point = Number.parseInt(normalized_entity.slice(1), 10);
+
+        if (Number.isInteger(code_point)) {
+          return String.fromCodePoint(code_point);
+        }
+      }
+
+      return match;
+    },
+  );
 }
