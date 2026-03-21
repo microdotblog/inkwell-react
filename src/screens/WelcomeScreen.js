@@ -12,7 +12,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import AuthBackground from '../components/auth/AuthBackground';
-import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
@@ -21,20 +20,20 @@ import { getAuthTheme } from '../theme/authTheme';
 function WelcomeScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
-  const cardOpacity = useSharedValue(0);
-  const cardTranslateY = useSharedValue(26);
+  const actionOpacity = useSharedValue(0);
+  const actionTranslateY = useSharedValue(26);
   const is_signing_in = Auth.is_loading();
   const error_message = Auth.error_message;
 
   React.useEffect(() => {
-    cardOpacity.value = withDelay(
+    actionOpacity.value = withDelay(
       620,
       withTiming(1, {
         duration: 320,
         easing: Easing.out(Easing.cubic),
       })
     );
-    cardTranslateY.value = withDelay(
+    actionTranslateY.value = withDelay(
       620,
       withTiming(0, {
         duration: 360,
@@ -43,10 +42,10 @@ function WelcomeScreen({ isDark = false }) {
     );
   }, []);
 
-  const cardAnimatedStyle = useAnimatedStyle(() => {
+  const actionAnimatedStyle = useAnimatedStyle(() => {
     return {
-      opacity: cardOpacity.value,
-      transform: [{ translateY: cardTranslateY.value }],
+      opacity: actionOpacity.value,
+      transform: [{ translateY: actionTranslateY.value }],
     };
   }, []);
 
@@ -62,34 +61,24 @@ function WelcomeScreen({ isDark = false }) {
           <Animated.View entering={FadeInUp.duration(680)} style={styles.hero}>
             <Text style={[styles.title, { color: theme.colors.ink }]}>Welcome to Inkwell</Text>
             <Text style={[styles.body, { color: theme.colors.inkSoft }]}>
-              A quieter way to read the open web.
+              Feed reader with Micro.blog sync and highlighting.
             </Text>
           </Animated.View>
 
           <View style={styles.footer}>
-            <Animated.View pointerEvents="box-none" style={[styles.cardWrap, cardAnimatedStyle]}>
-              <AuthCard style={styles.card} theme={theme}>
-                <Text style={[styles.cardEyebrow, { color: theme.colors.accentStrong }]}>
-                  Micro.blog sign in
+            <Animated.View pointerEvents="box-none" style={[styles.actionWrap, actionAnimatedStyle]}>
+              {error_message ? (
+                <Text style={[styles.errorMessage, { color: theme.colors.accentStrong }]}>
+                  {error_message}
                 </Text>
-                <Text style={[styles.cardTitle, { color: theme.colors.ink }]}>
-                  Sign in with Micro.blog.
-                </Text>
-                <Text style={[styles.cardBody, { color: theme.colors.inkSoft }]}>
-                  Connect your account in your default browser and come right back.
-                </Text>
-                {error_message ? (
-                  <Text style={[styles.errorMessage, { color: theme.colors.accentStrong }]}>
-                    {error_message}
-                  </Text>
-                ) : null}
-                <PrimaryButton
-                  label={is_signing_in ? 'Connecting to Micro.blog...' : 'Continue with Micro.blog'}
-                  onPress={Auth.sign_in_with_micro_blog}
-                  disabled={is_signing_in}
-                  theme={theme}
-                />
-              </AuthCard>
+              ) : null}
+              <PrimaryButton
+                label={is_signing_in ? 'Connecting to Micro.blog...' : 'Sign in with Micro.blog'}
+                onPress={Auth.sign_in_with_micro_blog}
+                disabled={is_signing_in}
+                style={styles.primaryButton}
+                theme={theme}
+              />
             </Animated.View>
           </View>
         </ScrollView>
@@ -128,33 +117,20 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     maxWidth: 336,
   },
-  card: {
-    gap: 24,
-  },
-  cardEyebrow: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  cardTitle: {
-    fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 31,
-    lineHeight: 38,
-  },
-  cardBody: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
   errorMessage: {
     fontSize: 14,
     lineHeight: 21,
   },
   footer: {
-    minHeight: 255,
+    minHeight: 112,
     justifyContent: 'flex-end',
+    paddingBottom: 32,
   },
-  cardWrap: {
+  actionWrap: {
+    gap: 12,
+    width: '100%',
+  },
+  primaryButton: {
     width: '100%',
   },
 });
