@@ -2,9 +2,9 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react';
 
+import AccountScreen from '../screens/AccountScreen';
 import FeedItemDetailScreen from '../screens/FeedItemDetailScreen';
 import FeedScreen from '../screens/FeedScreen';
-import SignedInScreen from '../screens/SignedInScreen';
 import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -54,7 +54,7 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <SignedInScreen
+          <AccountScreen
             {...screen_props}
             isDark={isDark}
           />

@@ -19,7 +19,7 @@ import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
 
-function SignedInScreen({ isDark = false }) {
+function AccountScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const profile = Auth.current_profile();
@@ -98,22 +98,6 @@ function AccountScreenContent({
   transition_progress,
   transition_theme,
 }) {
-  const eyebrow_style = useAnimatedStyle(() => {
-    if (!transition_theme) {
-      return {
-        color: theme.colors.accentStrong,
-      };
-    }
-
-    return {
-      color: interpolateColor(
-        transition_progress.value,
-        [0, 1],
-        [transition_theme.colors.accentStrong, theme.colors.accentStrong],
-      ),
-    };
-  }, [theme, transition_progress, transition_theme]);
-
   const avatar_fallback_style = useAnimatedStyle(() => {
     if (!transition_theme) {
       return {
@@ -182,11 +166,7 @@ function AccountScreenContent({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <Animated.Text style={[styles.eyebrow, eyebrow_style]}>Account</Animated.Text>
-          <Text style={[styles.title, { color: theme.colors.ink }]}>Signed in with Micro.blog.</Text>
-          <Text style={[styles.body, { color: theme.colors.inkSoft }]}>
-            Your reader is connected and ready to keep syncing with this account.
-          </Text>
+          <Text style={[styles.title, { color: theme.colors.ink }]}>Settings</Text>
         </View>
 
         <AuthCard style={styles.card} theme={theme}>
@@ -382,25 +362,14 @@ const styles = StyleSheet.create({
     gap: 32,
   },
   hero: {
-    gap: 14,
+    gap: 10,
     paddingTop: 28,
-  },
-  eyebrow: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
   },
   title: {
     fontFamily: 'Newsreader_700Bold',
     fontSize: 46,
     lineHeight: 52,
     maxWidth: 320,
-  },
-  body: {
-    fontSize: 18,
-    lineHeight: 28,
-    maxWidth: 336,
   },
   card: {
     gap: 24,
@@ -512,4 +481,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default observer(SignedInScreen);
+export default observer(AccountScreen);
