@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { observer } from 'mobx-react';
 import { DefaultTheme, DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -112,24 +113,26 @@ function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-        {AppStore.is_hydrating ? (
-          should_show_auth_loader ? (
+        <KeyboardProvider preload={false}>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          {AppStore.is_hydrating ? (
+            should_show_auth_loader ? (
+              <RssLoadingScreen isDark={isDark} phase={Auth.loading_phase} />
+            ) : (
+              <View style={[styles.loadingScreen, { backgroundColor: theme.colors.canvas }]}>
+                <ActivityIndicator color={theme.colors.accent} size="large" />
+              </View>
+            )
+          ) : should_show_auth_loader ? (
             <RssLoadingScreen isDark={isDark} phase={Auth.loading_phase} />
+          ) : is_signed_in ? (
+            <NavigationContainer theme={build_navigation_theme(theme)}>
+              <SignedInTabs isDark={isDark} />
+            </NavigationContainer>
           ) : (
-            <View style={[styles.loadingScreen, { backgroundColor: theme.colors.canvas }]}>
-              <ActivityIndicator color={theme.colors.accent} size="large" />
-            </View>
-          )
-        ) : should_show_auth_loader ? (
-          <RssLoadingScreen isDark={isDark} phase={Auth.loading_phase} />
-        ) : is_signed_in ? (
-          <NavigationContainer theme={build_navigation_theme(theme)}>
-            <SignedInTabs isDark={isDark} />
-          </NavigationContainer>
-        ) : (
-          <WelcomeScreen isDark={isDark} />
-        )}
+            <WelcomeScreen isDark={isDark} />
+          )}
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

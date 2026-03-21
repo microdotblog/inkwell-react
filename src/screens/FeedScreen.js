@@ -15,6 +15,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  KeyboardStickyView,
+  useReanimatedKeyboardAnimation,
+} from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Extrapolation,
@@ -88,6 +92,10 @@ function FeedScreen({ navigation, isDark = false }) {
     FOOTER_TOP_PADDING +
     SEGMENT_WRAP_MAX_HEIGHT +
     LIST_TOP_GAP;
+  const search_footer_open_offset = Math.max(
+    footer_bottom_inset - FOOTER_FLOAT_GAP,
+    0,
+  );
   const footer_visibility_bottom_threshold = list_bottom_inset;
   const list_ref = React.useRef(null);
   const search_input_ref = React.useRef(null);
@@ -98,6 +106,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const footer_visibility_progress = useSharedValue(1);
   const active_segment_offset = useSharedValue(0);
   const active_segment_width = useSharedValue(0);
+  const { height: keyboard_height } = useReanimatedKeyboardAnimation();
   const [should_block_footer_touches, set_should_block_footer_touches] =
     React.useState(true);
   const is_loading_initial =
@@ -438,6 +447,20 @@ function FeedScreen({ navigation, isDark = false }) {
     };
   }, []);
 
+  const search_results_spacer_style = useAnimatedStyle(() => {
+    const keyboard_height_value = Math.max(-keyboard_height.value, 0);
+    const search_results_spacer_height = is_search_active
+      ? Math.max(
+          keyboard_height_value - search_footer_open_offset,
+          0,
+        )
+      : 0;
+
+    return {
+      height: search_results_spacer_height,
+    };
+  }, [is_search_active, search_footer_open_offset]);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
@@ -463,118 +486,97 @@ function FeedScreen({ navigation, isDark = false }) {
             on_open_recap: handle_recap_press,
             search_query,
             recap_error_message,
+            search_results_spacer_style,
             visible_timeline_entries,
           })}
         </Animated.View>
       </GestureDetector>
-      <View pointerEvents="box-none" style={styles.footerOverlay}>
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.footerBackdrop,
-            {
-              backgroundColor: resolve_footer_backdrop_color(theme),
-            },
-            footer_backdrop_style,
-          ]}
-        />
-        <View
-          style={[
-            styles.footer,
-            {
-              paddingBottom: footer_bottom_inset,
-              paddingTop: FOOTER_TOP_PADDING,
-            },
-          ]}
-        >
-          <View
-            accessibilityElementsHidden
-            accessible={false}
-            importantForAccessibility="no-hide-descendants"
-            onMoveShouldSetResponder={() => should_block_footer_touches}
-            onStartShouldSetResponder={() => should_block_footer_touches}
-            pointerEvents={should_block_footer_touches ? 'auto' : 'none'}
-            style={styles.footerTouchShield}
-          />
-          <Animated.View style={[styles.footerWrap, footer_wrap_style]}>
-            <View style={styles.headerControlsRow}>
-              <AccountHeaderButton
-                onPress={handle_account_press}
+      {is_search_active ? (
+        <View pointerEvents="box-none" style={styles.searchFooterOverlay}>
+          <KeyboardStickyView
+            offset={{
+              closed: 0,
+              opened: search_footer_open_offset,
+            }}
+            style={styles.searchFooterSticky}
+          >
+            <View
+              style={[
+                styles.searchFooter,
+                {
+                  paddingBottom: footer_bottom_inset,
+                  paddingTop: FOOTER_TOP_PADDING,
+                },
+              ]}
+            >
+              <FeedFooterControlsRow
+                active_segment={active_segment}
+                active_segment_style={active_segment_style}
+                input_ref={search_input_ref}
+                is_search_active={is_search_active}
+                onAccountPress={handle_account_press}
+                onSearchQueryChange={handle_search_query_change}
+                onSearchTogglePress={handle_search_toggle_press}
+                onSegmentPress={handle_segment_press}
                 profile_name={profile.name}
                 profile_photo={profile.photo}
+                search_query={search_query}
                 theme={theme}
-              />
-              {is_search_active ? (
-                <FeedSearchField
-                  input_ref={search_input_ref}
-                  onChangeText={handle_search_query_change}
-                  theme={theme}
-                  value={search_query}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.segmentedControl,
-                    {
-                      backgroundColor: theme.colors.paper,
-                      borderColor: theme.colors.line,
-                      shadowColor: theme.colors.shadow,
-                    },
-                  ]}
-                >
-                  <Animated.View
-                    pointerEvents="none"
-                    style={[
-                      styles.activeSegmentPill,
-                      {
-                        backgroundColor: theme.colors.accent,
-                      },
-                      active_segment_style,
-                    ]}
-                  />
-                  {SEGMENT_OPTIONS.map((option) => {
-                    const is_active = option.key === active_segment;
-
-                    return (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: is_active }}
-                        key={option.key}
-                        onLayout={(event) => {
-                          update_segment_frame(
-                            option.key,
-                            event.nativeEvent.layout,
-                          );
-                        }}
-                        onPress={() => handle_segment_press(option.key)}
-                        style={[styles.segmentButton]}
-                      >
-                        <Text
-                          style={[
-                            styles.segmentLabel,
-                            {
-                              color: is_active
-                                ? theme.colors.white
-                                : theme.colors.inkSoft,
-                            },
-                          ]}
-                        >
-                          {option.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-              <FeedSearchToggleButton
-                is_search_active={is_search_active}
-                onPress={handle_search_toggle_press}
-                theme={theme}
+                update_segment_frame={update_segment_frame}
               />
             </View>
-          </Animated.View>
+          </KeyboardStickyView>
         </View>
-      </View>
+      ) : (
+        <View pointerEvents="box-none" style={styles.footerOverlay}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.footerBackdrop,
+              {
+                backgroundColor: resolve_footer_backdrop_color(theme),
+              },
+              footer_backdrop_style,
+            ]}
+          />
+          <View
+            style={[
+              styles.footer,
+              {
+                paddingBottom: footer_bottom_inset,
+                paddingTop: FOOTER_TOP_PADDING,
+              },
+            ]}
+          >
+            <View
+              accessibilityElementsHidden
+              accessible={false}
+              importantForAccessibility="no-hide-descendants"
+              onMoveShouldSetResponder={() => should_block_footer_touches}
+              onStartShouldSetResponder={() => should_block_footer_touches}
+              pointerEvents={should_block_footer_touches ? 'auto' : 'none'}
+              style={styles.footerTouchShield}
+            />
+            <Animated.View style={[styles.footerWrap, footer_wrap_style]}>
+              <FeedFooterControlsRow
+                active_segment={active_segment}
+                active_segment_style={active_segment_style}
+                input_ref={search_input_ref}
+                is_search_active={is_search_active}
+                onAccountPress={handle_account_press}
+                onSearchQueryChange={handle_search_query_change}
+                onSearchTogglePress={handle_search_toggle_press}
+                onSegmentPress={handle_segment_press}
+                profile_name={profile.name}
+                profile_photo={profile.photo}
+                search_query={search_query}
+                theme={theme}
+                update_segment_frame={update_segment_frame}
+              />
+            </Animated.View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -596,6 +598,7 @@ function render_content({
   on_open_recap,
   search_query,
   recap_error_message,
+  search_results_spacer_style,
   visible_timeline_entries,
 }) {
   if (is_loading_initial) {
@@ -695,6 +698,12 @@ function render_content({
             />
           ) : null
         }
+        ListFooterComponent={
+          <Animated.View
+            pointerEvents="none"
+            style={search_results_spacer_style}
+          />
+        }
         onScroll={on_scroll}
         progressViewOffset={list_top_inset}
         ref={list_ref}
@@ -722,6 +731,100 @@ function render_content({
       />
     );
   }
+}
+
+function FeedFooterControlsRow({
+  active_segment = 'today',
+  active_segment_style,
+  input_ref,
+  is_search_active = false,
+  onAccountPress,
+  onSearchQueryChange,
+  onSearchTogglePress,
+  onSegmentPress,
+  profile_name = '',
+  profile_photo = '',
+  search_query = '',
+  theme,
+  update_segment_frame,
+}) {
+  return (
+    <View style={styles.headerControlsRow}>
+      <AccountHeaderButton
+        onPress={onAccountPress}
+        profile_name={profile_name}
+        profile_photo={profile_photo}
+        theme={theme}
+      />
+      {is_search_active ? (
+        <FeedSearchField
+          input_ref={input_ref}
+          onChangeText={onSearchQueryChange}
+          theme={theme}
+          value={search_query}
+        />
+      ) : (
+        <View
+          style={[
+            styles.segmentedControl,
+            {
+              backgroundColor: theme.colors.paper,
+              borderColor: theme.colors.line,
+              shadowColor: theme.colors.shadow,
+            },
+          ]}
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.activeSegmentPill,
+              {
+                backgroundColor: theme.colors.accent,
+              },
+              active_segment_style,
+            ]}
+          />
+          {SEGMENT_OPTIONS.map((option) => {
+            const is_active = option.key === active_segment;
+
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: is_active }}
+                key={option.key}
+                onLayout={(event) => {
+                  update_segment_frame(
+                    option.key,
+                    event.nativeEvent.layout,
+                  );
+                }}
+                onPress={() => onSegmentPress(option.key)}
+                style={[styles.segmentButton]}
+              >
+                <Text
+                  style={[
+                    styles.segmentLabel,
+                    {
+                      color: is_active
+                        ? theme.colors.white
+                        : theme.colors.inkSoft,
+                    },
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+      <FeedSearchToggleButton
+        is_search_active={is_search_active}
+        onPress={onSearchTogglePress}
+        theme={theme}
+      />
+    </View>
+  );
 }
 
 function FeedTimelineRow({ entry, onPress, theme }) {
@@ -982,12 +1085,15 @@ function FeedSearchToggleButton({
   theme,
 }) {
   const icon_name = is_search_active ? 'close' : 'search';
+  const handle_press = is_search_active ? undefined : onPress;
+  const handle_press_in = is_search_active ? onPress : undefined;
 
   return (
     <Pressable
       accessibilityLabel={is_search_active ? 'Close search' : 'Search'}
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={handle_press}
+      onPressIn={handle_press_in}
       style={({ pressed }) => {
         return [
           styles.headerUtilityButton,
@@ -1227,6 +1333,19 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
     position: 'relative',
+  },
+  searchFooterOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 3,
+  },
+  searchFooterSticky: {
+    width: '100%',
+  },
+  searchFooter: {
+    paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
   },
   footerBackdrop: {
     ...StyleSheet.absoluteFillObject,
