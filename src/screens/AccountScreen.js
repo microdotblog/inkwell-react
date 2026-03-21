@@ -98,6 +98,10 @@ function AccountScreenContent({
   transition_progress,
   transition_theme,
 }) {
+  const should_show_status_badge = profile.has_inkwell === false;
+  const should_show_ai_helper = profile.is_using_ai != null;
+  const should_show_meta_stack = should_show_status_badge || should_show_ai_helper;
+
   const avatar_fallback_style = useAnimatedStyle(() => {
     if (!transition_theme) {
       return {
@@ -187,22 +191,24 @@ function AccountScreenContent({
             </View>
           </View>
 
-          <View style={styles.metaStack}>
-            <Animated.View style={[styles.statusBadge, status_badge_style]}>
-              <Text style={[styles.statusText, { color: theme.colors.inkSoft }]}>
-                {profile.has_inkwell === false
-                  ? 'Micro.blog says Inkwell is not enabled for this account yet.'
-                  : 'Micro.blog authentication completed successfully.'}
-              </Text>
-            </Animated.View>
+          {should_show_meta_stack ? (
+            <View style={styles.metaStack}>
+              {should_show_status_badge ? (
+                <Animated.View style={[styles.statusBadge, status_badge_style]}>
+                  <Text style={[styles.statusText, { color: theme.colors.inkSoft }]}>
+                    Micro.blog says Inkwell is not enabled for this account yet.
+                  </Text>
+                </Animated.View>
+              ) : null}
 
-            {profile.is_using_ai != null ? (
-              <Text style={[styles.helperText, { color: theme.colors.inkSoft }]}>
-                Fading summaries are currently {profile.is_using_ai ? 'enabled' : 'disabled'} for
-                this account.
-              </Text>
-            ) : null}
-          </View>
+              {should_show_ai_helper ? (
+                <Text style={[styles.helperText, { color: theme.colors.inkSoft }]}>
+                  Fading summaries are currently {profile.is_using_ai ? 'enabled' : 'disabled'} for
+                  this account.
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={styles.preferenceStack}>
             <View style={styles.preferenceCopy}>
