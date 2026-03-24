@@ -1,6 +1,9 @@
 import { flow, getSnapshot, types } from 'mobx-state-tree';
 
-import { fetch_micro_blog_bookmarks } from '../api/MicroBlogFeeds';
+import {
+  delete_micro_blog_bookmark,
+  fetch_micro_blog_bookmarks,
+} from '../api/MicroBlogFeeds';
 import Tokens from './Tokens';
 
 const BookmarkEntry = types.model('BookmarkEntry', {
@@ -40,6 +43,25 @@ const Bookmarks = types
       self.items.replace(normalize_bookmark_entries(items));
       self.has_loaded = true;
       self.error_message = null;
+    },
+
+    remove_bookmark_entry_locally(entry_id = '') {
+      const normalized_entry_id = normalize_string(entry_id);
+
+      if (!normalized_entry_id) {
+        return false;
+      }
+
+      const bookmark_index = self.items.findIndex((item) => {
+        return item.id === normalized_entry_id;
+      });
+
+      if (bookmark_index < 0) {
+        return false;
+      }
+
+      self.items.splice(bookmark_index, 1);
+      return true;
     },
 
     load: flow(function* () {
@@ -103,6 +125,45 @@ const Bookmarks = types
         if (self.request_token === request_token) {
           self.is_loading = false;
         }
+      }
+    }),
+
+    delete_bookmark: flow(function* (entry_id = '') {
+      const normalized_entry_id = normalize_string(entry_id);
+
+      if (!normalized_entry_id) {
+        return false;
+      }
+
+      const bookmark_entry = self.items.find((item) => {
+        return item.id === normalized_entry_id;
+      });
+      const bookmark_id = normalize_string(
+        bookmark_entry?.bookmark_id || bookmark_entry?.id,
+      );
+
+      if (!bookmark_id) {
+        return false;
+      }
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return false;
+        }
+
+        yield delete_micro_blog_bookmark({
+          token: user_token,
+          bookmark_id,
+        });
+
+        self.remove_bookmark_entry_locally(normalized_entry_id);
+        return true;
+      } catch (error) {
+        return false;
       }
     }),
   }))

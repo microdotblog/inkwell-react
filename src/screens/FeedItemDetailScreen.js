@@ -10,8 +10,10 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { MenuView } from '@react-native-menu/menu';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import RenderHtml, {
@@ -136,6 +138,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const formatted_date = format_reader_date(entry?.published_at);
   const source_url = normalize_http_url(entry?.source_url);
   const original_url = normalize_http_url(entry?.url);
+  const resolved_entry_id = `${entry?.id || entry_id || ''}`.trim();
   const source_host = resolve_host_label(source_url || original_url);
   const should_show_reader_title = Boolean(reader_title);
   const reader_html = create_reader_body_html(entry);
@@ -165,6 +168,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const replies_request_token_ref = React.useRef(0);
   const header_title =
     detail_mode === 'recap' ? 'Reading Recap' : source_label;
+  const has_entry_menu =
+    detail_mode === 'entry' && Boolean(entry) && Boolean(resolved_entry_id);
+  const is_entry_bookmarked =
+    entry_source === 'bookmark' ? Boolean(entry) : Boolean(entry?.is_bookmarked);
   const content_top_padding =
     header_height + (Platform.OS === 'ios' ? 0 : 12);
   const header_background_color =
@@ -172,6 +179,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const reply_count = replies.length;
   const should_show_reply_tabs =
     detail_mode === 'entry' && !is_loading_replies && reply_count > 0;
+  const entry_menu_actions = React.useMemo(() => {
+    return get_entry_menu_actions({
+      entry,
+      entry_source,
+      is_bookmarked: is_entry_bookmarked,
+      original_url,
+      theme,
+    });
+  }, [entry, entry_source, is_entry_bookmarked, original_url, theme]);
   const recap_renderers = React.useMemo(() => {
     const bookmarked_quote_url_set = new Set(recap_bookmarked_quote_urls);
 
@@ -345,6 +361,84 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     set_active_pane('replies');
   }, [reply_count]);
 
+  const handle_copy_link = React.useCallback(async () => {
+    if (!original_url) {
+      return false;
+    }
+
+    try {
+      await Clipboard.setStringAsync(original_url);
+      return true;
+    } catch (error) {
+      console.warn('Failed to copy link', error);
+      return false;
+    }
+  }, [original_url]);
+
+  const handle_entry_menu_action = React.useCallback(
+    async (menu_action_id = '') => {
+      if (!has_entry_menu) {
+        return;
+      }
+
+      if (menu_action_id === 'copy_link') {
+        await handle_copy_link();
+        return;
+      }
+
+      if (menu_action_id === 'open_web') {
+        await open_external_url(original_url);
+        return;
+      }
+
+      if (menu_action_id === 'toggle_read') {
+        if (entry_source === 'bookmark') {
+          return;
+        }
+
+        if (entry?.is_read) {
+          Feed.mark_entry_unread(resolved_entry_id);
+        } else {
+          Feed.mark_entry_read(resolved_entry_id);
+        }
+        return;
+      }
+
+      if (menu_action_id !== 'toggle_bookmark') {
+        return;
+      }
+
+      if (entry_source === 'bookmark') {
+        const did_delete = await Bookmarks.delete_bookmark(resolved_entry_id);
+
+        if (did_delete) {
+          if (typeof navigation.canGoBack === 'function' && navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('Bookmarks');
+          }
+        }
+        return;
+      }
+
+      if (is_entry_bookmarked) {
+        Feed.unbookmark_entry(resolved_entry_id);
+      } else {
+        Feed.bookmark_entry(resolved_entry_id);
+      }
+    },
+    [
+      entry?.is_read,
+      entry_source,
+      handle_copy_link,
+      has_entry_menu,
+      is_entry_bookmarked,
+      navigation,
+      original_url,
+      resolved_entry_id,
+    ],
+  );
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerBackButtonDisplayMode: 'minimal',
@@ -363,15 +457,16 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         backgroundColor: 'transparent',
       },
       headerTransparent: true,
-      headerRight:
-        detail_mode === 'entry' && original_url
-          ? () => (
-              <HeaderLinkButton
-                onPress={() => open_external_url(original_url)}
-                theme={theme}
-              />
-            )
-          : undefined,
+      headerRight: has_entry_menu
+        ? () => (
+            <HeaderEntryMenuButton
+              is_dark={isDark}
+              menu_actions={entry_menu_actions}
+              onMenuAction={handle_entry_menu_action}
+              theme={theme}
+            />
+          )
+        : undefined,
       headerShadowVisible: false,
       headerTintColor: theme.colors.ink,
       headerTitleStyle: {
@@ -388,11 +483,14 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     });
   }, [
     detail_mode,
+    entry_menu_actions,
+    handle_entry_menu_action,
     header_background_color,
     header_title,
+    has_entry_menu,
+    isDark,
     is_ios_header_title_visible,
     navigation,
-    original_url,
     theme,
   ]);
 
@@ -1525,19 +1623,103 @@ function RecapDayChip({
   );
 }
 
-function HeaderLinkButton({ onPress, theme }) {
+function get_entry_menu_actions({
+  entry = null,
+  entry_source = 'feed',
+  is_bookmarked = false,
+  original_url = '',
+  theme,
+}) {
+  if (!entry) {
+    return [];
+  }
+
+  const icon_color = theme?.colors?.ink;
+  const bookmark_title =
+    entry_source === 'bookmark' || is_bookmarked
+      ? 'Unbookmark'
+      : 'Bookmark';
+  const read_title = entry?.is_read ? 'Mark as Unread' : 'Mark as Read';
+  const actions = [];
+
+  if (original_url) {
+    actions.push({
+      id: 'copy_link',
+      image: Platform.select({
+        ios: 'link',
+      }),
+      imageColor: icon_color,
+      title: 'Copy Link',
+    });
+  }
+
+  if (entry_source !== 'bookmark') {
+    actions.push({
+      id: 'toggle_read',
+      title: read_title,
+    });
+  }
+
+  actions.push({
+    attributes:
+      bookmark_title === 'Unbookmark' && entry_source === 'bookmark'
+        ? {
+            destructive: true,
+          }
+        : undefined,
+    id: 'toggle_bookmark',
+    image: Platform.select({
+      ios: bookmark_title === 'Unbookmark' ? 'bookmark.slash' : 'bookmark',
+    }),
+    imageColor: icon_color,
+    title: bookmark_title,
+  });
+
+  if (original_url) {
+    actions.push({
+      id: 'open_web',
+      image: Platform.select({
+        ios: 'safari',
+      }),
+      imageColor: icon_color,
+      title: 'Open on Web',
+    });
+  }
+
+  return actions;
+}
+
+function HeaderEntryMenuButton({
+  is_dark = false,
+  menu_actions = [],
+  onMenuAction,
+  theme,
+}) {
+  if (menu_actions.length === 0) {
+    return null;
+  }
+
   return (
-    <Pressable
-      accessibilityLabel="Open original post"
-      accessibilityRole="button"
-      hitSlop={8}
-      onPress={onPress}
-      style={styles.headerAction}
+    <MenuView
+      accessibilityLabel="Open post actions"
+      actions={menu_actions}
+      onPressAction={({ nativeEvent }) => {
+        onMenuAction?.(nativeEvent.event);
+      }}
+      shouldOpenOnLongPress={false}
+      themeVariant={is_dark ? 'dark' : 'light'}
     >
-      <Text style={[styles.headerActionLabel, { color: theme.colors.accentStrong }]}>
-        Open
-      </Text>
-    </Pressable>
+      <View
+        accessibilityRole="button"
+        style={styles.headerMenuButton}
+      >
+        <MaterialIcons
+          color={theme.colors.accentStrong}
+          name="more-horiz"
+          size={24}
+        />
+      </View>
+    </MenuView>
   );
 }
 
@@ -2005,13 +2187,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 16,
   },
-  headerAction: {
+  headerMenuButton: {
     paddingHorizontal: 2,
     paddingVertical: 2,
-  },
-  headerActionLabel: {
-    fontSize: 15,
-    fontWeight: '700',
   },
   unavailableBodyCard: {
     gap: 16,

@@ -81,6 +81,14 @@ export async function fetch_micro_blog_feed_unread_entry_ids({
   });
 }
 
+export async function fetch_micro_blog_feed_starred_entry_ids({
+  token = '',
+} = {}) {
+  return fetch_micro_blog_feeds_json('/feeds/v2/starred_entries.json', {
+    token,
+  });
+}
+
 export async function fetch_micro_blog_feed_icons({ token = '' } = {}) {
   return fetch_micro_blog_feeds_json('/feeds/v2/icons.json', {
     token,
@@ -198,6 +206,93 @@ export async function mark_micro_blog_feed_entries_read({
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ unread_entries }),
+    },
+  );
+
+  if (Array.isArray(payload)) {
+    return payload;
+  } else {
+    return [];
+  }
+}
+
+export async function mark_micro_blog_feed_entries_unread({
+  token = '',
+  entry_ids = [],
+} = {}) {
+  const unread_entries = normalize_entry_payload_ids(entry_ids);
+
+  if (unread_entries.length === 0) {
+    return [];
+  }
+
+  const payload = await fetch_micro_blog_feeds_json(
+    '/feeds/v2/unread_entries.json',
+    {
+      token,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ unread_entries }),
+    },
+  );
+
+  if (Array.isArray(payload)) {
+    return payload;
+  } else {
+    return [];
+  }
+}
+
+export async function bookmark_micro_blog_feed_entries({
+  token = '',
+  entry_ids = [],
+} = {}) {
+  const starred_entries = normalize_entry_payload_ids(entry_ids);
+
+  if (starred_entries.length === 0) {
+    return [];
+  }
+
+  const payload = await fetch_micro_blog_feeds_json(
+    '/feeds/v2/starred_entries.json',
+    {
+      token,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ starred_entries }),
+    },
+  );
+
+  if (Array.isArray(payload)) {
+    return payload;
+  } else {
+    return [];
+  }
+}
+
+export async function unbookmark_micro_blog_feed_entries({
+  token = '',
+  entry_ids = [],
+} = {}) {
+  const starred_entries = normalize_entry_payload_ids(entry_ids);
+
+  if (starred_entries.length === 0) {
+    return [];
+  }
+
+  const payload = await fetch_micro_blog_feeds_json(
+    '/feeds/v2/starred_entries.json',
+    {
+      token,
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ starred_entries }),
     },
   );
 
@@ -375,6 +470,55 @@ export async function create_micro_blog_bookmark({
     return JSON.parse(response_text);
   } catch (error) {
     return {};
+  }
+}
+
+export async function delete_micro_blog_bookmark({
+  token = '',
+  bookmark_id = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_bookmark_id = `${bookmark_id || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error('A Micro.blog token is required to delete bookmarks.');
+  }
+
+  if (!trimmed_bookmark_id) {
+    throw create_request_error('A bookmark id is required to delete a bookmark.');
+  }
+
+  const encoded_bookmark_id = encodeURIComponent(trimmed_bookmark_id);
+  const url = new URL(
+    `/posts/bookmarks/${encoded_bookmark_id}`,
+    `${MICRO_BLOG_FEEDS_BASE_URL}/`,
+  );
+  const headers = new Headers({
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers,
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Micro.blog bookmark delete request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    return null;
   }
 }
 

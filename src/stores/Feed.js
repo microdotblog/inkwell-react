@@ -1,14 +1,18 @@
 import { flow, getSnapshot, types } from 'mobx-state-tree';
 
 import {
+  bookmark_micro_blog_feed_entries,
   create_micro_blog_bookmark,
   fetch_recap_email_settings,
   fetch_micro_blog_feed_entries,
   fetch_micro_blog_feed_icons,
+  fetch_micro_blog_feed_starred_entry_ids,
   fetch_micro_blog_feed_subscriptions,
   fetch_micro_blog_feed_unread_entry_ids,
   mark_micro_blog_feed_entries_read,
+  mark_micro_blog_feed_entries_unread,
   summarize_micro_blog_feed_entries,
+  unbookmark_micro_blog_feed_entries,
   update_recap_email_settings,
 } from '../api/MicroBlogFeeds';
 import Tokens from './Tokens';
@@ -35,6 +39,7 @@ const TimelineEntry = types.model('TimelineEntry', {
   url: types.optional(types.string, ''),
   published_at: types.optional(types.string, ''),
   is_read: types.optional(types.boolean, false),
+  is_bookmarked: types.optional(types.boolean, false),
   age_bucket: types.optional(types.string, 'day-7'),
 });
 
@@ -81,7 +86,13 @@ const Feed = types
   })
   .volatile(() => ({
     local_read_entry_ids: new Set(),
+    local_unread_entry_ids: new Set(),
     pending_read_sync_entry_ids: new Set(),
+    pending_unread_sync_entry_ids: new Set(),
+    local_bookmarked_entry_ids: new Set(),
+    local_unbookmarked_entry_ids: new Set(),
+    pending_bookmark_sync_entry_ids: new Set(),
+    pending_unbookmark_sync_entry_ids: new Set(),
     recap_request_token: 0,
     recap_email_request_token: 0,
     recap_bookmark_request_token: 0,
@@ -98,7 +109,21 @@ const Feed = types
 
     clear_local_read_state() {
       self.local_read_entry_ids.clear();
+      self.local_unread_entry_ids.clear();
       self.pending_read_sync_entry_ids.clear();
+      self.pending_unread_sync_entry_ids.clear();
+    },
+
+    clear_local_bookmark_state() {
+      self.local_bookmarked_entry_ids.clear();
+      self.local_unbookmarked_entry_ids.clear();
+      self.pending_bookmark_sync_entry_ids.clear();
+      self.pending_unbookmark_sync_entry_ids.clear();
+    },
+
+    clear_local_entry_state() {
+      self.clear_local_read_state();
+      self.clear_local_bookmark_state();
     },
 
     reset() {
@@ -108,7 +133,7 @@ const Feed = types
       self.is_bootstrapping = false;
       self.has_bootstrapped = false;
       self.error_message = null;
-      self.clear_local_read_state();
+      self.clear_local_entry_state();
       self.clear_feed_data();
       self.clear_active_recap();
     },
@@ -399,11 +424,15 @@ const Feed = types
     apply_bootstrap_payload(
       subscriptions = [],
       unread_entry_ids = [],
+      starred_entry_ids = [],
       entries = [],
       icons = [],
     ) {
       const unread_ids = Array.isArray(unread_entry_ids)
         ? unread_entry_ids
+        : [];
+      const starred_ids = Array.isArray(starred_entry_ids)
+        ? starred_entry_ids
         : [];
       const normalized_subscriptions = normalize_subscriptions(
         subscriptions,
@@ -413,7 +442,11 @@ const Feed = types
         entries,
         normalized_subscriptions,
         unread_ids,
+        starred_ids,
         self.local_read_entry_ids,
+        self.local_unread_entry_ids,
+        self.local_bookmarked_entry_ids,
+        self.local_unbookmarked_entry_ids,
       );
 
       self.subscriptions.replace(normalized_subscriptions);
@@ -441,11 +474,13 @@ const Feed = types
         const [
           subscriptions_result,
           unread_entry_ids_result,
+          starred_entry_ids_result,
           entries_result,
           icons_result,
         ] = yield Promise.allSettled([
           fetch_micro_blog_feed_subscriptions({ token: user_token }),
           fetch_micro_blog_feed_unread_entry_ids({ token: user_token }),
+          fetch_micro_blog_feed_starred_entry_ids({ token: user_token }),
           fetch_micro_blog_feed_entries({ token: user_token }),
           fetch_micro_blog_feed_icons({ token: user_token }),
         ]);
@@ -458,12 +493,17 @@ const Feed = types
           throw unread_entry_ids_result.reason;
         }
 
+        if (starred_entry_ids_result.status !== 'fulfilled') {
+          throw starred_entry_ids_result.reason;
+        }
+
         if (entries_result.status !== 'fulfilled') {
           throw entries_result.reason;
         }
 
         const subscriptions = subscriptions_result.value;
         const unread_entry_ids = unread_entry_ids_result.value;
+        const starred_entry_ids = starred_entry_ids_result.value;
         const entries = entries_result.value;
         const icons =
           icons_result.status === 'fulfilled' ? icons_result.value : [];
@@ -479,10 +519,12 @@ const Feed = types
         self.apply_bootstrap_payload(
           subscriptions,
           unread_entry_ids,
+          starred_entry_ids,
           entries,
           icons,
         );
         self.retry_unsynced_local_reads(unread_entry_ids);
+        self.retry_unsynced_local_bookmarks(starred_entry_ids);
         self.has_bootstrapped = true;
         return true;
       } catch (error) {
@@ -505,7 +547,7 @@ const Feed = types
       return yield self.bootstrap();
     }),
 
-    mark_entry_read_locally(entry_id = '') {
+    set_entry_read_state_locally(entry_id = '', next_is_read = false) {
       const normalized_entry_id = normalize_string(entry_id);
 
       if (!normalized_entry_id) {
@@ -516,44 +558,191 @@ const Feed = types
         return entry.id === normalized_entry_id;
       });
 
-      if (!timeline_entry || timeline_entry.is_read) {
+      if (!timeline_entry || timeline_entry.is_read === next_is_read) {
         return false;
       }
 
-      timeline_entry.is_read = true;
-      self.local_read_entry_ids.add(normalized_entry_id);
+      timeline_entry.is_read = next_is_read;
+
+      if (next_is_read) {
+        self.local_read_entry_ids.add(normalized_entry_id);
+        self.local_unread_entry_ids.delete(normalized_entry_id);
+      } else {
+        self.local_unread_entry_ids.add(normalized_entry_id);
+        self.local_read_entry_ids.delete(normalized_entry_id);
+      }
+
       return true;
     },
 
+    set_entry_bookmark_state_locally(
+      entry_id = '',
+      next_is_bookmarked = false,
+    ) {
+      const normalized_entry_id = normalize_string(entry_id);
+
+      if (!normalized_entry_id) {
+        return false;
+      }
+
+      const timeline_entry = self.timeline_entries.find((entry) => {
+        return entry.id === normalized_entry_id;
+      });
+
+      if (
+        !timeline_entry ||
+        timeline_entry.is_bookmarked === next_is_bookmarked
+      ) {
+        return false;
+      }
+
+      timeline_entry.is_bookmarked = next_is_bookmarked;
+
+      if (next_is_bookmarked) {
+        self.local_bookmarked_entry_ids.add(normalized_entry_id);
+        self.local_unbookmarked_entry_ids.delete(normalized_entry_id);
+      } else {
+        self.local_unbookmarked_entry_ids.add(normalized_entry_id);
+        self.local_bookmarked_entry_ids.delete(normalized_entry_id);
+      }
+
+      return true;
+    },
+
+    mark_entry_read_locally(entry_id = '') {
+      return self.set_entry_read_state_locally(entry_id, true);
+    },
+
+    mark_entry_unread_locally(entry_id = '') {
+      return self.set_entry_read_state_locally(entry_id, false);
+    },
+
+    mark_entry_bookmarked_locally(entry_id = '') {
+      return self.set_entry_bookmark_state_locally(entry_id, true);
+    },
+
+    mark_entry_unbookmarked_locally(entry_id = '') {
+      return self.set_entry_bookmark_state_locally(entry_id, false);
+    },
+
     open_entry(entry_id = '') {
+      self.mark_entry_read(entry_id);
+    },
+
+    mark_entry_read(entry_id = '') {
       const did_mark_read = self.mark_entry_read_locally(entry_id);
 
       if (!did_mark_read) {
-        return;
+        return false;
       }
 
       self.sync_read_entries([entry_id]);
+      return true;
+    },
+
+    mark_entry_unread(entry_id = '') {
+      const did_mark_unread = self.mark_entry_unread_locally(entry_id);
+
+      if (!did_mark_unread) {
+        return false;
+      }
+
+      self.sync_unread_entries([entry_id]);
+      return true;
+    },
+
+    bookmark_entry(entry_id = '') {
+      const did_bookmark_entry = self.mark_entry_bookmarked_locally(entry_id);
+
+      if (!did_bookmark_entry) {
+        return false;
+      }
+
+      self.sync_bookmarked_entries([entry_id]);
+      return true;
+    },
+
+    unbookmark_entry(entry_id = '') {
+      const did_unbookmark_entry =
+        self.mark_entry_unbookmarked_locally(entry_id);
+
+      if (!did_unbookmark_entry) {
+        return false;
+      }
+
+      self.sync_unbookmarked_entries([entry_id]);
+      return true;
     },
 
     retry_unsynced_local_reads(unread_entry_ids = []) {
-      const unread_ids = Array.isArray(unread_entry_ids)
-        ? unread_entry_ids.map((entry_id) => {
+      const unread_id_set = new Set(
+        (Array.isArray(unread_entry_ids) ? unread_entry_ids : [])
+          .map((entry_id) => {
             return normalize_string(entry_id);
           })
-        : [];
-      const unsynced_entry_ids = unread_ids.filter((entry_id) => {
+          .filter(Boolean),
+      );
+      const unsynced_read_entry_ids = [...self.local_read_entry_ids].filter(
+        (entry_id) => {
+          return (
+            entry_id &&
+            unread_id_set.has(entry_id) &&
+            !self.pending_read_sync_entry_ids.has(entry_id)
+          );
+        },
+      );
+      const unsynced_unread_entry_ids = [...self.local_unread_entry_ids].filter(
+        (entry_id) => {
+          return (
+            entry_id &&
+            !unread_id_set.has(entry_id) &&
+            !self.pending_unread_sync_entry_ids.has(entry_id)
+          );
+        },
+      );
+
+      if (unsynced_read_entry_ids.length > 0) {
+        self.sync_read_entries(unsynced_read_entry_ids);
+      }
+
+      if (unsynced_unread_entry_ids.length > 0) {
+        self.sync_unread_entries(unsynced_unread_entry_ids);
+      }
+    },
+
+    retry_unsynced_local_bookmarks(starred_entry_ids = []) {
+      const starred_id_set = new Set(
+        (Array.isArray(starred_entry_ids) ? starred_entry_ids : [])
+          .map((entry_id) => {
+            return normalize_string(entry_id);
+          })
+          .filter(Boolean),
+      );
+      const unsynced_bookmarked_entry_ids = [...self.local_bookmarked_entry_ids]
+        .filter((entry_id) => {
+          return (
+            entry_id &&
+            !starred_id_set.has(entry_id) &&
+            !self.pending_bookmark_sync_entry_ids.has(entry_id)
+          );
+        });
+      const unsynced_unbookmarked_entry_ids = [
+        ...self.local_unbookmarked_entry_ids,
+      ].filter((entry_id) => {
         return (
           entry_id &&
-          self.local_read_entry_ids.has(entry_id) &&
-          !self.pending_read_sync_entry_ids.has(entry_id)
+          starred_id_set.has(entry_id) &&
+          !self.pending_unbookmark_sync_entry_ids.has(entry_id)
         );
       });
 
-      if (unsynced_entry_ids.length === 0) {
-        return;
+      if (unsynced_bookmarked_entry_ids.length > 0) {
+        self.sync_bookmarked_entries(unsynced_bookmarked_entry_ids);
       }
 
-      self.sync_read_entries(unsynced_entry_ids);
+      if (unsynced_unbookmarked_entry_ids.length > 0) {
+        self.sync_unbookmarked_entries(unsynced_unbookmarked_entry_ids);
+      }
     },
 
     sync_read_entries: flow(function* (entry_ids = []) {
@@ -589,6 +778,117 @@ const Feed = types
       } finally {
         normalized_entry_ids.forEach((entry_id) => {
           self.pending_read_sync_entry_ids.delete(entry_id);
+        });
+      }
+    }),
+
+    sync_unread_entries: flow(function* (entry_ids = []) {
+      const normalized_entry_ids = normalize_unique_entry_ids(entry_ids).filter(
+        (entry_id) => {
+          return !self.pending_unread_sync_entry_ids.has(entry_id);
+        },
+      );
+
+      if (normalized_entry_ids.length === 0) {
+        return false;
+      }
+
+      normalized_entry_ids.forEach((entry_id) => {
+        self.pending_unread_sync_entry_ids.add(entry_id);
+      });
+
+      try {
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return false;
+        }
+
+        yield mark_micro_blog_feed_entries_unread({
+          token: user_token,
+          entry_ids: normalized_entry_ids,
+        });
+
+        return true;
+      } catch (error) {
+        return false;
+      } finally {
+        normalized_entry_ids.forEach((entry_id) => {
+          self.pending_unread_sync_entry_ids.delete(entry_id);
+        });
+      }
+    }),
+
+    sync_bookmarked_entries: flow(function* (entry_ids = []) {
+      const normalized_entry_ids = normalize_unique_entry_ids(entry_ids).filter(
+        (entry_id) => {
+          return !self.pending_bookmark_sync_entry_ids.has(entry_id);
+        },
+      );
+
+      if (normalized_entry_ids.length === 0) {
+        return false;
+      }
+
+      normalized_entry_ids.forEach((entry_id) => {
+        self.pending_bookmark_sync_entry_ids.add(entry_id);
+      });
+
+      try {
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return false;
+        }
+
+        yield bookmark_micro_blog_feed_entries({
+          token: user_token,
+          entry_ids: normalized_entry_ids,
+        });
+
+        return true;
+      } catch (error) {
+        return false;
+      } finally {
+        normalized_entry_ids.forEach((entry_id) => {
+          self.pending_bookmark_sync_entry_ids.delete(entry_id);
+        });
+      }
+    }),
+
+    sync_unbookmarked_entries: flow(function* (entry_ids = []) {
+      const normalized_entry_ids = normalize_unique_entry_ids(entry_ids).filter(
+        (entry_id) => {
+          return !self.pending_unbookmark_sync_entry_ids.has(entry_id);
+        },
+      );
+
+      if (normalized_entry_ids.length === 0) {
+        return false;
+      }
+
+      normalized_entry_ids.forEach((entry_id) => {
+        self.pending_unbookmark_sync_entry_ids.add(entry_id);
+      });
+
+      try {
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return false;
+        }
+
+        yield unbookmark_micro_blog_feed_entries({
+          token: user_token,
+          entry_ids: normalized_entry_ids,
+        });
+
+        return true;
+      } catch (error) {
+        return false;
+      } finally {
+        normalized_entry_ids.forEach((entry_id) => {
+          self.pending_unbookmark_sync_entry_ids.delete(entry_id);
         });
       }
     }),
@@ -787,7 +1087,11 @@ function normalize_timeline_entries(
   entries = [],
   subscriptions = [],
   unread_entry_ids = [],
+  starred_entry_ids = [],
   local_read_entry_ids = new Set(),
+  local_unread_entry_ids = new Set(),
+  local_bookmarked_entry_ids = new Set(),
+  local_unbookmarked_entry_ids = new Set(),
 ) {
   if (!Array.isArray(entries)) {
     return [];
@@ -796,6 +1100,13 @@ function normalize_timeline_entries(
   const subscription_map = build_subscription_map(subscriptions);
   const unread_set = new Set(
     (Array.isArray(unread_entry_ids) ? unread_entry_ids : []).map(
+      (entry_id) => {
+        return `${entry_id || ''}`.trim();
+      },
+    ),
+  );
+  const starred_set = new Set(
+    (Array.isArray(starred_entry_ids) ? starred_entry_ids : []).map(
       (entry_id) => {
         return `${entry_id || ''}`.trim();
       },
@@ -819,8 +1130,18 @@ function normalize_timeline_entries(
       author: normalize_string(entry?.author),
       url: normalize_string(entry?.url),
       published_at,
-      is_read:
-        local_read_entry_ids.has(normalized_id) || !unread_set.has(normalized_id),
+      is_read: resolve_entry_read_state(
+        normalized_id,
+        unread_set,
+        local_read_entry_ids,
+        local_unread_entry_ids,
+      ),
+      is_bookmarked: resolve_entry_bookmark_state(
+        normalized_id,
+        starred_set,
+        local_bookmarked_entry_ids,
+        local_unbookmarked_entry_ids,
+      ),
       age_bucket: get_age_bucket(published_at),
     };
   });
@@ -1017,6 +1338,40 @@ function resolve_published_at(entry = null) {
   }
 
   return new Date().toISOString();
+}
+
+function resolve_entry_read_state(
+  entry_id = '',
+  unread_set = new Set(),
+  local_read_entry_ids = new Set(),
+  local_unread_entry_ids = new Set(),
+) {
+  if (local_unread_entry_ids.has(entry_id)) {
+    return false;
+  }
+
+  if (local_read_entry_ids.has(entry_id)) {
+    return true;
+  }
+
+  return !unread_set.has(entry_id);
+}
+
+function resolve_entry_bookmark_state(
+  entry_id = '',
+  starred_set = new Set(),
+  local_bookmarked_entry_ids = new Set(),
+  local_unbookmarked_entry_ids = new Set(),
+) {
+  if (local_unbookmarked_entry_ids.has(entry_id)) {
+    return false;
+  }
+
+  if (local_bookmarked_entry_ids.has(entry_id)) {
+    return true;
+  }
+
+  return starred_set.has(entry_id);
 }
 
 function get_age_bucket(iso_date = '') {
