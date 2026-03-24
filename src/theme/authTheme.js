@@ -329,6 +329,152 @@ const accentPalettes = {
       },
     },
   },
+  orange: {
+    label: 'Orange',
+    light: {
+      swatch: '#ff8800',
+      colors: {
+        canvas: '#fff8f0',
+        paper: 'rgba(255, 255, 255, 0.78)',
+        paperMuted: '#ffecd9',
+        accent: '#e67e00',
+        accentStrong: '#ff8800',
+        accentSoft: '#ffe4cc',
+        glow: 'rgba(255, 136, 0, 0.24)',
+        badge: 'rgba(255, 250, 242, 0.78)',
+        buttonGhost: 'rgba(255, 252, 247, 0.82)',
+        danger: '#d65a3a',
+      },
+      background: {
+        imageOpacity: 0.92,
+        waveScale: 1.1,
+        base: ['#fffeff', '#fff8f0', '#ffeed9'],
+        tint: [
+          'rgba(255, 255, 255, 0.05)',
+          'rgba(255, 200, 140, 0.18)',
+          'rgba(230, 126, 0, 0.22)',
+        ],
+        glow: [
+          'rgba(255, 255, 255, 0.58)',
+          'rgba(255, 220, 180, 0.18)',
+          'rgba(255, 255, 255, 0)',
+        ],
+        edge: [
+          'rgba(255, 255, 255, 0.08)',
+          'rgba(255, 255, 255, 0.02)',
+          'rgba(230, 126, 0, 0.14)',
+        ],
+      },
+    },
+    dark: {
+      swatch: '#ffaa4d',
+      colors: {
+        canvas: '#1a0f00',
+        paper: 'rgba(46, 28, 10, 0.84)',
+        paperMuted: '#3d260a',
+        accent: '#ff8800',
+        accentStrong: '#ffaa4d',
+        accentSoft: '#5a3a0a',
+        glow: 'rgba(255, 170, 77, 0.30)',
+        badge: 'rgba(40, 24, 6, 0.78)',
+        buttonGhost: 'rgba(55, 34, 8, 0.80)',
+        danger: '#e57373',
+      },
+      background: {
+        imageOpacity: 0.30,
+        waveScale: 1.18,
+        base: ['#261600', '#1f1100', '#1a0f00'],
+        tint: [
+          'rgba(46, 26, 6, 0.08)',
+          'rgba(255, 136, 0, 0.22)',
+          'rgba(26, 15, 0, 0.70)',
+        ],
+        glow: [
+          'rgba(255, 200, 140, 0.18)',
+          'rgba(255, 136, 0, 0.10)',
+          'rgba(26, 15, 0, 0)',
+        ],
+        edge: [
+          'rgba(255, 255, 255, 0.02)',
+          'rgba(20, 12, 3, 0.08)',
+          'rgba(18, 10, 0, 0.40)',
+        ],
+      },
+    },
+  },
+  slate: {
+    label: 'Slate',
+    light: {
+      swatch: '#64748b',
+      colors: {
+        canvas: '#f5f5f7',
+        paper: 'rgba(255, 255, 255, 0.78)',
+        paperMuted: '#e8e8ec',
+        accent: '#475569',
+        accentStrong: '#64748b',
+        accentSoft: '#d1d5db',
+        glow: 'rgba(100, 116, 139, 0.24)',
+        badge: 'rgba(248, 248, 250, 0.78)',
+        buttonGhost: 'rgba(250, 250, 252, 0.82)',
+        danger: '#c85550',
+      },
+      background: {
+        imageOpacity: 0.92,
+        waveScale: 1.1,
+        base: ['#ffffff', '#f5f5f7', '#e8e8ec'],
+        tint: [
+          'rgba(255, 255, 255, 0.05)',
+          'rgba(180, 190, 205, 0.18)',
+          'rgba(100, 116, 139, 0.20)',
+        ],
+        glow: [
+          'rgba(255, 255, 255, 0.58)',
+          'rgba(200, 210, 220, 0.18)',
+          'rgba(255, 255, 255, 0)',
+        ],
+        edge: [
+          'rgba(255, 255, 255, 0.08)',
+          'rgba(255, 255, 255, 0.02)',
+          'rgba(71, 85, 105, 0.12)',
+        ],
+      },
+    },
+    dark: {
+      swatch: '#94a3b8',
+      colors: {
+        canvas: '#0d0d0f',
+        paper: 'rgba(35, 38, 45, 0.84)',
+        paperMuted: '#2a2d35',
+        accent: '#64748b',
+        accentStrong: '#94a3b8',
+        accentSoft: '#3a3f4a',
+        glow: 'rgba(148, 163, 184, 0.28)',
+        badge: 'rgba(30, 32, 38, 0.78)',
+        buttonGhost: 'rgba(45, 48, 56, 0.80)',
+        danger: '#e57373',
+      },
+      background: {
+        imageOpacity: 0.30,
+        waveScale: 1.18,
+        base: ['#16181c', '#121418', '#0d0d0f'],
+        tint: [
+          'rgba(40, 44, 52, 0.08)',
+          'rgba(100, 116, 139, 0.24)',
+          'rgba(13, 13, 15, 0.70)',
+        ],
+        glow: [
+          'rgba(180, 190, 205, 0.18)',
+          'rgba(100, 116, 139, 0.10)',
+          'rgba(13, 13, 15, 0)',
+        ],
+        edge: [
+          'rgba(255, 255, 255, 0.02)',
+          'rgba(10, 10, 12, 0.08)',
+          'rgba(8, 8, 10, 0.40)',
+        ],
+      },
+    },
+  },
 };
 
 export const ACCENT_PALETTE_OPTIONS = Object.freeze([
@@ -355,6 +501,18 @@ export const ACCENT_PALETTE_OPTIONS = Object.freeze([
     label: accentPalettes.rose.label,
     light_swatch: accentPalettes.rose.light.swatch,
     dark_swatch: accentPalettes.rose.dark.swatch,
+  },
+  {
+    id: 'orange',
+    label: accentPalettes.orange.label,
+    light_swatch: accentPalettes.orange.light.swatch,
+    dark_swatch: accentPalettes.orange.dark.swatch,
+  },
+  {
+    id: 'slate',
+    label: accentPalettes.slate.label,
+    light_swatch: accentPalettes.slate.light.swatch,
+    dark_swatch: accentPalettes.slate.dark.swatch,
   },
 ]);
 
