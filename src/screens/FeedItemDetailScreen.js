@@ -172,6 +172,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     detail_mode === 'entry' && Boolean(entry) && Boolean(resolved_entry_id);
   const is_entry_bookmarked =
     entry_source === 'bookmark' ? Boolean(entry) : Boolean(entry?.is_bookmarked);
+  const toast_top_offset = header_height + 10;
   const content_top_padding =
     header_height + (Platform.OS === 'ios' ? 0 : 12);
   const header_background_color =
@@ -368,12 +369,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
     try {
       await Clipboard.setStringAsync(original_url);
+      AppStore.show_toast('Link copied', {
+        top_offset: toast_top_offset,
+      });
       return true;
     } catch (error) {
       console.warn('Failed to copy link', error);
       return false;
     }
-  }, [original_url]);
+  }, [original_url, toast_top_offset]);
 
   const handle_entry_menu_action = React.useCallback(
     async (menu_action_id = '') => {
@@ -397,9 +401,21 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         }
 
         if (entry?.is_read) {
-          Feed.mark_entry_unread(resolved_entry_id);
+          const did_mark_unread = Feed.mark_entry_unread(resolved_entry_id);
+
+          if (did_mark_unread) {
+            AppStore.show_toast('Marked as unread', {
+              top_offset: toast_top_offset,
+            });
+          }
         } else {
-          Feed.mark_entry_read(resolved_entry_id);
+          const did_mark_read = Feed.mark_entry_read(resolved_entry_id);
+
+          if (did_mark_read) {
+            AppStore.show_toast('Marked as read', {
+              top_offset: toast_top_offset,
+            });
+          }
         }
         return;
       }
@@ -412,6 +428,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         const did_delete = await Bookmarks.delete_bookmark(resolved_entry_id);
 
         if (did_delete) {
+          AppStore.show_toast('Bookmark removed', {
+            top_offset: toast_top_offset,
+          });
+
           if (typeof navigation.canGoBack === 'function' && navigation.canGoBack()) {
             navigation.goBack();
           } else {
@@ -422,9 +442,21 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       }
 
       if (is_entry_bookmarked) {
-        Feed.unbookmark_entry(resolved_entry_id);
+        const did_unbookmark = Feed.unbookmark_entry(resolved_entry_id);
+
+        if (did_unbookmark) {
+          AppStore.show_toast('Bookmark removed', {
+            top_offset: toast_top_offset,
+          });
+        }
       } else {
-        Feed.bookmark_entry(resolved_entry_id);
+        const did_bookmark = Feed.bookmark_entry(resolved_entry_id);
+
+        if (did_bookmark) {
+          AppStore.show_toast('Bookmarked', {
+            top_offset: toast_top_offset,
+          });
+        }
       }
     },
     [
@@ -436,6 +468,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       navigation,
       original_url,
       resolved_entry_id,
+      toast_top_offset,
     ],
   );
 

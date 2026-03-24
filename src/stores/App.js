@@ -1,4 +1,4 @@
-import { AppState, Appearance } from 'react-native';
+import { AppState, Appearance, Platform, ToastAndroid } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { flow, types } from 'mobx-state-tree';
 
@@ -9,17 +9,24 @@ import {
 import Auth from './Auth';
 
 const APP_PREFERENCES_STORAGE_KEY = 'AppPreferences';
+const DEFAULT_TOAST_DURATION_MS = 1800;
+const ANDROID_LONG_TOAST_THRESHOLD_MS = 3000;
 
 const AppStore = types
   .model('App', {
     theme: types.optional(types.string, 'light'),
     accent_palette_id: types.optional(types.string, DEFAULT_ACCENT_PALETTE_ID),
     is_hydrating: types.optional(types.boolean, true),
+    toast_duration_ms: types.optional(types.number, DEFAULT_TOAST_DURATION_MS),
+    toast_key: types.optional(types.number, 0),
+    toast_message: types.optional(types.maybeNull(types.string), null),
+    toast_top_offset: types.optional(types.maybeNull(types.number), null),
   })
   .volatile(() => ({
     app_state_subscription: null,
     appearance_subscription: null,
     did_start: false,
+    toast_timeout_id: null,
   }))
   .actions(self => ({
     set_theme(theme = 'light') {
@@ -58,6 +65,70 @@ const AppStore = types
       self.appearance_subscription?.remove();
       self.app_state_subscription = null;
       self.appearance_subscription = null;
+    },
+
+    clear_toast_timer() {
+      if (!self.toast_timeout_id) {
+        return;
+      }
+
+      clearTimeout(self.toast_timeout_id);
+      self.toast_timeout_id = null;
+    },
+
+    clear_toast() {
+      self.clear_toast_timer();
+      self.toast_duration_ms = DEFAULT_TOAST_DURATION_MS;
+      self.toast_message = null;
+      self.toast_top_offset = null;
+    },
+
+    show_toast(
+      message = '',
+      duration_or_options = DEFAULT_TOAST_DURATION_MS,
+      next_options = {},
+    ) {
+      const toast_options = normalize_toast_options(
+        duration_or_options,
+        next_options,
+      );
+      const normalized_message = `${message || ''}`.trim();
+      const normalized_duration_ms = normalize_toast_duration(
+        toast_options.duration_ms,
+      );
+      const normalized_top_offset = normalize_toast_top_offset(
+        toast_options.top_offset,
+      );
+
+      self.clear_toast_timer();
+      self.toast_duration_ms = normalized_duration_ms;
+      self.toast_key += 1;
+      self.toast_top_offset = normalized_top_offset;
+
+      if (!normalized_message) {
+        self.toast_message = null;
+        self.toast_top_offset = null;
+        return false;
+      }
+
+      if (Platform.OS === 'android') {
+        self.toast_message = null;
+        self.toast_top_offset = null;
+        ToastAndroid.show(
+          normalized_message,
+          normalized_duration_ms >= ANDROID_LONG_TOAST_THRESHOLD_MS
+            ? ToastAndroid.LONG
+            : ToastAndroid.SHORT,
+        );
+        return true;
+      }
+
+      self.toast_message = normalized_message;
+      self.toast_timeout_id = setTimeout(() => {
+        self.clear_toast();
+      }, normalized_duration_ms);
+
+      return true;
     },
 
     hydrate_preferences: flow(function* () {
@@ -127,6 +198,7 @@ const AppStore = types
 
     stop() {
       self.did_start = false;
+      self.clear_toast();
       self.stop_theme_listener();
     },
   }))
@@ -138,3 +210,41 @@ const AppStore = types
   .create();
 
 export default AppStore;
+
+function normalize_toast_duration(duration_ms = DEFAULT_TOAST_DURATION_MS) {
+  const parsed_duration_ms = Number(duration_ms);
+
+  if (!Number.isFinite(parsed_duration_ms)) {
+    return DEFAULT_TOAST_DURATION_MS;
+  }
+
+  return Math.max(Math.round(parsed_duration_ms), 1000);
+}
+
+function normalize_toast_top_offset(top_offset = null) {
+  const parsed_top_offset = Number(top_offset);
+
+  if (!Number.isFinite(parsed_top_offset)) {
+    return null;
+  }
+
+  return Math.max(Math.round(parsed_top_offset), 0);
+}
+
+function normalize_toast_options(
+  duration_or_options = DEFAULT_TOAST_DURATION_MS,
+  next_options = {},
+) {
+  if (
+    duration_or_options &&
+    typeof duration_or_options === 'object' &&
+    !Array.isArray(duration_or_options)
+  ) {
+    return duration_or_options;
+  }
+
+  return {
+    ...(next_options && typeof next_options === 'object' ? next_options : {}),
+    duration_ms: duration_or_options,
+  };
+}

@@ -1,12 +1,26 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
+import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react';
 import { DefaultTheme, DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Animated, {
+  FadeInDown,
+  FadeOutUp,
+} from 'react-native-reanimated';
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 
 import SignedInTabs from './navigation/SignedInTabs';
@@ -20,11 +34,18 @@ import Highlights from './stores/Highlights';
 import { getAuthTheme } from './theme/authTheme';
 
 WebBrowser.maybeCompleteAuthSession();
+const TOAST_ENTERING = FadeInDown.springify()
+  .damping(18)
+  .stiffness(220);
+const TOAST_EXITING = FadeOutUp.duration(180);
 
 function App() {
   const isDark = AppStore.theme === 'dark';
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const toast_key = AppStore.toast_key;
+  const toast_message = AppStore.toast_message;
+  const toast_top_offset = AppStore.toast_top_offset;
   const is_signed_in = Auth.is_signed_in();
   const is_auth_loading = Auth.is_loading();
   const is_feed_bootstrapping = Feed.is_bootstrapping;
@@ -138,9 +159,82 @@ function App() {
           ) : (
             <WelcomeScreen isDark={isDark} />
           )}
+          <ToastOverlay
+            theme={theme}
+            toast_key={toast_key}
+            toast_message={toast_message}
+            toast_top_offset={toast_top_offset}
+          />
         </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function ToastOverlay({
+  theme,
+  toast_key = 0,
+  toast_message = null,
+  toast_top_offset = null,
+}) {
+  const insets = useSafeAreaInsets();
+  const toast_icon_name = resolve_toast_icon_name(toast_message);
+  const resolved_top_offset = Number.isFinite(toast_top_offset)
+    ? toast_top_offset
+    : insets.top + 12;
+
+  if (Platform.OS !== 'ios' || !toast_message) {
+    return null;
+  }
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={[
+        styles.toastOverlay,
+        {
+          paddingTop: resolved_top_offset,
+        },
+      ]}
+    >
+      <Animated.View
+        entering={TOAST_ENTERING}
+        exiting={TOAST_EXITING}
+        key={toast_key}
+        pointerEvents="none"
+        style={[
+          styles.toastCard,
+          {
+            backgroundColor: theme.isDark
+              ? theme.colors.badge
+              : theme.colors.paper,
+            borderColor: theme.colors.line,
+            shadowColor: theme.colors.shadow,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.toastBadge,
+            {
+              backgroundColor: theme.colors.accentSoft,
+              borderColor: theme.colors.line,
+            },
+          ]}
+        >
+          <MaterialIcons
+            color={theme.colors.accentStrong}
+            name={toast_icon_name}
+            size={18}
+          />
+        </View>
+        <View style={styles.toastCopy}>
+          <Text style={[styles.toastLabel, { color: theme.colors.ink }]}>
+            {toast_message}
+          </Text>
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -170,6 +264,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  toastOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    elevation: 10,
+    justifyContent: 'flex-start',
+    paddingHorizontal: 28,
+    zIndex: 10,
+  },
+  toastCard: {
+    alignItems: 'center',
+    borderRadius: 22,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'flex-start',
+    maxWidth: 360,
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowOffset: {
+      width: 0,
+      height: 12,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
+    width: '100%',
+  },
+  toastBadge: {
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  toastCopy: {
+    flex: 1,
+  },
+  toastLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
 });
 
 export default observer(App);
+
+function resolve_toast_icon_name(toast_message = '') {
+  const normalized_toast_message = `${toast_message || ''}`.trim().toLowerCase();
+
+  if (!normalized_toast_message) {
+    return 'check-circle-outline';
+  }
+
+  if (normalized_toast_message.includes('link')) {
+    return 'link';
+  }
+
+  if (normalized_toast_message.includes('bookmark removed')) {
+    return 'bookmark-border';
+  }
+
+  if (normalized_toast_message.includes('bookmarked')) {
+    return 'bookmark';
+  }
+
+  if (normalized_toast_message.includes('unread')) {
+    return 'mark-email-unread';
+  }
+
+  if (normalized_toast_message.includes('read')) {
+    return 'mark-email-read';
+  }
+
+  return 'check-circle-outline';
+}
