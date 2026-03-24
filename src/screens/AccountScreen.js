@@ -1,5 +1,6 @@
 import React from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,12 +20,52 @@ import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
 
+function format_profile_handle(profile_url = '') {
+  const trimmed_profile_url = `${profile_url || ''}`.trim();
+
+  if (!trimmed_profile_url) {
+    return '';
+  }
+
+  if (trimmed_profile_url.startsWith('@')) {
+    return trimmed_profile_url;
+  }
+
+  const sanitized_profile_url = trimmed_profile_url
+    .split(/[?#]/)[0]
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/+$/g, '');
+  const profile_segments = sanitized_profile_url.split('/').filter(Boolean);
+  let handle_candidate = '';
+
+  if (profile_segments.length > 1) {
+    handle_candidate = profile_segments[profile_segments.length - 1];
+  } else {
+    const hostname = profile_segments[0] || '';
+    const hostname_segments = hostname.split('.').filter(Boolean);
+
+    if (hostname === 'micro.blog') {
+      handle_candidate = '';
+    } else if (hostname_segments.length > 0) {
+      handle_candidate = hostname_segments[0];
+    }
+  }
+
+  if (!handle_candidate) {
+    return '';
+  }
+
+  return `@${handle_candidate.replace(/^@+/g, '')}`;
+}
+
 function AccountScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const profile = Auth.current_profile();
   const profile_name = profile.name || 'Micro.blog account';
-  const profile_url = profile.url || 'Your token is ready for timeline sync.';
+  const profile_handle = format_profile_handle(profile.url);
+  const profile_photo = profile.photo || '';
   const avatar_initial = profile_name.charAt(0).toUpperCase() || 'M';
   const is_busy = Auth.is_loading();
   const [transition_theme, set_transition_theme] = React.useState(null);
@@ -75,9 +116,9 @@ function AccountScreen({ isDark = false }) {
         avatar_initial={avatar_initial}
         is_busy={is_busy}
         is_dark={isDark}
-        profile={profile}
+        profile_handle={profile_handle}
         profile_name={profile_name}
-        profile_url={profile_url}
+        profile_photo={profile_photo}
         theme={theme}
         transition_progress={transition_progress}
         transition_theme={transition_theme}
@@ -91,17 +132,15 @@ function AccountScreenContent({
   avatar_initial = '',
   is_busy = false,
   is_dark = false,
-  profile,
+  profile_handle = '',
   profile_name = '',
-  profile_url = '',
+  profile_photo = '',
   theme,
   transition_progress,
   transition_theme,
 }) {
-  const should_show_status_badge = profile.has_inkwell === false;
-  const should_show_ai_helper = profile.is_using_ai != null;
-  const should_show_meta_stack = should_show_status_badge || should_show_ai_helper;
-
+  const header_height = useHeaderHeight();
+  const content_top_padding = header_height + 8;
   const avatar_fallback_style = useAnimatedStyle(() => {
     if (!transition_theme) {
       return {
@@ -140,112 +179,83 @@ function AccountScreenContent({
     };
   }, [theme, transition_progress, transition_theme]);
 
-  const status_badge_style = useAnimatedStyle(() => {
-    if (!transition_theme) {
-      return {
-        backgroundColor: theme.colors.badge,
-        borderColor: theme.colors.line,
-      };
-    }
-
-    return {
-      backgroundColor: interpolateColor(
-        transition_progress.value,
-        [0, 1],
-        [transition_theme.colors.badge, theme.colors.badge],
-      ),
-      borderColor: interpolateColor(
-        transition_progress.value,
-        [0, 1],
-        [transition_theme.colors.line, theme.colors.line],
-      ),
-    };
-  }, [theme, transition_progress, transition_theme]);
-
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView edges={['bottom']} style={styles.safeArea}>
       <ScrollView
-        bounces={false}
-        contentContainerStyle={styles.content}
+        alwaysBounceVertical
+        bounces
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={[styles.content, { paddingTop: content_top_padding }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
           <Text style={[styles.title, { color: theme.colors.ink }]}>Settings</Text>
         </View>
 
-        <AuthCard style={styles.card} theme={theme}>
-          <View style={styles.profileRow}>
-            {profile.photo ? (
-              <Image source={{ uri: profile.photo }} style={styles.avatar} />
-            ) : (
-              <Animated.View style={[styles.avatarFallback, avatar_fallback_style]}>
-                <Animated.Text style={[styles.avatarInitial, avatar_initial_style]}>
-                  {avatar_initial}
-                </Animated.Text>
-              </Animated.View>
-            )}
-
-            <View style={styles.profileMeta}>
-              <Text style={[styles.profileName, { color: theme.colors.ink }]}>{profile_name}</Text>
-              <Text style={[styles.profileUrl, { color: theme.colors.inkSoft }]}>{profile_url}</Text>
-            </View>
-          </View>
-
-          {should_show_meta_stack ? (
-            <View style={styles.metaStack}>
-              {should_show_status_badge ? (
-                <Animated.View style={[styles.statusBadge, status_badge_style]}>
-                  <Text style={[styles.statusText, { color: theme.colors.inkSoft }]}>
-                    Micro.blog says Inkwell is not enabled for this account yet.
-                  </Text>
+        <View style={styles.cardStack}>
+          <AuthCard style={styles.card} theme={theme}>
+            <View style={styles.profileRow}>
+              {profile_photo ? (
+                <Image source={{ uri: profile_photo }} style={styles.avatar} />
+              ) : (
+                <Animated.View style={[styles.avatarFallback, avatar_fallback_style]}>
+                  <Animated.Text style={[styles.avatarInitial, avatar_initial_style]}>
+                    {avatar_initial}
+                  </Animated.Text>
                 </Animated.View>
-              ) : null}
+              )}
 
-              {should_show_ai_helper ? (
-                <Text style={[styles.helperText, { color: theme.colors.inkSoft }]}>
-                  Fading summaries are currently {profile.is_using_ai ? 'enabled' : 'disabled'} for
-                  this account.
+              <View style={styles.profileMeta}>
+                <Text style={[styles.profileName, { color: theme.colors.ink }]}>{profile_name}</Text>
+                {profile_handle ? (
+                  <Text style={[styles.profileHandle, { color: theme.colors.inkSoft }]}>
+                    {profile_handle}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          </AuthCard>
+
+          <AuthCard style={styles.card} theme={theme}>
+            <View style={styles.preferenceStack}>
+              <View style={styles.preferenceCopy}>
+                <Text style={[styles.preferenceTitle, { color: theme.colors.ink }]}>Appearance</Text>
+                <Text style={[styles.preferenceBody, { color: theme.colors.inkSoft }]}>
+                  Choose an accent colour for this device.
                 </Text>
-              ) : null}
-            </View>
-          ) : null}
+              </View>
 
-          <View style={styles.preferenceStack}>
-            <View style={styles.preferenceCopy}>
-              <Text style={[styles.preferenceTitle, { color: theme.colors.ink }]}>Accent colour</Text>
-              <Text style={[styles.preferenceBody, { color: theme.colors.inkSoft }]}>
-                Choose an accent colour for this device. It stays set even after you sign out.
-              </Text>
+              <View style={styles.paletteWrap}>
+                {ACCENT_PALETTE_OPTIONS.map((option) => {
+                  return (
+                    <AccentPaletteChip
+                      isDark={is_dark}
+                      is_selected={option.id === accent_palette_id}
+                      key={option.id}
+                      label={option.label}
+                      onPress={() => AppStore.set_accent_palette(option.id)}
+                      previous_is_selected={option.id === transition_theme?.accent_palette_id}
+                      swatch_color={is_dark ? option.dark_swatch : option.light_swatch}
+                      theme={theme}
+                      transition_progress={transition_progress}
+                      transition_theme={transition_theme}
+                    />
+                  );
+                })}
+              </View>
             </View>
+          </AuthCard>
 
-            <View style={styles.paletteWrap}>
-              {ACCENT_PALETTE_OPTIONS.map((option) => {
-                return (
-                  <AccentPaletteChip
-                    isDark={is_dark}
-                    is_selected={option.id === accent_palette_id}
-                    key={option.id}
-                    label={option.label}
-                    onPress={() => AppStore.set_accent_palette(option.id)}
-                    previous_is_selected={option.id === transition_theme?.accent_palette_id}
-                    swatch_color={is_dark ? option.dark_swatch : option.light_swatch}
-                    theme={theme}
-                    transition_progress={transition_progress}
-                    transition_theme={transition_theme}
-                  />
-                );
-              })}
-            </View>
-          </View>
-
-          <PrimaryButton
-            label="Sign out"
-            onPress={Auth.sign_out}
-            variant="ghost"
-            disabled={is_busy}
-            theme={theme}
-          />
-        </AuthCard>
+          <AuthCard style={[styles.card, styles.signOutCard]} theme={theme}>
+            <PrimaryButton
+              label="Sign out"
+              onPress={Auth.sign_out}
+              variant="ghost"
+              disabled={is_busy}
+              theme={theme}
+            />
+          </AuthCard>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -361,78 +371,80 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 24,
     paddingBottom: 24,
-    gap: 32,
+    gap: 18,
   },
   hero: {
-    gap: 10,
-    paddingTop: 28,
+    paddingTop: 0,
   },
   title: {
     fontFamily: 'Newsreader_700Bold',
-    fontSize: 46,
-    lineHeight: 52,
+    fontSize: 36,
+    lineHeight: 40,
     maxWidth: 320,
   },
   card: {
-    gap: 24,
+    padding: 22,
+  },
+  cardStack: {
+    gap: 14,
   },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 18,
+    gap: 16,
   },
   avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
   },
   avatarFallback: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
   avatarInitial: {
     fontFamily: 'Newsreader_700Bold',
-    fontSize: 28,
-    lineHeight: 30,
+    fontSize: 26,
+    lineHeight: 28,
   },
   profileMeta: {
     flex: 1,
-    gap: 6,
+    minWidth: 0,
+    gap: 4,
   },
   profileName: {
+    flexShrink: 1,
     fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 30,
-    lineHeight: 36,
+    fontSize: 28,
+    lineHeight: 32,
   },
-  profileUrl: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  metaStack: {
-    gap: 12,
+  profileHandle: {
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    lineHeight: 20,
   },
   preferenceStack: {
-    gap: 14,
+    gap: 16,
   },
   preferenceCopy: {
-    gap: 6,
+    gap: 4,
   },
   preferenceTitle: {
     fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: 22,
+    lineHeight: 26,
   },
   preferenceBody: {
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 20,
   },
   paletteWrap: {
     flexDirection: 'row',
@@ -471,19 +483,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 18,
   },
-  statusBadge: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  statusText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  helperText: {
-    fontSize: 14,
-    lineHeight: 21,
+  signOutCard: {
+    padding: 20,
   },
 });
 
