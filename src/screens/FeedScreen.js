@@ -1467,7 +1467,7 @@ const styles = StyleSheet.create({
   },
   recapCard: {
     borderWidth: 1,
-    borderRadius: 28,
+    borderRadius: 24,
     paddingHorizontal: 20,
     paddingVertical: 16,
     gap: 18,
