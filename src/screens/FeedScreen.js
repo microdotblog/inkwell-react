@@ -14,7 +14,6 @@ import { useScrollToTop } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   KeyboardStickyView,
   useReanimatedKeyboardAnimation,
@@ -60,9 +59,6 @@ const FOOTER_TOP_PADDING = 10;
 const FOOTER_SCROLL_DELTA_THRESHOLD = 6;
 const FOOTER_TOUCH_BLOCK_THRESHOLD = 0.05;
 const FOOTER_VISIBILITY_TOP_THRESHOLD = 24;
-const SEGMENT_SWIPE_DISTANCE = 56;
-const SEGMENT_SWIPE_VELOCITY = 620;
-const SEGMENT_SWIPE_NUDGE = 24;
 const SEGMENT_CONTROL_INSET = 3;
 const SEGMENT_BUTTON_HEIGHT = HEADER_CONTROL_HEIGHT - SEGMENT_CONTROL_INSET * 2;
 const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
@@ -102,7 +98,6 @@ function FeedScreen({ navigation, isDark = false }) {
   const [segment_frames, set_segment_frames] = React.useState({});
   const scroll_y = useSharedValue(0);
   const previous_scroll_y = useSharedValue(0);
-  const swipe_nudge_x = useSharedValue(0);
   const footer_visibility_progress = useSharedValue(1);
   const active_segment_offset = useSharedValue(0);
   const active_segment_width = useSharedValue(0);
@@ -298,44 +293,6 @@ function FeedScreen({ navigation, isDark = false }) {
     });
   }, []);
 
-  const swipe_gesture = React.useMemo(() => {
-    return Gesture.Pan()
-      .enabled(!is_search_active)
-      .activeOffsetX([-18, 18])
-      .failOffsetY([-14, 14])
-      .onUpdate((event) => {
-        const next_nudge = clamp_swipe_nudge(event.translationX * 0.22);
-        swipe_nudge_x.value = next_nudge;
-      })
-      .onEnd((event) => {
-        const has_enough_distance =
-          Math.abs(event.translationX) >= SEGMENT_SWIPE_DISTANCE;
-        const has_enough_velocity =
-          Math.abs(event.velocityX) >= SEGMENT_SWIPE_VELOCITY;
-
-        swipe_nudge_x.value = withTiming(0, {
-          duration: 180,
-        });
-
-        if (!has_enough_distance && !has_enough_velocity) {
-          return;
-        }
-
-        if (has_enough_distance) {
-          runOnJS(handle_segment_swipe)(event.translationX < 0 ? 1 : -1);
-        } else if (event.velocityX < 0) {
-          runOnJS(handle_segment_swipe)(1);
-        } else {
-          runOnJS(handle_segment_swipe)(-1);
-        }
-      })
-      .onFinalize(() => {
-        swipe_nudge_x.value = withTiming(0, {
-          duration: 180,
-        });
-      });
-  }, [handle_segment_swipe, is_search_active, swipe_nudge_x]);
-
   React.useEffect(() => {
     if (is_search_active) {
       footer_visibility_progress.value = withTiming(1, {
@@ -376,15 +333,10 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const content_nudge_style = useAnimatedStyle(() => {
     return {
-      opacity: interpolate(
-        Math.abs(swipe_nudge_x.value),
-        [0, SEGMENT_SWIPE_NUDGE],
-        [1, 0.985],
-        Extrapolation.CLAMP,
-      ),
+      opacity: 1,
       transform: [
         {
-          translateX: swipe_nudge_x.value,
+          translateX: 0,
         },
       ],
     };
@@ -434,13 +386,11 @@ function FeedScreen({ navigation, isDark = false }) {
   }, [footer_bottom_inset]);
 
   const active_segment_style = useAnimatedStyle(() => {
-    const segment_nudge_x = -swipe_nudge_x.value;
-
     return {
       opacity: active_segment_width.value > 0 ? 1 : 0,
       transform: [
         {
-          translateX: active_segment_offset.value + segment_nudge_x * 0.18,
+          translateX: active_segment_offset.value,
         },
       ],
       width: active_segment_width.value,
@@ -464,12 +414,11 @@ function FeedScreen({ navigation, isDark = false }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
-      <GestureDetector gesture={swipe_gesture}>
-        <Animated.View
-          collapsable={false}
-          style={[styles.contentSurface, content_nudge_style]}
-        >
-          {render_content({
+      <Animated.View
+        collapsable={false}
+        style={[styles.contentSurface, content_nudge_style]}
+      >
+        {render_content({
             active_segment,
             is_search_active,
             list_bottom_inset,
@@ -490,7 +439,6 @@ function FeedScreen({ navigation, isDark = false }) {
             visible_timeline_entries,
           })}
         </Animated.View>
-      </GestureDetector>
       {is_search_active ? (
         <View pointerEvents="box-none" style={styles.searchFooterOverlay}>
           <KeyboardStickyView
@@ -1629,11 +1577,6 @@ const styles = StyleSheet.create({
 });
 
 export default observer(FeedScreen);
-
-function clamp_swipe_nudge(value = 0) {
-  'worklet';
-  return Math.max(Math.min(value, SEGMENT_SWIPE_NUDGE), -SEGMENT_SWIPE_NUDGE);
-}
 
 function resolve_footer_backdrop_color(theme) {
   return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.78 : 0.84);
