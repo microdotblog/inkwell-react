@@ -5,6 +5,7 @@ import { observer } from 'mobx-react';
 import AccountScreen from '../screens/AccountScreen';
 import FeedItemDetailScreen from '../screens/FeedItemDetailScreen';
 import FeedScreen from '../screens/FeedScreen';
+import LibraryPlaceholderScreen from '../screens/LibraryPlaceholderScreen';
 import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -57,6 +58,38 @@ function SignedInTabs({ isDark = false }) {
           <AccountScreen
             {...screen_props}
             isDark={isDark}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen
+        name="Bookmarks"
+        options={{
+          title: 'Bookmarks',
+        }}
+      >
+        {(screen_props) => (
+          <LibraryPlaceholderScreen
+            {...screen_props}
+            body="Bookmarks are coming soon."
+            icon_name="bookmark-border"
+            isDark={isDark}
+            title="Bookmarks"
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen
+        name="Highlights"
+        options={{
+          title: 'Highlights',
+        }}
+      >
+        {(screen_props) => (
+          <LibraryPlaceholderScreen
+            {...screen_props}
+            body="Highlights are coming soon."
+            icon_name="format-quote"
+            isDark={isDark}
+            title="Highlights"
           />
         )}
       </Stack.Screen>

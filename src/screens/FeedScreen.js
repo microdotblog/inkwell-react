@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -10,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MenuView } from '@react-native-menu/menu';
 import { useScrollToTop } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -65,6 +67,37 @@ const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
 const FEED_AVATAR_SIZE = 28;
 const READ_ROW_OPACITY = 0.56;
 const FEED_AVATAR_TRANSITION_MS = 180;
+
+function get_profile_menu_actions(theme) {
+  const icon_color = theme?.colors?.ink;
+
+  return [
+    {
+      id: 'bookmarks',
+      title: 'Bookmarks',
+      image: Platform.select({
+        ios: 'bookmark',
+      }),
+      imageColor: icon_color,
+    },
+    {
+      id: 'highlights',
+      title: 'Highlights',
+      image: Platform.select({
+        ios: 'highlighter',
+      }),
+      imageColor: icon_color,
+    },
+    {
+      id: 'settings',
+      title: 'Settings',
+      image: Platform.select({
+        ios: 'gearshape',
+      }),
+      imageColor: icon_color,
+    },
+  ];
+}
 
 function FeedScreen({ navigation, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
@@ -226,15 +259,24 @@ function FeedScreen({ navigation, isDark = false }) {
     [navigation],
   );
 
-  const handle_account_press = React.useCallback(() => {
-    const parent_navigation = navigation.getParent();
+  const handle_profile_menu_action = React.useCallback(
+    (menu_action_id = '') => {
+      if (menu_action_id === 'bookmarks') {
+        navigation.navigate('Bookmarks');
+      } else if (menu_action_id === 'highlights') {
+        navigation.navigate('Highlights');
+      } else if (menu_action_id === 'settings') {
+        const parent_navigation = navigation.getParent();
 
-    if (parent_navigation) {
-      parent_navigation.navigate('Account');
-    } else {
-      navigation.navigate('Account');
-    }
-  }, [navigation]);
+        if (parent_navigation) {
+          parent_navigation.navigate('Account');
+        } else {
+          navigation.navigate('Account');
+        }
+      }
+    },
+    [navigation],
+  );
 
   const handle_recap_press = React.useCallback(async () => {
     const did_open_recap = await Feed.open_fading_recap();
@@ -462,7 +504,8 @@ function FeedScreen({ navigation, isDark = false }) {
                 active_segment_style={active_segment_style}
                 input_ref={search_input_ref}
                 is_search_active={is_search_active}
-                onAccountPress={handle_account_press}
+                is_dark={isDark}
+                onProfileMenuAction={handle_profile_menu_action}
                 onSearchQueryChange={handle_search_query_change}
                 onSearchTogglePress={handle_search_toggle_press}
                 onSegmentPress={handle_segment_press}
@@ -511,7 +554,8 @@ function FeedScreen({ navigation, isDark = false }) {
                 active_segment_style={active_segment_style}
                 input_ref={search_input_ref}
                 is_search_active={is_search_active}
-                onAccountPress={handle_account_press}
+                is_dark={isDark}
+                onProfileMenuAction={handle_profile_menu_action}
                 onSearchQueryChange={handle_search_query_change}
                 onSearchTogglePress={handle_search_toggle_press}
                 onSegmentPress={handle_segment_press}
@@ -685,8 +729,9 @@ function FeedFooterControlsRow({
   active_segment = 'today',
   active_segment_style,
   input_ref,
+  is_dark = false,
   is_search_active = false,
-  onAccountPress,
+  onProfileMenuAction,
   onSearchQueryChange,
   onSearchTogglePress,
   onSegmentPress,
@@ -699,7 +744,8 @@ function FeedFooterControlsRow({
   return (
     <View style={styles.headerControlsRow}>
       <AccountHeaderButton
-        onPress={onAccountPress}
+        is_dark={is_dark}
+        onMenuAction={onProfileMenuAction}
         profile_name={profile_name}
         profile_photo={profile_photo}
         theme={theme}
@@ -916,11 +962,15 @@ function FeedRecapSummaryCard({
 }
 
 function AccountHeaderButton({
-  onPress,
+  is_dark = false,
+  onMenuAction,
   profile_name = '',
   profile_photo = '',
   theme,
 }) {
+  const menu_actions = React.useMemo(() => {
+    return get_profile_menu_actions(theme);
+  }, [theme]);
   const trimmed_profile_photo = `${profile_photo || ''}`.trim();
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const [is_image_loaded, set_is_image_loaded] = React.useState(false);
@@ -935,55 +985,61 @@ function AccountHeaderButton({
   }, [trimmed_profile_photo]);
 
   return (
-    <Pressable
-      accessibilityLabel="Open account"
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => {
-        return [
+    <MenuView
+      accessibilityLabel="Open profile menu"
+      actions={menu_actions}
+      onPressAction={({ nativeEvent }) => {
+        onMenuAction?.(nativeEvent.event);
+      }}
+      shouldOpenOnLongPress={false}
+      themeVariant={is_dark ? 'dark' : 'light'}
+      title="Profile"
+    >
+      <View
+        accessibilityRole="button"
+        style={[
           styles.accountButton,
           {
             backgroundColor: theme.colors.paper,
             borderColor: theme.colors.line,
-            opacity: pressed ? 0.82 : 1,
             shadowColor: theme.colors.shadow,
-          },
-        ];
-      }}
-    >
-      <View
-        style={[
-          styles.accountAvatarFrame,
-          {
-            backgroundColor: theme.colors.accentSoft,
           },
         ]}
       >
-        <View style={styles.accountAvatarPlaceholder}>
-          {should_show_initial ? (
-            <Text
-              style={[
-                styles.accountAvatarInitial,
-                { color: theme.colors.accentStrong },
-              ]}
-            >
-              {profile_initial}
-            </Text>
+        <View
+          style={[
+            styles.accountAvatarFrame,
+            {
+              backgroundColor: theme.colors.accentSoft,
+            },
+          ]}
+        >
+          <View style={styles.accountAvatarPlaceholder}>
+            {should_show_initial ? (
+              <Text
+                style={[
+                  styles.accountAvatarInitial,
+                  { color: theme.colors.accentStrong },
+                ]}
+              >
+                {profile_initial}
+              </Text>
+            ) : null}
+          </View>
+          {should_show_image ? (
+            <Image
+              cachePolicy="memory-disk"
+              contentFit="cover"
+              onError={() => set_did_fail_to_load(true)}
+              onLoad={() => set_is_image_loaded(true)}
+              source={{ uri: trimmed_profile_photo }}
+              style={styles.accountAvatarImage}
+              transition={HEADER_ACCOUNT_AVATAR_TRANSITION_MS}
+            />
           ) : null}
         </View>
-        {should_show_image ? (
-          <Image
-            cachePolicy="memory-disk"
-            contentFit="cover"
-            onError={() => set_did_fail_to_load(true)}
-            onLoad={() => set_is_image_loaded(true)}
-            source={{ uri: trimmed_profile_photo }}
-            style={styles.accountAvatarImage}
-            transition={HEADER_ACCOUNT_AVATAR_TRANSITION_MS}
-          />
-        ) : null}
       </View>
-    </Pressable>
+    </MenuView>
   );
 }
 
