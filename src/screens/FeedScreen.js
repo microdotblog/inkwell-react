@@ -953,10 +953,12 @@ function FeedRecapSummaryCard({
             }}
           >
             {is_loading ? (
-              <ActivityIndicator
-                color={theme.colors.accentStrong}
-                size="small"
-              />
+              <View style={{ height: 16, justifyContent: 'center' }}>
+                <ActivityIndicator
+                  color={theme.colors.accentStrong}
+                  size="small"
+                />
+              </View>
             ) : (
               <Text
                 style={[
