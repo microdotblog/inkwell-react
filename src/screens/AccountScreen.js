@@ -319,7 +319,7 @@ function AccountScreenContent({
               variant="ghost"
               disabled={is_busy}
               theme={theme}
-              textStyle={{ color: '#c0392b' }}
+              textStyle={{ color: theme.colors.danger }}
             />
           </View>
         </View>

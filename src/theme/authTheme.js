@@ -51,6 +51,7 @@ const accentPalettes = {
         glow: 'rgba(83, 143, 216, 0.24)',
         badge: 'rgba(248, 251, 255, 0.76)',
         buttonGhost: 'rgba(250, 252, 255, 0.80)',
+        danger: '#c85550',
       },
       background: {
         imageOpacity: 0.92,
@@ -85,6 +86,7 @@ const accentPalettes = {
         glow: 'rgba(124, 183, 255, 0.34)',
         badge: 'rgba(22, 30, 44, 0.78)',
         buttonGhost: 'rgba(31, 40, 58, 0.80)',
+        danger: '#e57373',
       },
       background: {
         imageOpacity: 0.32,
@@ -122,6 +124,7 @@ const accentPalettes = {
         glow: 'rgba(118, 94, 239, 0.24)',
         badge: 'rgba(250, 246, 255, 0.74)',
         buttonGhost: 'rgba(252, 248, 255, 0.78)',
+        danger: '#d65a5a',
       },
       background: {
         imageOpacity: 0.92,
@@ -156,6 +159,7 @@ const accentPalettes = {
         glow: 'rgba(153, 138, 255, 0.34)',
         badge: 'rgba(28, 23, 43, 0.78)',
         buttonGhost: 'rgba(40, 34, 59, 0.80)',
+        danger: '#e57373',
       },
       background: {
         imageOpacity: 0.30,
@@ -193,6 +197,7 @@ const accentPalettes = {
         glow: 'rgba(39, 167, 154, 0.24)',
         badge: 'rgba(245, 252, 251, 0.76)',
         buttonGhost: 'rgba(247, 253, 252, 0.80)',
+        danger: '#c85550',
       },
       background: {
         imageOpacity: 0.92,
@@ -227,6 +232,7 @@ const accentPalettes = {
         glow: 'rgba(126, 217, 207, 0.30)',
         badge: 'rgba(19, 35, 34, 0.78)',
         buttonGhost: 'rgba(27, 46, 44, 0.80)',
+        danger: '#e57373',
       },
       background: {
         imageOpacity: 0.30,
@@ -264,6 +270,7 @@ const accentPalettes = {
         glow: 'rgba(221, 116, 155, 0.24)',
         badge: 'rgba(255, 247, 250, 0.78)',
         buttonGhost: 'rgba(255, 249, 252, 0.82)',
+        danger: '#c1445d',
       },
       background: {
         imageOpacity: 0.92,
@@ -298,6 +305,7 @@ const accentPalettes = {
         glow: 'rgba(241, 165, 193, 0.28)',
         badge: 'rgba(42, 22, 33, 0.78)',
         buttonGhost: 'rgba(55, 30, 42, 0.80)',
+        danger: '#f08080',
       },
       background: {
         imageOpacity: 0.30,
