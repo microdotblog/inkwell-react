@@ -73,13 +73,8 @@ function SignedInTabs({ isDark = false }) {
       <Stack.Screen
         name="Account"
         options={{
-          headerShadowVisible: false,
-          headerStyle: {
-            backgroundColor: 'transparent',
-          },
-          headerTintColor: theme.colors.ink,
-          headerTitle: '',
-          headerTransparent: true,
+          ...translucent_header_options,
+          title: 'Settings',
         }}
       >
         {(screen_props) => (
