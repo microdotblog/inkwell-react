@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react';
@@ -19,6 +19,8 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
+
+const IOS_HEADER_TITLE_REVEAL_OFFSET = 12;
 
 function format_profile_handle(profile_url = '') {
   const trimmed_profile_url = `${profile_url || ''}`.trim();
@@ -59,7 +61,7 @@ function format_profile_handle(profile_url = '') {
   return `@${handle_candidate.replace(/^@+/g, '')}`;
 }
 
-function AccountScreen({ isDark = false }) {
+function AccountScreen({ isDark = false, navigation }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const profile = Auth.current_profile();
@@ -68,17 +70,38 @@ function AccountScreen({ isDark = false }) {
   const profile_photo = profile.photo || '';
   const avatar_initial = profile_name.charAt(0).toUpperCase() || 'M';
   const is_busy = Auth.is_loading();
+  const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
+    React.useState(false);
+  const is_ios_header_title_visible_ref = React.useRef(false);
   const [transition_theme, set_transition_theme] = React.useState(null);
   const transition_progress = useSharedValue(1);
   const theme_transition_key = `${isDark ? 'dark' : 'light'}:${theme.accent_palette_id}`;
   const previous_theme_key_ref = React.useRef(theme_transition_key);
   const previous_theme_ref = React.useRef(theme);
   const transition_token_ref = React.useRef(0);
+  const header_background_color =
+    resolve_translucent_header_background_color(theme, Platform.OS);
 
   const complete_transition = React.useCallback((transition_token) => {
     if (transition_token_ref.current === transition_token) {
       set_transition_theme(null);
     }
+  }, []);
+
+  const handle_scroll = React.useCallback((event) => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    const offset_y = Math.max(event?.nativeEvent?.contentOffset?.y || 0, 0);
+    const next_visibility = offset_y > IOS_HEADER_TITLE_REVEAL_OFFSET;
+
+    if (next_visibility === is_ios_header_title_visible_ref.current) {
+      return;
+    }
+
+    is_ios_header_title_visible_ref.current = next_visibility;
+    set_is_ios_header_title_visible(next_visibility);
   }, []);
 
   React.useLayoutEffect(() => {
@@ -107,6 +130,45 @@ function AccountScreen({ isDark = false }) {
     previous_theme_ref.current = theme;
   }, [complete_transition, theme, theme_transition_key, transition_progress]);
 
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerBackground: () => (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.headerBackdrop,
+            {
+              backgroundColor: header_background_color,
+            },
+          ]}
+        />
+      ),
+      headerShadowVisible: false,
+      headerStyle: {
+        backgroundColor: 'transparent',
+      },
+      headerTintColor: theme.colors.ink,
+      headerTitle:
+        Platform.OS === 'ios'
+          ? is_ios_header_title_visible
+            ? 'Settings'
+            : ''
+          : 'Settings',
+      headerTitleStyle: {
+        color: theme.colors.ink,
+        fontSize: 17,
+        fontWeight: '600',
+      },
+      headerTransparent: true,
+      title: 'Settings',
+    });
+  }, [
+    header_background_color,
+    is_ios_header_title_visible,
+    navigation,
+    theme,
+  ]);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground theme={theme} />
@@ -114,6 +176,7 @@ function AccountScreen({ isDark = false }) {
       <AccountScreenContent
         accent_palette_id={accent_palette_id}
         avatar_initial={avatar_initial}
+        handle_scroll={handle_scroll}
         is_busy={is_busy}
         is_dark={isDark}
         profile_handle={profile_handle}
@@ -130,6 +193,7 @@ function AccountScreen({ isDark = false }) {
 function AccountScreenContent({
   accent_palette_id,
   avatar_initial = '',
+  handle_scroll,
   is_busy = false,
   is_dark = false,
   profile_handle = '',
@@ -186,6 +250,8 @@ function AccountScreenContent({
         bounces
         contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[styles.content, { paddingTop: content_top_padding }]}
+        onScroll={handle_scroll}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
@@ -246,15 +312,16 @@ function AccountScreenContent({
             </View>
           </AuthCard>
 
-          <AuthCard style={[styles.card, styles.signOutCard]} theme={theme}>
+          <View style={styles.signOutContainer}>
             <PrimaryButton
               label="Sign out"
               onPress={Auth.sign_out}
               variant="ghost"
               disabled={is_busy}
               theme={theme}
+              textStyle={{ color: '#c0392b' }}
             />
-          </AuthCard>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -368,6 +435,9 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+  },
+  headerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
   },
   content: {
     flexGrow: 1,
@@ -483,9 +553,45 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 18,
   },
-  signOutCard: {
-    padding: 20,
+  signOutContainer: {
+    marginTop: 8,
   },
 });
+
+function resolve_translucent_header_background_color(
+  theme,
+  platform = Platform.OS,
+) {
+  if (platform === 'ios') {
+    return with_color_opacity(
+      theme?.colors?.canvas,
+      theme?.isDark ? 0.1 : 0.14,
+    );
+  }
+
+  return with_color_opacity(
+    theme?.colors?.canvas,
+    theme?.isDark ? 0.72 : 0.84,
+  );
+}
+
+function with_color_opacity(color_value = '', opacity = 1) {
+  const normalized_color = `${color_value || ''}`.trim();
+  const normalized_opacity = Number.isFinite(opacity)
+    ? Math.min(Math.max(opacity, 0), 1)
+    : 1;
+  const hex_match = normalized_color.match(/^#([0-9a-f]{6})$/i);
+
+  if (!hex_match) {
+    return normalized_color || 'rgba(255, 255, 255, 0.84)';
+  }
+
+  const hex = hex_match[1];
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${normalized_opacity})`;
+}
 
 export default observer(AccountScreen);
