@@ -272,6 +272,7 @@ function AccountScreenContent({
               )}
 
               <View style={styles.profileMeta}>
+                <Text style={[styles.signedInAs, { color: theme.colors.inkSoft }]}>Signed in as:</Text>
                 <Text style={[styles.profileName, { color: theme.colors.ink }]}>{profile_name}</Text>
                 {profile_handle ? (
                   <Text style={[styles.profileHandle, { color: theme.colors.inkSoft }]}>
@@ -466,33 +467,39 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   avatarFallback: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
   avatarInitial: {
     fontFamily: 'Newsreader_700Bold',
-    fontSize: 26,
-    lineHeight: 28,
+    fontSize: 14,
+    lineHeight: 16,
   },
   profileMeta: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 2,
+  },
+  signedInAs: {
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+    lineHeight: 16,
   },
   profileName: {
     flexShrink: 1,
     fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 22,
+    lineHeight: 26,
   },
   profileHandle: {
     flexShrink: 1,
