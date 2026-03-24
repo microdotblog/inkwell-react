@@ -99,6 +99,86 @@ export async function fetch_micro_blog_highlights({ token = '' } = {}) {
   });
 }
 
+export async function fetch_micro_blog_conversation_replies({
+  token = '',
+  post_url = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_post_url = `${post_url || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error(
+      'A Micro.blog token is required to load conversation replies.',
+    );
+  }
+
+  if (!trimmed_post_url) {
+    return {
+      items: [],
+      home_page_url: '',
+      not_found: false,
+    };
+  }
+
+  const params = new URLSearchParams({
+    url: trimmed_post_url,
+    format: 'jsonfeed',
+  });
+  const url = new URL(
+    `/conversation.js?${params.toString()}`,
+    `${MICRO_BLOG_FEEDS_BASE_URL}/`,
+  );
+  const headers = new Headers({
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  });
+
+  if (response.status === 404) {
+    return {
+      items: [],
+      home_page_url: '',
+      not_found: true,
+    };
+  }
+
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Feeds conversation request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return {
+      items: [],
+      home_page_url: '',
+      not_found: false,
+    };
+  }
+
+  try {
+    const payload = JSON.parse(response_text);
+
+    return {
+      ...payload,
+      not_found: false,
+    };
+  } catch (error) {
+    return {
+      items: [],
+      home_page_url: '',
+      not_found: false,
+    };
+  }
+}
+
 export async function mark_micro_blog_feed_entries_read({
   token = '',
   entry_ids = [],

@@ -29,9 +29,11 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
+import { fetch_micro_blog_conversation_replies } from '../api/MicroBlogFeeds';
 import AppStore from '../stores/App';
 import Bookmarks from '../stores/Bookmarks';
 import Feed from '../stores/Feed';
+import Tokens from '../stores/Tokens';
 import { getAuthTheme } from '../theme/authTheme';
 
 const READER_HORIZONTAL_PADDING = 20;
@@ -48,6 +50,14 @@ const RECAP_FAVICON_SIZE = 22;
 const RECAP_SETTINGS_LAYOUT_TRANSITION = LinearTransition.duration(180);
 const RECAP_SETTINGS_ROW_ENTERING = FadeInDown.duration(180);
 const RECAP_SETTINGS_ROW_EXITING = FadeOutUp.duration(140);
+const REPLY_AVATAR_SIZE = 30;
+const READER_PANE_CONTROL_INSET = 3;
+const READER_PANE_CONTROL_HEIGHT = 40;
+const READER_PANE_CONTROL_RADIUS = READER_PANE_CONTROL_HEIGHT / 2;
+const READER_PANE_BUTTON_HEIGHT =
+  READER_PANE_CONTROL_HEIGHT - READER_PANE_CONTROL_INSET * 2;
+const READER_PANE_BUTTON_RADIUS = READER_PANE_BUTTON_HEIGHT / 2;
+const READER_REPLY_CONTENT_WIDTH_OFFSET = 64;
 const RECAP_EMAIL_DAYS = [
   'Monday',
   'Tuesday',
@@ -146,15 +156,22 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const recap_bookmarked_quote_urls = Feed.recap_bookmarked_quote_urls.slice();
   const bookmarking_recap_quote_url =
     `${Feed.bookmarking_recap_quote_url || ''}`.trim();
+  const [active_pane, set_active_pane] = React.useState('post');
+  const [is_loading_replies, set_is_loading_replies] = React.useState(false);
+  const [replies, set_replies] = React.useState([]);
   const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
     React.useState(false);
   const is_ios_header_title_visible_ref = React.useRef(false);
+  const replies_request_token_ref = React.useRef(0);
   const header_title =
     detail_mode === 'recap' ? 'Reading Recap' : source_label;
   const content_top_padding =
     header_height + (Platform.OS === 'ios' ? 0 : 12);
   const header_background_color =
     resolve_translucent_header_background_color(theme, Platform.OS);
+  const reply_count = replies.length;
+  const should_show_reply_tabs =
+    detail_mode === 'entry' && !is_loading_replies && reply_count > 0;
   const recap_renderers = React.useMemo(() => {
     const bookmarked_quote_url_set = new Set(recap_bookmarked_quote_urls);
 
@@ -244,6 +261,90 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     }
   }, [detail_mode, recap?.requested_at]);
 
+  React.useEffect(() => {
+    replies_request_token_ref.current += 1;
+    const request_token = replies_request_token_ref.current;
+
+    set_active_pane('post');
+    set_replies([]);
+    set_is_loading_replies(false);
+
+    if (detail_mode !== 'entry' || !original_url) {
+      return;
+    }
+
+    let did_cancel = false;
+    set_is_loading_replies(true);
+
+    async function load_replies() {
+      try {
+        await Tokens.hydrate();
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return;
+        }
+
+        const payload = await fetch_micro_blog_conversation_replies({
+          token: user_token,
+          post_url: original_url,
+        });
+
+        if (
+          did_cancel ||
+          replies_request_token_ref.current !== request_token
+        ) {
+          return;
+        }
+
+        set_replies(normalize_conversation_replies(payload?.items));
+      } catch (error) {
+        if (
+          did_cancel ||
+          replies_request_token_ref.current !== request_token
+        ) {
+          return;
+        }
+
+        console.warn('Failed to load conversation replies', error);
+        set_replies([]);
+      } finally {
+        if (
+          did_cancel ||
+          replies_request_token_ref.current !== request_token
+        ) {
+          return;
+        }
+
+        set_is_loading_replies(false);
+      }
+    }
+
+    load_replies();
+
+    return () => {
+      did_cancel = true;
+    };
+  }, [detail_mode, entry_id, original_url]);
+
+  React.useEffect(() => {
+    if (active_pane === 'replies' && reply_count === 0) {
+      set_active_pane('post');
+    }
+  }, [active_pane, reply_count]);
+
+  const handle_post_pane_press = React.useCallback(() => {
+    set_active_pane('post');
+  }, []);
+
+  const handle_replies_pane_press = React.useCallback(() => {
+    if (reply_count === 0) {
+      return;
+    }
+
+    set_active_pane('replies');
+  }, [reply_count]);
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerBackButtonDisplayMode: 'minimal',
@@ -319,12 +420,18 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       >
         {detail_mode === 'entry' && entry ? (
           <EntryReaderView
+            active_pane={active_pane}
             entry={entry}
             formatted_date={formatted_date}
             has_renderable_body={has_entry_body}
+            onPressPostPane={handle_post_pane_press}
+            onPressRepliesPane={handle_replies_pane_press}
             original_url={original_url}
+            replies={replies}
             reader_html={sanitized_reader_html}
             reader_title={reader_title}
+            reply_count={reply_count}
+            should_show_reply_tabs={should_show_reply_tabs}
             should_show_reader_title={should_show_reader_title}
             source_host={source_host}
             source_label={source_label}
@@ -380,12 +487,18 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 }
 
 function EntryReaderView({
+  active_pane = 'post',
   entry,
   formatted_date,
   has_renderable_body = false,
+  onPressPostPane,
+  onPressRepliesPane,
   original_url = '',
+  replies = [],
   reader_html = '',
   reader_title = '',
+  reply_count = 0,
+  should_show_reply_tabs = false,
   should_show_reader_title = false,
   source_host = '',
   source_label = '',
@@ -460,8 +573,29 @@ function EntryReaderView({
         ) : null}
       </View>
 
-      <View style={styles.bodySection}>
-        {has_renderable_body ? (
+      {should_show_reply_tabs ? (
+        <ReaderPaneTabs
+          active_pane={active_pane}
+          onPressPostPane={onPressPostPane}
+          onPressRepliesPane={onPressRepliesPane}
+          reply_count={reply_count}
+          theme={theme}
+        />
+      ) : null}
+
+      <View
+        style={[
+          styles.bodySection,
+          should_show_reply_tabs ? styles.bodySectionWithPaneTabs : null,
+        ]}
+      >
+        {active_pane === 'replies' ? (
+          <RepliesListView
+            replies={replies}
+            theme={theme}
+            width={width}
+          />
+        ) : has_renderable_body ? (
           <ReaderHtml
             html={reader_html}
             theme={theme}
@@ -478,6 +612,209 @@ function EntryReaderView({
         )}
       </View>
     </View>
+  );
+}
+
+function ReaderPaneTabs({
+  active_pane = 'post',
+  onPressPostPane,
+  onPressRepliesPane,
+  reply_count = 0,
+  theme,
+}) {
+  const reply_label = get_reply_count_label(reply_count);
+
+  return (
+    <View style={styles.readerPaneTabsWrap}>
+      <View
+        style={[
+          styles.readerPaneTabs,
+          {
+            backgroundColor: theme.colors.badge,
+            borderColor: theme.colors.line,
+            shadowColor: theme.colors.shadow,
+          },
+        ]}
+      >
+        <ReaderPaneButton
+          is_active={active_pane === 'post'}
+          label="Post"
+          onPress={onPressPostPane}
+          theme={theme}
+        />
+        <ReaderPaneButton
+          is_active={active_pane === 'replies'}
+          label={reply_label}
+          onPress={onPressRepliesPane}
+          theme={theme}
+        />
+      </View>
+    </View>
+  );
+}
+
+function ReaderPaneButton({
+  is_active = false,
+  label = '',
+  onPress,
+  theme,
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: is_active }}
+      onPress={onPress}
+      style={({ pressed }) => {
+        return [
+          styles.readerPaneButton,
+          {
+            backgroundColor: is_active
+              ? theme.colors.paper
+              : 'transparent',
+            borderColor: is_active ? theme.colors.line : 'transparent',
+            opacity: pressed ? 0.84 : 1,
+          },
+        ];
+      }}
+    >
+      <Text
+        style={[
+          styles.readerPaneButtonLabel,
+          {
+            color: is_active
+              ? theme.colors.ink
+              : theme.colors.inkSoft,
+          },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function RepliesListView({
+  replies = [],
+  theme,
+  width = 0,
+}) {
+  return (
+    <View style={styles.repliesList}>
+      {replies.map((reply, index) => {
+        return (
+          <ReplyRow
+            key={resolve_reply_key(reply, index)}
+            reply={reply}
+            theme={theme}
+            width={width}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+function ReplyRow({
+  reply,
+  theme,
+  width = 0,
+}) {
+  const author_name = get_reply_author_name(reply);
+  const author_url = normalize_http_url(reply?.author?.url);
+  const formatted_date = format_reply_date(reply?.date_published);
+  const reply_html = resolve_reply_html(reply);
+
+  return (
+    <View style={styles.replyRow}>
+      <FeedDetailAvatar
+        avatar_url={reply?.author?.avatar}
+        size={REPLY_AVATAR_SIZE}
+        source={author_name}
+        theme={theme}
+      />
+      <View style={styles.replyBody}>
+        <MetaLink
+          color={theme.colors.ink}
+          label={author_name}
+          onPress={author_url ? () => open_external_url(author_url) : null}
+          style={styles.replyAuthor}
+        />
+        {reply_html ? (
+          <ReplyHtml
+            html={reply_html}
+            theme={theme}
+            width={width}
+          />
+        ) : null}
+        {formatted_date ? (
+          <Text style={[styles.replyDate, { color: theme.colors.inkSoft }]}>
+            {formatted_date}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function ReplyHtml({
+  html = '',
+  theme,
+  width = 0,
+}) {
+  return (
+    <RenderHtml
+      baseStyle={{
+        color: theme.colors.inkSoft,
+        fontSize: 15,
+        lineHeight: 23,
+      }}
+      contentWidth={Math.max(
+        Math.min(
+          width - READER_HORIZONTAL_PADDING * 2 - READER_REPLY_CONTENT_WIDTH_OFFSET,
+          READER_COLUMN_MAX_WIDTH,
+        ),
+        0,
+      )}
+      enableExperimentalMarginCollapsing
+      ignoredDomTags={READER_IGNORED_DOM_TAGS}
+      renderersProps={{
+        a: {
+          onPress: (_event, href) => {
+            if (href) {
+              open_external_url(href);
+            }
+          },
+        },
+      }}
+      source={{
+        html,
+      }}
+      tagsStyles={{
+        a: {
+          color: theme.colors.accentStrong,
+          textDecorationLine: 'none',
+        },
+        blockquote: {
+          borderLeftColor: theme.colors.line,
+          borderLeftWidth: 3,
+          color: theme.colors.inkSoft,
+          marginLeft: 0,
+          paddingLeft: 12,
+        },
+        body: {
+          color: theme.colors.inkSoft,
+          fontSize: 15,
+          lineHeight: 23,
+        },
+        p: {
+          color: theme.colors.inkSoft,
+          fontSize: 15,
+          lineHeight: 23,
+          marginBottom: 10,
+          marginTop: 0,
+        },
+      }}
+    />
   );
 }
 
@@ -1423,6 +1760,62 @@ const styles = StyleSheet.create({
   },
   bodySection: {
     paddingTop: Platform.OS === 'ios' ? 20 : 24,
+  },
+  bodySectionWithPaneTabs: {
+    paddingTop: 18,
+  },
+  readerPaneTabsWrap: {
+    paddingTop: 18,
+  },
+  readerPaneTabs: {
+    borderRadius: READER_PANE_CONTROL_RADIUS,
+    borderWidth: 1,
+    elevation: 2,
+    flexDirection: 'row',
+    minHeight: READER_PANE_CONTROL_HEIGHT,
+    padding: READER_PANE_CONTROL_INSET,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+  },
+  readerPaneButton: {
+    alignItems: 'center',
+    borderRadius: READER_PANE_BUTTON_RADIUS,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: READER_PANE_BUTTON_HEIGHT,
+    paddingHorizontal: 12,
+  },
+  readerPaneButtonLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  repliesList: {
+    gap: 18,
+  },
+  replyRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  replyBody: {
+    flex: 1,
+    gap: 6,
+    minWidth: 0,
+  },
+  replyAuthor: {
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  replyDate: {
+    fontSize: 12,
+    lineHeight: 18,
   },
   recapSettingsCard: {
     borderRadius: 22,
@@ -2430,6 +2823,99 @@ function format_reader_date(raw_date = '') {
     month: 'short',
     year: 'numeric',
   });
+}
+
+function normalize_conversation_replies(items = []) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items.filter((item) => {
+    return item && typeof item === 'object';
+  });
+}
+
+function get_reply_count_label(count = 0) {
+  const normalized_count = Number.isFinite(count) ? Math.max(count, 0) : 0;
+  return `${normalized_count} repl${normalized_count === 1 ? 'y' : 'ies'}`;
+}
+
+function resolve_reply_key(reply = null, index = 0) {
+  const reply_id = `${reply?.id || ''}`.trim();
+
+  if (reply_id) {
+    return reply_id;
+  }
+
+  const author_name = get_reply_author_name(reply);
+  const published_at = `${reply?.date_published || ''}`.trim();
+  const content_key =
+    `${reply?.content_text || reply?.content_html || ''}`.trim().slice(0, 40);
+
+  return `${author_name}-${published_at}-${content_key || index}`;
+}
+
+function get_reply_author_name(reply = null) {
+  const name = `${reply?.author?.name || ''}`.trim();
+
+  if (name) {
+    return name;
+  }
+
+  const username = `${reply?.author?._microblog?.username || ''}`.trim();
+
+  if (username) {
+    return username;
+  }
+
+  return 'Unknown';
+}
+
+function format_reply_date(raw_date = '') {
+  const trimmed_date = `${raw_date || ''}`.trim();
+
+  if (!trimmed_date) {
+    return '';
+  }
+
+  const date = new Date(trimmed_date);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const date_text = date.toLocaleDateString('en-US', {
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+  });
+  const time_text = date
+    .toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      hour12: true,
+      minute: '2-digit',
+    })
+    .toLowerCase();
+
+  return `${date_text} ${time_text}`;
+}
+
+function resolve_reply_html(reply = null) {
+  const content_html = sanitize_reader_html(`${reply?.content_html || ''}`.trim());
+
+  if (content_html) {
+    return content_html;
+  }
+
+  const content_text = `${reply?.content_text || ''}`.trim();
+
+  if (!content_text) {
+    return '';
+  }
+
+  const safe_text = escape_html(content_text).replace(/\r?\n/g, '<br>');
+
+  return `<p>${safe_text}</p>`;
 }
 
 function get_recap_summary_copy(count = 0) {
