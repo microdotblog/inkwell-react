@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react';
 
 import AccountScreen from '../screens/AccountScreen';
+import BookmarksScreen from '../screens/BookmarksScreen';
 import FeedItemDetailScreen from '../screens/FeedItemDetailScreen';
 import FeedScreen from '../screens/FeedScreen';
 import LibraryPlaceholderScreen from '../screens/LibraryPlaceholderScreen';
@@ -68,12 +69,9 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <LibraryPlaceholderScreen
+          <BookmarksScreen
             {...screen_props}
-            body="Bookmarks are coming soon."
-            icon_name="bookmark-border"
             isDark={isDark}
-            title="Bookmarks"
           />
         )}
       </Stack.Screen>

@@ -14,6 +14,7 @@ import RssLoadingScreen from './screens/RssLoadingScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
 import Auth from './stores/Auth';
 import AppStore from './stores/App';
+import Bookmarks from './stores/Bookmarks';
 import Feed from './stores/Feed';
 import { getAuthTheme } from './theme/authTheme';
 
@@ -57,6 +58,7 @@ function App() {
 
         if (error?.status === 401 || error?.status === 403) {
           await Auth.clear_invalid_session('Your Micro.blog session expired. Please sign in again.');
+          Bookmarks.reset();
           Feed.reset();
         }
       }
@@ -69,6 +71,7 @@ function App() {
     }
 
     if (!is_signed_in) {
+      Bookmarks.reset();
       Feed.reset();
       return () => {
         is_cancelled = true;

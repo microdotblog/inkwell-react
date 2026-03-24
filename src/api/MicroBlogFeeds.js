@@ -87,6 +87,12 @@ export async function fetch_micro_blog_feed_icons({ token = '' } = {}) {
   });
 }
 
+export async function fetch_micro_blog_bookmarks({ token = '' } = {}) {
+  return fetch_micro_blog_feeds_json('/posts/bookmarks', {
+    token,
+  });
+}
+
 export async function mark_micro_blog_feed_entries_read({
   token = '',
   entry_ids = [],

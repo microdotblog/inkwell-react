@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AppStore from '../stores/App';
+import Bookmarks from '../stores/Bookmarks';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -110,9 +111,14 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const detail_mode = resolve_detail_mode(route?.params?.mode);
+  const entry_source = resolve_entry_source(route?.params?.entry_source);
   const entry_id = `${route?.params?.entry_id || ''}`.trim();
   const entry =
-    detail_mode === 'entry' ? Feed.timeline_entry_snapshot(entry_id) : null;
+    detail_mode === 'entry'
+      ? entry_source === 'bookmark'
+        ? Bookmarks.bookmark_entry_snapshot(entry_id)
+        : Feed.timeline_entry_snapshot(entry_id)
+      : null;
   const recap =
     detail_mode === 'recap' ? Feed.active_recap_snapshot() : null;
   const source_label = `${entry?.source || 'Feed'}`.trim() || 'Feed';
@@ -347,9 +353,17 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
         {detail_mode === 'entry' && !entry ? (
           <UnavailableScreen
-            body="It may have scrolled out of the current timeline, or the feed refreshed before the reader finished opening it."
+            body={
+              entry_source === 'bookmark'
+                ? "It may have been removed from your bookmarks, or the list refreshed before the reader finished opening it."
+                : "It may have scrolled out of the current timeline, or the feed refreshed before the reader finished opening it."
+            }
             theme={theme}
-            title="This post isn't available right now."
+            title={
+              entry_source === 'bookmark'
+                ? "This bookmark isn't available right now."
+                : "This post isn't available right now."
+            }
           />
         ) : null}
 
@@ -1784,6 +1798,16 @@ function resolve_detail_mode(raw_mode = '') {
     return 'recap';
   } else {
     return 'entry';
+  }
+}
+
+function resolve_entry_source(raw_source = '') {
+  const normalized_source = `${raw_source || ''}`.trim().toLowerCase();
+
+  if (normalized_source === 'bookmark') {
+    return 'bookmark';
+  } else {
+    return 'feed';
   }
 }
 
