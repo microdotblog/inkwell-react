@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react';
 
@@ -15,6 +16,32 @@ const Stack = createNativeStackNavigator();
 function SignedInTabs({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const header_background_color =
+    resolve_translucent_header_background_color(theme, Platform.OS);
+  const translucent_header_options = {
+    headerBackground: () => (
+      <View
+        pointerEvents="none"
+        style={[
+          styles.headerBackdrop,
+          {
+            backgroundColor: header_background_color,
+          },
+        ]}
+      />
+    ),
+    headerShadowVisible: false,
+    headerStyle: {
+      backgroundColor: 'transparent',
+    },
+    headerTintColor: theme.colors.ink,
+    headerTitleStyle: {
+      color: theme.colors.ink,
+      fontSize: 17,
+      fontWeight: '600',
+    },
+    headerTransparent: true,
+  };
 
   return (
     <Stack.Navigator
@@ -65,6 +92,7 @@ function SignedInTabs({ isDark = false }) {
       <Stack.Screen
         name="Bookmarks"
         options={{
+          ...translucent_header_options,
           title: 'Bookmarks',
         }}
       >
@@ -78,6 +106,7 @@ function SignedInTabs({ isDark = false }) {
       <Stack.Screen
         name="Highlights"
         options={{
+          ...translucent_header_options,
           title: 'Highlights',
         }}
       >
@@ -103,6 +132,48 @@ function SignedInTabs({ isDark = false }) {
       </Stack.Screen>
     </Stack.Navigator>
   );
+}
+
+const styles = StyleSheet.create({
+  headerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+});
+
+function resolve_translucent_header_background_color(
+  theme,
+  platform = Platform.OS,
+) {
+  if (platform === 'ios') {
+    return with_color_opacity(
+      theme?.colors?.canvas,
+      theme?.isDark ? 0.1 : 0.14,
+    );
+  }
+
+  return with_color_opacity(
+    theme?.colors?.canvas,
+    theme?.isDark ? 0.72 : 0.84,
+  );
+}
+
+function with_color_opacity(color_value = '', opacity = 1) {
+  const normalized_color = `${color_value || ''}`.trim();
+  const normalized_opacity = Number.isFinite(opacity)
+    ? Math.min(Math.max(opacity, 0), 1)
+    : 1;
+  const hex_match = normalized_color.match(/^#([0-9a-f]{6})$/i);
+
+  if (!hex_match) {
+    return normalized_color || 'rgba(255, 255, 255, 0.84)';
+  }
+
+  const hex = hex_match[1];
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${normalized_opacity})`;
 }
 
 export default observer(SignedInTabs);

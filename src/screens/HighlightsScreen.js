@@ -10,10 +10,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { observer } from 'mobx-react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
@@ -30,6 +31,8 @@ const COPIED_FEEDBACK_DURATION_MS = 1600;
 function HighlightsScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const header_height = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const highlight_entries = Highlights.highlight_entries();
   const total_highlights = Highlights.highlights_count();
   const search_query = Highlights.search_query;
@@ -40,6 +43,8 @@ function HighlightsScreen({ isDark = false }) {
     Highlights.is_loading && !Highlights.has_loaded && !has_highlights;
   const is_refreshing = Highlights.is_loading && Highlights.has_loaded;
   const background_intensity = has_highlights ? 0.14 : 1;
+  const content_top_padding = header_height + LIST_TOP_PADDING;
+  const list_bottom_inset = insets.bottom + LIST_BOTTOM_PADDING;
   const [copied_highlight_id, set_copied_highlight_id] = React.useState('');
   const copied_timeout_ref = React.useRef(null);
 
@@ -85,14 +90,15 @@ function HighlightsScreen({ isDark = false }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
-      <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+      <View style={styles.safeArea}>
         {is_loading_initial ? (
           <View
             style={[
               styles.stateScreen,
               {
+                paddingBottom: list_bottom_inset,
                 paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
-                paddingTop: LIST_TOP_PADDING,
+                paddingTop: content_top_padding,
               },
             ]}
           >
@@ -120,12 +126,13 @@ function HighlightsScreen({ isDark = false }) {
           </View>
         ) : (
           <FlatList
+            contentInsetAdjustmentBehavior="never"
             contentContainerStyle={[
               styles.listContent,
               {
-                paddingBottom: LIST_BOTTOM_PADDING,
+                paddingBottom: list_bottom_inset,
                 paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
-                paddingTop: LIST_TOP_PADDING,
+                paddingTop: content_top_padding,
               },
               highlight_entries.length === 0 ? styles.listContentEmpty : null,
             ]}
@@ -153,7 +160,7 @@ function HighlightsScreen({ isDark = false }) {
               <RefreshControl
                 colors={[theme.colors.accentStrong]}
                 onRefresh={Highlights.refresh}
-                progressViewOffset={LIST_TOP_PADDING}
+                progressViewOffset={content_top_padding}
                 refreshing={is_refreshing}
                 tintColor={theme.colors.accentStrong}
               />
@@ -172,7 +179,7 @@ function HighlightsScreen({ isDark = false }) {
             style={styles.list}
           />
         )}
-      </SafeAreaView>
+      </View>
     </View>
   );
 }

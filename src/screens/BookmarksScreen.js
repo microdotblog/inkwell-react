@@ -8,10 +8,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
@@ -29,6 +30,8 @@ const BOOKMARK_AVATAR_TRANSITION_MS = 180;
 function BookmarksScreen({ navigation, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const header_height = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const bookmark_entries = Bookmarks.bookmark_entries();
   const error_message = Bookmarks.error_message;
   const has_bookmarks = bookmark_entries.length > 0;
@@ -36,6 +39,8 @@ function BookmarksScreen({ navigation, isDark = false }) {
     Bookmarks.is_loading && !Bookmarks.has_loaded && !has_bookmarks;
   const is_refreshing = Bookmarks.is_loading && Bookmarks.has_loaded;
   const background_intensity = has_bookmarks ? 0.14 : 1;
+  const content_top_padding = header_height + LIST_TOP_PADDING;
+  const list_bottom_inset = insets.bottom + LIST_BOTTOM_PADDING;
 
   React.useEffect(() => {
     Bookmarks.load();
@@ -58,14 +63,15 @@ function BookmarksScreen({ navigation, isDark = false }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
-      <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+      <View style={styles.safeArea}>
         {is_loading_initial ? (
           <View
             style={[
               styles.stateScreen,
               {
+                paddingBottom: list_bottom_inset,
                 paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
-                paddingTop: LIST_TOP_PADDING,
+                paddingTop: content_top_padding,
               },
             ]}
           >
@@ -93,12 +99,13 @@ function BookmarksScreen({ navigation, isDark = false }) {
           </View>
         ) : (
           <FlatList
+            contentInsetAdjustmentBehavior="never"
             contentContainerStyle={[
               styles.listContent,
               {
-                paddingBottom: LIST_BOTTOM_PADDING,
+                paddingBottom: list_bottom_inset,
                 paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
-                paddingTop: LIST_TOP_PADDING,
+                paddingTop: content_top_padding,
               },
               !has_bookmarks ? styles.listContentEmpty : null,
             ]}
@@ -141,7 +148,7 @@ function BookmarksScreen({ navigation, isDark = false }) {
               <RefreshControl
                 colors={[theme.colors.accentStrong]}
                 onRefresh={Bookmarks.refresh}
-                progressViewOffset={LIST_TOP_PADDING}
+                progressViewOffset={content_top_padding}
                 refreshing={is_refreshing}
                 tintColor={theme.colors.accentStrong}
               />
@@ -159,7 +166,7 @@ function BookmarksScreen({ navigation, isDark = false }) {
             style={styles.list}
           />
         )}
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
