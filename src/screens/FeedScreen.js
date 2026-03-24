@@ -1169,7 +1169,6 @@ function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
         styles.sourceAvatarFrame,
         {
           backgroundColor: theme.colors.accentSoft,
-          borderColor: theme.colors.line,
         },
       ]}
     >
@@ -1616,7 +1615,6 @@ const styles = StyleSheet.create({
     width: FEED_AVATAR_SIZE,
     height: FEED_AVATAR_SIZE,
     borderRadius: FEED_AVATAR_SIZE / 2,
-    borderWidth: 1,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',

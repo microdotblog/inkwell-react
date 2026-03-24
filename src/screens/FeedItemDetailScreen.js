@@ -1311,7 +1311,6 @@ function FeedDetailAvatar({
         styles.avatarFrame,
         {
           backgroundColor: theme.colors.accentSoft,
-          borderColor: theme.colors.line,
           borderRadius: size / 2,
           height: size,
           width: size,
@@ -1653,7 +1652,6 @@ const styles = StyleSheet.create({
   },
   avatarFrame: {
     alignItems: 'center',
-    borderWidth: 1,
     justifyContent: 'center',
     overflow: 'hidden',
   },
