@@ -70,16 +70,43 @@ const FEED_AVATAR_TRANSITION_MS = 180;
 
 function get_profile_menu_actions(theme) {
   const icon_color = theme?.colors?.ink;
+  const settings_action = {
+    id: 'settings',
+    title: 'Settings',
+    image: Platform.select({
+      ios: 'gearshape',
+    }),
+    imageColor: icon_color,
+  };
+
+  if (Platform.OS === 'ios') {
+    return [
+      {
+        displayInline: true,
+        subactions: [settings_action],
+        title: '',
+      },
+      {
+        id: 'highlights',
+        title: 'Highlights',
+        image: Platform.select({
+          ios: 'highlighter',
+        }),
+        imageColor: icon_color,
+      },
+      {
+        id: 'bookmarks',
+        title: 'Bookmarks',
+        image: Platform.select({
+          ios: 'bookmark',
+        }),
+        imageColor: icon_color,
+      },
+    ];
+  }
 
   return [
-    {
-      id: 'bookmarks',
-      title: 'Bookmarks',
-      image: Platform.select({
-        ios: 'bookmark',
-      }),
-      imageColor: icon_color,
-    },
+    settings_action,
     {
       id: 'highlights',
       title: 'Highlights',
@@ -89,10 +116,10 @@ function get_profile_menu_actions(theme) {
       imageColor: icon_color,
     },
     {
-      id: 'settings',
-      title: 'Settings',
+      id: 'bookmarks',
+      title: 'Bookmarks',
       image: Platform.select({
-        ios: 'gearshape',
+        ios: 'bookmark',
       }),
       imageColor: icon_color,
     },
