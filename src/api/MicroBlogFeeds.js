@@ -93,6 +93,12 @@ export async function fetch_micro_blog_bookmarks({ token = '' } = {}) {
   });
 }
 
+export async function fetch_micro_blog_highlights({ token = '' } = {}) {
+  return fetch_micro_blog_feeds_json('/feeds/highlights', {
+    token,
+  });
+}
+
 export async function mark_micro_blog_feed_entries_read({
   token = '',
   entry_ids = [],

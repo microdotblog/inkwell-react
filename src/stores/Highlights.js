@@ -1,0 +1,354 @@
+import { flow, getSnapshot, types } from 'mobx-state-tree';
+
+import { fetch_micro_blog_highlights } from '../api/MicroBlogFeeds';
+import Tokens from './Tokens';
+
+const HighlightEntry = types.model('HighlightEntry', {
+  id: types.optional(types.string, ''),
+  highlight_id: types.optional(types.string, ''),
+  post_id: types.optional(types.string, ''),
+  post_url: types.optional(types.string, ''),
+  post_title: types.optional(types.string, ''),
+  post_source: types.optional(types.string, ''),
+  post_has_title: types.optional(types.boolean, false),
+  text: types.optional(types.string, ''),
+  created_at: types.optional(types.string, ''),
+  post_published_at: types.optional(types.string, ''),
+  start_offset: types.maybeNull(types.number),
+  end_offset: types.maybeNull(types.number),
+});
+
+const Highlights = types
+  .model('Highlights', {
+    items: types.optional(types.array(HighlightEntry), []),
+    is_loading: types.optional(types.boolean, false),
+    has_loaded: types.optional(types.boolean, false),
+    error_message: types.maybeNull(types.string),
+    search_query: types.optional(types.string, ''),
+  })
+  .volatile(() => ({
+    request_token: 0,
+  }))
+  .actions((self) => ({
+    reset() {
+      self.request_token += 1;
+      self.items.replace([]);
+      self.is_loading = false;
+      self.has_loaded = false;
+      self.error_message = null;
+      self.search_query = '';
+    },
+
+    apply_items(items = []) {
+      self.items.replace(normalize_highlight_entries(items));
+      self.has_loaded = true;
+      self.error_message = null;
+    },
+
+    set_search_query(search_query = '') {
+      self.search_query = `${search_query || ''}`;
+    },
+
+    load: flow(function* () {
+      if (self.is_loading) {
+        return false;
+      }
+
+      if (self.has_loaded && !self.error_message) {
+        return true;
+      }
+
+      return yield self.fetch_highlights();
+    }),
+
+    refresh: flow(function* () {
+      return yield self.fetch_highlights();
+    }),
+
+    fetch_highlights: flow(function* () {
+      if (self.is_loading) {
+        return false;
+      }
+
+      self.is_loading = true;
+      self.error_message = null;
+      self.request_token += 1;
+      const request_token = self.request_token;
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          self.reset();
+          return false;
+        }
+
+        const payload = yield fetch_micro_blog_highlights({
+          token: user_token,
+        });
+
+        if (self.request_token !== request_token) {
+          return false;
+        }
+
+        const items = Array.isArray(payload?.items) ? payload.items : payload;
+        self.apply_items(items);
+        return true;
+      } catch (error) {
+        if (self.request_token === request_token) {
+          self.has_loaded = true;
+          self.error_message =
+            error?.status === 401 || error?.status === 403
+              ? 'Your Micro.blog session expired. Please sign in again.'
+              : 'We could not load your highlights. Please try again.';
+        }
+
+        return false;
+      } finally {
+        if (self.request_token === request_token) {
+          self.is_loading = false;
+        }
+      }
+    }),
+  }))
+  .views((self) => ({
+    highlight_entries() {
+      const normalized_query = normalize_search_query(self.search_query);
+      const visible_items = normalized_query
+        ? self.items.filter((item) => {
+            return matches_highlight_query(item, normalized_query);
+          })
+        : self.items;
+
+      return visible_items.map((item) => {
+        return getSnapshot(item);
+      });
+    },
+
+    highlights_count() {
+      return self.items.length;
+    },
+
+    has_search_query() {
+      return normalize_search_query(self.search_query).length > 0;
+    },
+  }))
+  .create();
+
+export default Highlights;
+
+export function resolve_highlight_post_label(highlight = null) {
+  const post_title = normalize_string(highlight?.post_title);
+  const post_source = normalize_string(highlight?.post_source);
+  const has_valid_title =
+    highlight?.post_has_title === true &&
+    Boolean(post_title) &&
+    post_title.toLowerCase() !== 'untitled';
+
+  if (has_valid_title) {
+    return post_title;
+  } else if (post_source) {
+    return post_source;
+  } else {
+    return 'Post';
+  }
+}
+
+function normalize_highlight_entries(items = []) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const normalized_entries = items
+    .map((item) => {
+      return normalize_highlight_entry(item);
+    })
+    .filter(Boolean);
+
+  normalized_entries.sort(compare_highlight_entries_by_created_at);
+
+  return normalized_entries;
+}
+
+function normalize_highlight_entry(item = null) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+
+  const microblog_data =
+    item?._microblog && typeof item._microblog === 'object'
+      ? item._microblog
+      : {};
+  const post_id =
+    microblog_data?.entry_id == null
+      ? ''
+      : normalize_string(microblog_data.entry_id);
+  const text = normalize_string(item?.content_text);
+
+  if (!post_id || !text) {
+    return null;
+  }
+
+  const post_title = normalize_string(item?.title);
+  const start_offset = parse_highlight_offset(microblog_data?.selection_start);
+  const end_offset = parse_highlight_offset(microblog_data?.selection_end);
+  const created_at =
+    normalize_string(item?.date_published) ||
+    normalize_string(item?.date_modified);
+  const remote_highlight_id =
+    item?.id == null ? '' : normalize_string(item.id);
+  const fallback_id = `mb-${post_id}-${start_offset ?? 'x'}-${end_offset ?? 'x'}-${created_at || 'unknown'}`;
+
+  return {
+    id: remote_highlight_id || fallback_id,
+    highlight_id: remote_highlight_id,
+    post_id,
+    post_url: normalize_web_url(item?.url),
+    post_title,
+    post_source: resolve_highlight_source(item, microblog_data),
+    post_published_at: created_at,
+    post_has_title:
+      Boolean(post_title) && post_title.toLowerCase() !== 'untitled',
+    text,
+    created_at,
+    start_offset,
+    end_offset,
+  };
+}
+
+function resolve_highlight_source(item = null, microblog_data = {}) {
+  const author = resolve_highlight_author(item);
+
+  return (
+    normalize_string(author?.name) ||
+    normalize_string(microblog_data?.site_name) ||
+    normalize_string(microblog_data?.feed_title) ||
+    ''
+  );
+}
+
+function resolve_highlight_author(item = null) {
+  if (item?.author && typeof item.author === 'object') {
+    return item.author;
+  }
+
+  const authors = Array.isArray(item?.authors) ? item.authors : [];
+
+  return (
+    authors.find((entry) => {
+      return entry && typeof entry === 'object';
+    }) || null
+  );
+}
+
+function parse_highlight_offset(raw_value = null) {
+  const numeric_value = Number(raw_value);
+
+  if (!Number.isFinite(numeric_value)) {
+    return null;
+  }
+
+  return Math.max(0, Math.floor(numeric_value));
+}
+
+function compare_highlight_entries_by_created_at(left_entry, right_entry) {
+  const left_timestamp = resolve_highlight_sort_timestamp(left_entry);
+  const right_timestamp = resolve_highlight_sort_timestamp(right_entry);
+
+  return right_timestamp - left_timestamp;
+}
+
+function resolve_highlight_sort_timestamp(highlight = null) {
+  const created_at = resolve_timestamp(highlight?.created_at);
+
+  if (created_at > 0) {
+    return created_at;
+  }
+
+  const published_at = resolve_timestamp(highlight?.post_published_at);
+
+  if (published_at > 0) {
+    return published_at;
+  }
+
+  const local_id = typeof highlight?.id === 'string' ? highlight.id : '';
+  const local_match = local_id.match(/^hl-(\d+)$/);
+
+  if (!local_match) {
+    return 0;
+  }
+
+  const timestamp = Number(local_match[1]);
+
+  if (!Number.isFinite(timestamp)) {
+    return 0;
+  }
+
+  return timestamp;
+}
+
+function resolve_timestamp(raw_date = '') {
+  const timestamp = new Date(raw_date).getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return 0;
+  } else {
+    return timestamp;
+  }
+}
+
+function matches_highlight_query(highlight = null, query = '') {
+  if (!highlight) {
+    return false;
+  }
+
+  const search_query = normalize_search_query(query);
+
+  if (!search_query) {
+    return true;
+  }
+
+  const text = normalize_search_target(highlight?.text);
+  const post_label = normalize_search_target(resolve_highlight_post_label(highlight));
+  const post_source = normalize_search_target(highlight?.post_source);
+  const post_url = normalize_search_target(highlight?.post_url);
+
+  return (
+    text.includes(search_query) ||
+    post_label.includes(search_query) ||
+    post_source.includes(search_query) ||
+    post_url.includes(search_query)
+  );
+}
+
+function normalize_search_query(value = '') {
+  return normalize_search_target(value);
+}
+
+function normalize_search_target(value = '') {
+  return `${value || ''}`.trim().toLowerCase();
+}
+
+function normalize_web_url(raw_url = '') {
+  const trimmed_url = normalize_string(raw_url);
+
+  if (!trimmed_url) {
+    return '';
+  }
+
+  try {
+    return new URL(trimmed_url).toString();
+  } catch (error) {
+    try {
+      return new URL(`https://${trimmed_url}`).toString();
+    } catch (fallback_error) {
+      return '';
+    }
+  }
+}
+
+function normalize_string(value = '') {
+  return `${value || ''}`.trim();
+}

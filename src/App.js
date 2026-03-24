@@ -16,6 +16,7 @@ import Auth from './stores/Auth';
 import AppStore from './stores/App';
 import Bookmarks from './stores/Bookmarks';
 import Feed from './stores/Feed';
+import Highlights from './stores/Highlights';
 import { getAuthTheme } from './theme/authTheme';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -60,6 +61,7 @@ function App() {
           await Auth.clear_invalid_session('Your Micro.blog session expired. Please sign in again.');
           Bookmarks.reset();
           Feed.reset();
+          Highlights.reset();
         }
       }
     }
@@ -73,6 +75,7 @@ function App() {
     if (!is_signed_in) {
       Bookmarks.reset();
       Feed.reset();
+      Highlights.reset();
       return () => {
         is_cancelled = true;
       };

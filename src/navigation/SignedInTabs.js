@@ -6,7 +6,7 @@ import AccountScreen from '../screens/AccountScreen';
 import BookmarksScreen from '../screens/BookmarksScreen';
 import FeedItemDetailScreen from '../screens/FeedItemDetailScreen';
 import FeedScreen from '../screens/FeedScreen';
-import LibraryPlaceholderScreen from '../screens/LibraryPlaceholderScreen';
+import HighlightsScreen from '../screens/HighlightsScreen';
 import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -82,12 +82,9 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <LibraryPlaceholderScreen
+          <HighlightsScreen
             {...screen_props}
-            body="Highlights are coming soon."
-            icon_name="format-quote"
             isDark={isDark}
-            title="Highlights"
           />
         )}
       </Stack.Screen>
