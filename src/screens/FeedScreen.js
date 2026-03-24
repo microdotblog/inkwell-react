@@ -1020,7 +1020,6 @@ function AccountHeaderButton({
       }}
       shouldOpenOnLongPress={false}
       themeVariant={is_dark ? 'dark' : 'light'}
-      title="Profile"
     >
       <View
         accessibilityRole="button"
