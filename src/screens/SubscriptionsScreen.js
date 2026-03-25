@@ -25,16 +25,46 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
+import { createScaledTextStyles } from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const SUBSCRIPTION_AVATAR_SIZE = 30;
 const SUBSCRIPTION_AVATAR_TRANSITION_MS = 180;
+const TEXT_STYLE_NAMES = [
+  'avatarInitial',
+  'choiceSubtitle',
+  'choiceTitle',
+  'composerBody',
+  'composerTitle',
+  'editActionButtonLabel',
+  'editInput',
+  'editingLabel',
+  'inlineStateBody',
+  'inlineStateTitle',
+  'inlineUtilityButtonLabel',
+  'renameError',
+  'rowHint',
+  'searchInput',
+  'secondaryActionButtonLabel',
+  'stateBody',
+  'stateTitle',
+  'statusText',
+  'subscriptionDetailLabel',
+  'subscriptionSupportingUrl',
+  'subscriptionTitle',
+  'summaryBadgeLabel',
+  'summaryCopy',
+];
 
 function SubscriptionsScreen({ navigation, route, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const subscriptions = Feed.subscription_snapshots();
@@ -398,10 +428,22 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 />
               </View>
               <View style={styles.stateCopy}>
-                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                <Text
+                  style={[
+                    styles.stateTitle,
+                    scaled_text_styles.stateTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
                   Loading your subscriptions
                 </Text>
-                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                <Text
+                  style={[
+                    styles.stateBody,
+                    scaled_text_styles.stateBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
                   Your feeds will show up here as soon as Micro.blog responds.
                 </Text>
               </View>
@@ -427,6 +469,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
               <SubscriptionsEmptyState
                 has_search_query={Boolean(normalize_search_query(search_query))}
                 onRetry={handle_refresh}
+                scaled_text_styles={scaled_text_styles}
                 subscriptions_count={subscriptions.length}
                 theme={theme}
                 error_message={
@@ -449,6 +492,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 onCloseComposer={handle_close_composer}
                 onFeedChoicePress={handle_feed_choice_press}
                 onOpenComposer={handle_open_composer}
+                scaled_text_styles={scaled_text_styles}
                 search_query={search_query}
                 submit_status={submit_status}
                 subscriptions={subscriptions}
@@ -483,6 +527,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                   onSaveRename={handle_save_rename}
                   rename_error_message={rename_error_message}
                   rename_value={rename_value}
+                  scaled_text_styles={scaled_text_styles}
                   subscription={item}
                   theme={theme}
                 />
@@ -509,6 +554,7 @@ function SubscriptionsHeader({
   onCloseComposer,
   onFeedChoicePress,
   onOpenComposer,
+  scaled_text_styles,
   search_query = '',
   submit_status = null,
   subscriptions = [],
@@ -532,6 +578,7 @@ function SubscriptionsHeader({
         onFeedChoicePress={onFeedChoicePress}
         onOpen={onOpenComposer}
         onSubmit={onAddSubscription}
+        scaled_text_styles={scaled_text_styles}
         status={submit_status}
         theme={theme}
       />
@@ -539,6 +586,7 @@ function SubscriptionsHeader({
       {total_count > 0 || search_query ? (
         <SearchField
           onChangeText={onChangeSearchQuery}
+          scaled_text_styles={scaled_text_styles}
           theme={theme}
           value={search_query}
         />
@@ -572,13 +620,20 @@ function SubscriptionsHeader({
             <Text
               style={[
                 styles.summaryBadgeLabel,
+                scaled_text_styles.summaryBadgeLabel,
                 { color: theme.colors.accentStrong },
               ]}
             >
               Subscriptions
             </Text>
           </View>
-          <Text style={[styles.summaryCopy, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.summaryCopy,
+              scaled_text_styles.summaryCopy,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {summary_copy}
           </Text>
         </View>
@@ -586,10 +641,22 @@ function SubscriptionsHeader({
 
       {subscriptions_error_message ? (
         <AuthCard style={styles.inlineStateCard} theme={theme}>
-          <Text style={[styles.inlineStateTitle, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.inlineStateTitle,
+              scaled_text_styles.inlineStateTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
             {"Couldn't refresh your subscriptions"}
           </Text>
-          <Text style={[styles.inlineStateBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.inlineStateBody,
+              scaled_text_styles.inlineStateBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {subscriptions_error_message}
           </Text>
         </AuthCard>
@@ -609,6 +676,7 @@ function NewFeedComposerCard({
   onFeedChoicePress,
   onOpen,
   onSubmit,
+  scaled_text_styles,
   status = null,
   theme,
 }) {
@@ -618,10 +686,22 @@ function NewFeedComposerCard({
     <AuthCard style={styles.composerCard} theme={theme}>
       <View style={styles.composerHeader}>
         <View style={styles.composerCopy}>
-          <Text style={[styles.composerTitle, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.composerTitle,
+              scaled_text_styles.composerTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
             New Feed...
           </Text>
-          <Text style={[styles.composerBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.composerBody,
+              scaled_text_styles.composerBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             Subscribe with a site URL or a direct feed URL.
           </Text>
         </View>
@@ -648,6 +728,7 @@ function NewFeedComposerCard({
             <Text
               style={[
                 styles.inlineUtilityButtonLabel,
+                scaled_text_styles.inlineUtilityButtonLabel,
                 { color: theme.colors.accentStrong },
               ]}
             >
@@ -686,7 +767,11 @@ function NewFeedComposerCard({
               ref={add_input_ref}
               returnKeyType="go"
               selectionColor={theme.colors.accentStrong}
-              style={[styles.searchInput, { color: theme.colors.ink }]}
+              style={[
+                styles.searchInput,
+                scaled_text_styles.searchInput,
+                { color: theme.colors.ink },
+              ]}
               value={feed_url}
             />
           </View>
@@ -716,6 +801,7 @@ function NewFeedComposerCard({
               <Text
                 style={[
                   styles.secondaryActionButtonLabel,
+                  scaled_text_styles.secondaryActionButtonLabel,
                   { color: theme.colors.inkSoft },
                 ]}
               >
@@ -728,6 +814,7 @@ function NewFeedComposerCard({
             <Text
               style={[
                 styles.statusText,
+                scaled_text_styles.statusText,
                 {
                   color: resolve_status_color(theme, status?.tone),
                 },
@@ -758,7 +845,11 @@ function NewFeedComposerCard({
                   >
                     <Text
                       numberOfLines={2}
-                      style={[styles.choiceTitle, { color: theme.colors.ink }]}
+                      style={[
+                        styles.choiceTitle,
+                        scaled_text_styles.choiceTitle,
+                        { color: theme.colors.ink },
+                      ]}
                     >
                       {choice.title}
                     </Text>
@@ -766,6 +857,7 @@ function NewFeedComposerCard({
                       numberOfLines={1}
                       style={[
                         styles.choiceSubtitle,
+                        scaled_text_styles.choiceSubtitle,
                         { color: theme.colors.inkSoft },
                       ]}
                     >
@@ -784,6 +876,7 @@ function NewFeedComposerCard({
 
 function SearchField({
   onChangeText,
+  scaled_text_styles,
   theme,
   value = '',
 }) {
@@ -812,7 +905,11 @@ function SearchField({
         placeholderTextColor={theme.colors.inkSoft}
         returnKeyType="search"
         selectionColor={theme.colors.accentStrong}
-        style={[styles.searchInput, { color: theme.colors.ink }]}
+        style={[
+          styles.searchInput,
+          scaled_text_styles.searchInput,
+          { color: theme.colors.ink },
+        ]}
         value={value}
       />
     </View>
@@ -830,6 +927,7 @@ function SubscriptionRow({
   onSaveRename,
   rename_error_message = '',
   rename_value = '',
+  scaled_text_styles,
   subscription,
   theme,
 }) {
@@ -856,10 +954,17 @@ function SubscriptionRow({
         <View style={styles.rowHeader}>
           <SubscriptionAvatar
             avatar_url={subscription?.avatar_url}
+            scaled_text_styles={scaled_text_styles}
             source={title}
             theme={theme}
           />
-          <Text style={[styles.editingLabel, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.editingLabel,
+              scaled_text_styles.editingLabel,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             Rename subscription
           </Text>
         </View>
@@ -882,7 +987,11 @@ function SubscriptionRow({
             placeholderTextColor={theme.colors.inkSoft}
             returnKeyType="done"
             selectionColor={theme.colors.accentStrong}
-            style={[styles.editInput, { color: theme.colors.ink }]}
+            style={[
+              styles.editInput,
+              scaled_text_styles.editInput,
+              { color: theme.colors.ink },
+            ]}
             value={rename_value}
           />
         </View>
@@ -890,6 +999,7 @@ function SubscriptionRow({
           <Text
             style={[
               styles.renameError,
+              scaled_text_styles.renameError,
               {
                 color: theme.colors.danger,
               },
@@ -917,6 +1027,7 @@ function SubscriptionRow({
             <Text
               style={[
                 styles.editActionButtonLabel,
+                scaled_text_styles.editActionButtonLabel,
                 { color: theme.colors.accentStrong },
               ]}
             >
@@ -941,6 +1052,7 @@ function SubscriptionRow({
             <Text
               style={[
                 styles.editActionButtonLabel,
+                scaled_text_styles.editActionButtonLabel,
                 { color: theme.colors.inkSoft },
               ]}
             >
@@ -979,6 +1091,7 @@ function SubscriptionRow({
         >
           <SubscriptionAvatar
             avatar_url={subscription?.avatar_url}
+            scaled_text_styles={scaled_text_styles}
             source={title}
             theme={theme}
           />
@@ -986,7 +1099,11 @@ function SubscriptionRow({
           <View style={styles.subscriptionMeta}>
             <Text
               numberOfLines={2}
-              style={[styles.subscriptionTitle, { color: theme.colors.ink }]}
+              style={[
+                styles.subscriptionTitle,
+                scaled_text_styles.subscriptionTitle,
+                { color: theme.colors.ink },
+              ]}
             >
               {title}
             </Text>
@@ -995,6 +1112,7 @@ function SubscriptionRow({
                 numberOfLines={1}
                 style={[
                   styles.subscriptionSupportingUrl,
+                  scaled_text_styles.subscriptionSupportingUrl,
                   { color: theme.colors.inkSoft },
                 ]}
               >
@@ -1006,6 +1124,7 @@ function SubscriptionRow({
                 numberOfLines={1}
                 style={[
                   styles.subscriptionDetailLabel,
+                  scaled_text_styles.subscriptionDetailLabel,
                   { color: theme.colors.inkSoft },
                 ]}
               >
@@ -1051,7 +1170,11 @@ function SubscriptionRow({
       {subscription_id ? (
         <Text
           numberOfLines={1}
-          style={[styles.rowHint, { color: theme.colors.inkSoft }]}
+          style={[
+            styles.rowHint,
+            scaled_text_styles.rowHint,
+            { color: theme.colors.inkSoft },
+          ]}
         >
           Open feed
         </Text>
@@ -1060,7 +1183,12 @@ function SubscriptionRow({
   );
 }
 
-function SubscriptionAvatar({ avatar_url = '', source = '', theme }) {
+function SubscriptionAvatar({
+  avatar_url = '',
+  scaled_text_styles,
+  source = '',
+  theme,
+}) {
   const trimmed_avatar_url = normalize_string(avatar_url);
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const [is_image_loaded, set_is_image_loaded] = React.useState(false);
@@ -1079,7 +1207,13 @@ function SubscriptionAvatar({ avatar_url = '', source = '', theme }) {
       ]}
     >
       {should_show_initial ? (
-        <Text style={[styles.avatarInitial, { color: theme.colors.accentStrong }]}>
+        <Text
+          style={[
+            styles.avatarInitial,
+            scaled_text_styles.avatarInitial,
+            { color: theme.colors.accentStrong },
+          ]}
+        >
           {get_avatar_initial(source)}
         </Text>
       ) : null}
@@ -1102,6 +1236,7 @@ function SubscriptionsEmptyState({
   error_message = '',
   has_search_query = false,
   onRetry,
+  scaled_text_styles,
   subscriptions_count = 0,
   theme,
 }) {
@@ -1109,10 +1244,22 @@ function SubscriptionsEmptyState({
     return (
       <AuthCard style={styles.stateCard} theme={theme}>
         <View style={styles.stateCopy}>
-          <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.stateTitle,
+              scaled_text_styles.stateTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
             {"Couldn't load your subscriptions"}
           </Text>
-          <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.stateBody,
+              scaled_text_styles.stateBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {error_message}
           </Text>
         </View>
@@ -1129,10 +1276,22 @@ function SubscriptionsEmptyState({
     return (
       <AuthCard style={styles.stateCard} theme={theme}>
         <View style={styles.stateCopy}>
-          <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.stateTitle,
+              scaled_text_styles.stateTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
             No matching subscriptions
           </Text>
-          <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.stateBody,
+              scaled_text_styles.stateBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             Try a different title, site URL, or feed URL.
           </Text>
         </View>
@@ -1143,10 +1302,22 @@ function SubscriptionsEmptyState({
   return (
     <AuthCard style={styles.stateCard} theme={theme}>
       <View style={styles.stateCopy}>
-        <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+        <Text
+          style={[
+            styles.stateTitle,
+            scaled_text_styles.stateTitle,
+            { color: theme.colors.ink },
+          ]}
+        >
           No subscriptions yet
         </Text>
-        <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.stateBody,
+            scaled_text_styles.stateBody,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           Add a site or feed URL above to start building your reader.
         </Text>
       </View>

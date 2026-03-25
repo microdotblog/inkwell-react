@@ -1,5 +1,6 @@
 import React from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react';
@@ -19,9 +20,30 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
+import {
+  DEFAULT_TEXT_SCALE,
+  createScaledTextStyles,
+  formatTextScaleLabel,
+  MAX_TEXT_SCALE,
+  MIN_TEXT_SCALE,
+  TEXT_SCALE_PRESET_COUNT,
+  getTextScaleForSliderIndex,
+  getTextScaleSliderIndex,
+} from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const CONTENT_TOP_PADDING = 12;
+const TEXT_STYLE_NAMES = [
+  'avatarInitial',
+  'signedInAs',
+  'profileName',
+  'profileHandle',
+  'preferenceTitle',
+  'preferenceBody',
+  'paletteLabel',
+  'textScaleValue',
+  'sliderMarkerLabel',
+];
 
 function format_profile_handle(profile_url = '') {
   const trimmed_profile_url = `${profile_url || ''}`.trim();
@@ -64,7 +86,14 @@ function format_profile_handle(profile_url = '') {
 
 function AccountScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
+  const text_scale_slider_index = React.useMemo(() => {
+    return getTextScaleSliderIndex(text_scale);
+  }, [text_scale]);
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
   const profile = Auth.current_profile();
   const profile_name = profile.name || 'Micro.blog account';
   const profile_handle = format_profile_handle(profile.url);
@@ -122,7 +151,10 @@ function AccountScreen({ isDark = false }) {
         profile_handle={profile_handle}
         profile_name={profile_name}
         profile_photo={profile_photo}
+        scaled_text_styles={scaled_text_styles}
         theme={theme}
+        text_scale={text_scale}
+        text_scale_slider_index={text_scale_slider_index}
         transition_progress={transition_progress}
         transition_theme={transition_theme}
       />
@@ -138,7 +170,10 @@ function AccountScreenContent({
   profile_handle = '',
   profile_name = '',
   profile_photo = '',
+  scaled_text_styles,
   theme,
+  text_scale = DEFAULT_TEXT_SCALE,
+  text_scale_slider_index = 0,
   transition_progress,
   transition_theme,
 }) {
@@ -198,17 +233,45 @@ function AccountScreenContent({
                 <Image source={{ uri: profile_photo }} style={styles.avatar} />
               ) : (
                 <Animated.View style={[styles.avatarFallback, avatar_fallback_style]}>
-                  <Animated.Text style={[styles.avatarInitial, avatar_initial_style]}>
+                  <Animated.Text
+                    style={[
+                      styles.avatarInitial,
+                      scaled_text_styles.avatarInitial,
+                      avatar_initial_style,
+                    ]}
+                  >
                     {avatar_initial}
                   </Animated.Text>
                 </Animated.View>
               )}
 
               <View style={styles.profileMeta}>
-                <Text style={[styles.signedInAs, { color: theme.colors.inkSoft }]}>Signed in as:</Text>
-                <Text style={[styles.profileName, { color: theme.colors.ink }]}>{profile_name}</Text>
+                <Text
+                  style={[
+                    styles.signedInAs,
+                    scaled_text_styles.signedInAs,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  Signed in as:
+                </Text>
+                <Text
+                  style={[
+                    styles.profileName,
+                    scaled_text_styles.profileName,
+                    { color: theme.colors.ink },
+                  ]}
+                >
+                  {profile_name}
+                </Text>
                 {profile_handle ? (
-                  <Text style={[styles.profileHandle, { color: theme.colors.inkSoft }]}>
+                  <Text
+                    style={[
+                      styles.profileHandle,
+                      scaled_text_styles.profileHandle,
+                      { color: theme.colors.inkSoft },
+                    ]}
+                  >
                     {profile_handle}
                   </Text>
                 ) : null}
@@ -219,8 +282,22 @@ function AccountScreenContent({
           <AuthCard style={styles.card} theme={theme}>
             <View style={styles.preferenceStack}>
               <View style={styles.preferenceCopy}>
-                <Text style={[styles.preferenceTitle, { color: theme.colors.ink }]}>Appearance</Text>
-                <Text style={[styles.preferenceBody, { color: theme.colors.inkSoft }]}>
+                <Text
+                  style={[
+                    styles.preferenceTitle,
+                    scaled_text_styles.preferenceTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
+                  Appearance
+                </Text>
+                <Text
+                  style={[
+                    styles.preferenceBody,
+                    scaled_text_styles.preferenceBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
                   Choose an accent colour for this device.
                 </Text>
               </View>
@@ -235,6 +312,7 @@ function AccountScreenContent({
                       label={option.label}
                       onPress={() => AppStore.set_accent_palette(option.id)}
                       previous_is_selected={option.id === transition_theme?.accent_palette_id}
+                      scaled_text_styles={scaled_text_styles}
                       swatch_color={is_dark ? option.dark_swatch : option.light_swatch}
                       theme={theme}
                       transition_progress={transition_progress}
@@ -242,6 +320,109 @@ function AccountScreenContent({
                     />
                   );
                 })}
+              </View>
+
+              <View style={styles.preferenceCopy}>
+                <View style={styles.preferenceHeaderRow}>
+                  <Text
+                    style={[
+                      styles.preferenceTitle,
+                      scaled_text_styles.preferenceTitle,
+                      { color: theme.colors.ink },
+                    ]}
+                  >
+                    Text size
+                  </Text>
+                  <Text
+                    style={[
+                      styles.textScaleValue,
+                      scaled_text_styles.textScaleValue,
+                      { color: theme.colors.accentStrong },
+                    ]}
+                  >
+                    {formatTextScaleLabel(text_scale)}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.preferenceBody,
+                    scaled_text_styles.preferenceBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  Adjust font size throughout the app.
+                </Text>
+              </View>
+
+              <View style={styles.sliderWrap}>
+                <Slider
+                  maximumTrackTintColor={theme.colors.line}
+                  maximumValue={TEXT_SCALE_PRESET_COUNT - 1}
+                  minimumTrackTintColor={theme.colors.accent}
+                  minimumValue={0}
+                  onSlidingComplete={(next_slider_index) => {
+                    AppStore.set_text_scale(
+                      getTextScaleForSliderIndex(next_slider_index),
+                    );
+                  }}
+                  onValueChange={(next_slider_index) => {
+                    AppStore.apply_text_scale(
+                      getTextScaleForSliderIndex(next_slider_index),
+                    );
+                  }}
+                  step={1}
+                  thumbTintColor={theme.colors.accentStrong}
+                  value={text_scale_slider_index}
+                />
+                <View style={styles.sliderMarkersRow}>
+                  <Text
+                    style={[
+                      styles.sliderMarkerLabel,
+                      scaled_text_styles.sliderMarkerLabel,
+                      { color: theme.colors.inkSoft },
+                    ]}
+                  >
+                    {formatTextScaleLabel(MIN_TEXT_SCALE)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sliderMarkerLabel,
+                      scaled_text_styles.sliderMarkerLabel,
+                      { color: theme.colors.accentStrong },
+                    ]}
+                  >
+                    {formatTextScaleLabel(DEFAULT_TEXT_SCALE)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sliderMarkerLabel,
+                      scaled_text_styles.sliderMarkerLabel,
+                      { color: theme.colors.inkSoft },
+                    ]}
+                  >
+                    {formatTextScaleLabel(MAX_TEXT_SCALE)}
+                  </Text>
+                </View>
+                <View style={styles.sliderStepDotsRow}>
+                  {Array.from({ length: TEXT_SCALE_PRESET_COUNT }).map((_, index) => {
+                    const is_active = index === text_scale_slider_index;
+
+                    return (
+                      <View
+                        key={`text-scale-step-${index}`}
+                        style={[
+                          styles.sliderStepDot,
+                          {
+                            backgroundColor: is_active
+                              ? theme.colors.accentStrong
+                              : theme.colors.line,
+                            opacity: is_active ? 1 : 0.72,
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
               </View>
             </View>
           </AuthCard>
@@ -268,6 +449,7 @@ function AccentPaletteChip({
   label = '',
   onPress,
   previous_is_selected = false,
+  scaled_text_styles,
   swatch_color = '',
   theme,
   transition_progress,
@@ -354,7 +536,15 @@ function AccentPaletteChip({
             },
           ]}
         />
-        <Animated.Text style={[styles.paletteLabel, label_style]}>{label}</Animated.Text>
+        <Animated.Text
+          style={[
+            styles.paletteLabel,
+            scaled_text_styles.paletteLabel,
+            label_style,
+          ]}
+        >
+          {label}
+        </Animated.Text>
         <Animated.View style={check_style}>
           <MaterialIcons color={theme.colors.accentStrong} name="check" size={18} />
         </Animated.View>
@@ -434,6 +624,12 @@ const styles = StyleSheet.create({
   preferenceCopy: {
     gap: 4,
   },
+  preferenceHeaderRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
   preferenceTitle: {
     fontFamily: 'Newsreader_600SemiBold',
     fontSize: 22,
@@ -480,8 +676,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 18,
   },
+  sliderWrap: {
+    marginTop: -2,
+  },
+  sliderMarkersRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  sliderMarkerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  sliderStepDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  sliderStepDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
   signOutContainer: {
     marginTop: 8,
+  },
+  textScaleValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
   },
 });
 

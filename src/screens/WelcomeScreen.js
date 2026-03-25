@@ -16,10 +16,17 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
+import { createScaledTextStyles } from '../theme/textScale';
+
+const TEXT_STYLE_NAMES = ['title', 'body', 'errorMessage'];
 
 function WelcomeScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
   const actionOpacity = useSharedValue(0);
   const actionTranslateY = useSharedValue(26);
   const is_signing_in = Auth.is_loading();
@@ -59,8 +66,22 @@ function WelcomeScreen({ isDark = false }) {
           showsVerticalScrollIndicator={false}
         >
           <Animated.View entering={FadeInUp.duration(680)} style={styles.hero}>
-            <Text style={[styles.title, { color: theme.colors.ink }]}>Welcome to Inkwell</Text>
-            <Text style={[styles.body, { color: theme.colors.inkSoft }]}>
+            <Text
+              style={[
+                styles.title,
+                scaled_text_styles.title,
+                { color: theme.colors.ink },
+              ]}
+            >
+              Welcome to Inkwell
+            </Text>
+            <Text
+              style={[
+                styles.body,
+                scaled_text_styles.body,
+                { color: theme.colors.inkSoft },
+              ]}
+            >
               Feed reader with Micro.blog sync and highlighting.
             </Text>
           </Animated.View>
@@ -68,7 +89,13 @@ function WelcomeScreen({ isDark = false }) {
           <View style={styles.footer}>
             <Animated.View pointerEvents="box-none" style={[styles.actionWrap, actionAnimatedStyle]}>
               {error_message ? (
-                <Text style={[styles.errorMessage, { color: theme.colors.accentStrong }]}>
+                <Text
+                  style={[
+                    styles.errorMessage,
+                    scaled_text_styles.errorMessage,
+                    { color: theme.colors.accentStrong },
+                  ]}
+                >
                   {error_message}
                 </Text>
               ) : null}

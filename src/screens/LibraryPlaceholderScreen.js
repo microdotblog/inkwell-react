@@ -8,6 +8,9 @@ import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
 import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
+import { createScaledTextStyles } from '../theme/textScale';
+
+const TEXT_STYLE_NAMES = ['title', 'body'];
 
 function LibraryPlaceholderScreen({
   body = '',
@@ -16,7 +19,11 @@ function LibraryPlaceholderScreen({
   title = '',
 }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
@@ -40,10 +47,22 @@ function LibraryPlaceholderScreen({
               />
             </View>
             <View style={styles.copy}>
-              <Text style={[styles.title, { color: theme.colors.ink }]}>
+              <Text
+                style={[
+                  styles.title,
+                  scaled_text_styles.title,
+                  { color: theme.colors.ink },
+                ]}
+              >
                 {title}
               </Text>
-              <Text style={[styles.body, { color: theme.colors.inkSoft }]}>
+              <Text
+                style={[
+                  styles.body,
+                  scaled_text_styles.body,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
                 {body}
               </Text>
             </View>

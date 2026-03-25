@@ -40,6 +40,7 @@ import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
+import { createScaledTextStyles } from '../theme/textScale';
 
 const SEGMENT_OPTIONS = [
   { key: 'today', label: 'Today' },
@@ -67,6 +68,21 @@ const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
 const FEED_AVATAR_SIZE = 28;
 const READ_ROW_OPACITY = 0.56;
 const FEED_AVATAR_TRANSITION_MS = 180;
+const TEXT_STYLE_NAMES = [
+  'searchInput',
+  'segmentLabel',
+  'stateTitle',
+  'stateBody',
+  'recapBody',
+  'recapError',
+  'recapButtonLabel',
+  'accountAvatarInitial',
+  'sourceAvatarInitial',
+  'sourceLabel',
+  'timestamp',
+  'rowTitle',
+  'rowSummary',
+];
 
 function get_profile_menu_actions(theme) {
   const icon_color = theme?.colors?.ink;
@@ -159,7 +175,11 @@ function clear_feed_search_focus(
 
 function FeedScreen({ navigation, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
   const insets = useSafeAreaInsets();
   const active_segment = Feed.active_segment;
   const is_search_active = Feed.is_search_active;
@@ -561,6 +581,7 @@ function FeedScreen({ navigation, isDark = false }) {
             recap_error_message,
             search_results_spacer_style,
             visible_timeline_entries,
+            scaled_text_styles,
           })}
         </Animated.View>
       {is_search_active ? (
@@ -595,6 +616,7 @@ function FeedScreen({ navigation, isDark = false }) {
                 profile_name={profile.name}
                 profile_photo={profile.photo}
                 search_query={search_query}
+                scaled_text_styles={scaled_text_styles}
                 theme={theme}
                 update_segment_frame={update_segment_frame}
               />
@@ -646,6 +668,7 @@ function FeedScreen({ navigation, isDark = false }) {
                 profile_name={profile.name}
                 profile_photo={profile.photo}
                 search_query={search_query}
+                scaled_text_styles={scaled_text_styles}
                 theme={theme}
                 update_segment_frame={update_segment_frame}
               />
@@ -675,6 +698,7 @@ function render_content({
   search_query,
   recap_error_message,
   search_results_spacer_style,
+  scaled_text_styles,
   visible_timeline_entries,
 }) {
   if (is_loading_initial) {
@@ -721,11 +745,21 @@ function render_content({
           error_message && !has_any_timeline_entries ? (
             <AuthCard style={styles.stateCard} theme={theme}>
               <View style={styles.stateCopy}>
-                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                <Text
+                  style={[
+                    styles.stateTitle,
+                    scaled_text_styles.stateTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
                   Couldn't load your feed
                 </Text>
                 <Text
-                  style={[styles.stateBody, { color: theme.colors.inkSoft }]}
+                  style={[
+                    styles.stateBody,
+                    scaled_text_styles.stateBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
                 >
                   {error_message}
                 </Text>
@@ -739,7 +773,13 @@ function render_content({
           ) : (
             <AuthCard style={styles.stateCard} theme={theme}>
               <View style={styles.stateCopy}>
-                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                <Text
+                  style={[
+                    styles.stateTitle,
+                    scaled_text_styles.stateTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
                   {get_empty_state_title(
                     active_segment,
                     is_search_active,
@@ -747,7 +787,11 @@ function render_content({
                   )}
                 </Text>
                 <Text
-                  style={[styles.stateBody, { color: theme.colors.inkSoft }]}
+                  style={[
+                    styles.stateBody,
+                    scaled_text_styles.stateBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
                 >
                   {get_empty_state_body(
                     active_segment,
@@ -770,6 +814,7 @@ function render_content({
               error_message={recap_error_message}
               is_loading={is_generating_recap || is_refreshing}
               onPress={on_open_recap}
+              scaled_text_styles={scaled_text_styles}
               theme={theme}
             />
           ) : null
@@ -797,6 +842,7 @@ function render_content({
             <FeedTimelineRow
               entry={item}
               onPress={on_entry_press}
+              scaled_text_styles={scaled_text_styles}
               theme={theme}
             />
           );
@@ -823,6 +869,7 @@ function FeedFooterControlsRow({
   profile_name = '',
   profile_photo = '',
   search_query = '',
+  scaled_text_styles,
   theme,
   update_segment_frame,
 }) {
@@ -834,12 +881,14 @@ function FeedFooterControlsRow({
         onMenuOpen={onProfileMenuOpen}
         profile_name={profile_name}
         profile_photo={profile_photo}
+        scaled_text_styles={scaled_text_styles}
         theme={theme}
       />
       {is_search_active ? (
         <FeedSearchField
           input_ref={input_ref}
           onChangeText={onSearchQueryChange}
+          scaled_text_styles={scaled_text_styles}
           theme={theme}
           value={search_query}
         />
@@ -884,6 +933,7 @@ function FeedFooterControlsRow({
                 <Text
                   style={[
                     styles.segmentLabel,
+                    scaled_text_styles.segmentLabel,
                     {
                       color: is_active
                         ? theme.colors.white
@@ -907,7 +957,7 @@ function FeedFooterControlsRow({
   );
 }
 
-function FeedTimelineRow({ entry, onPress, theme }) {
+function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
   const source_label = entry.source || 'Feed';
   const title = resolve_entry_title(entry);
   const has_title = Boolean(title);
@@ -935,17 +985,28 @@ function FeedTimelineRow({ entry, onPress, theme }) {
         <View style={styles.sourceWrap}>
           <FeedSourceAvatar
             avatar_url={entry.avatar_url}
+            scaled_text_styles={scaled_text_styles}
             source={source_label}
             theme={theme}
           />
           <Text
             numberOfLines={1}
-            style={[styles.sourceLabel, { color: theme.colors.inkSoft }]}
+            style={[
+              styles.sourceLabel,
+              scaled_text_styles.sourceLabel,
+              { color: theme.colors.inkSoft },
+            ]}
           >
             {source_label}
           </Text>
         </View>
-        <Text style={[styles.timestamp, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.timestamp,
+            scaled_text_styles.timestamp,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           {timestamp}
         </Text>
       </View>
@@ -955,7 +1016,11 @@ function FeedTimelineRow({ entry, onPress, theme }) {
           {has_title ? (
             <Text
               numberOfLines={2}
-              style={[styles.rowTitle, { color: theme.colors.ink }]}
+              style={[
+                styles.rowTitle,
+                scaled_text_styles.rowTitle,
+                { color: theme.colors.ink },
+              ]}
             >
               {title}
             </Text>
@@ -963,7 +1028,11 @@ function FeedTimelineRow({ entry, onPress, theme }) {
           {summary ? (
             <Text
               numberOfLines={3}
-              style={[styles.rowSummary, { color: theme.colors.inkSoft }]}
+              style={[
+                styles.rowSummary,
+                scaled_text_styles.rowSummary,
+                { color: theme.colors.inkSoft },
+              ]}
             >
               {summary}
             </Text>
@@ -979,6 +1048,7 @@ function FeedRecapSummaryCard({
   error_message = '',
   is_loading = false,
   onPress,
+  scaled_text_styles,
   theme,
 }) {
   const summary_label = get_recap_summary_label(count);
@@ -1022,6 +1092,7 @@ function FeedRecapSummaryCard({
               <Text
                 style={[
                   styles.recapButtonLabel,
+                  scaled_text_styles.recapButtonLabel,
                   { color: theme.colors.accentStrong },
                 ]}
               >
@@ -1032,6 +1103,7 @@ function FeedRecapSummaryCard({
           <Text
             style={[
               styles.recapBody,
+              scaled_text_styles.recapBody,
               styles.recapBodyInline,
               { color: theme.colors.inkSoft },
             ]}
@@ -1040,7 +1112,13 @@ function FeedRecapSummaryCard({
           </Text>
         </View>
         {error_message ? (
-          <Text style={[styles.recapError, { color: theme.colors.accentStrong }]}>
+          <Text
+            style={[
+              styles.recapError,
+              scaled_text_styles.recapError,
+              { color: theme.colors.accentStrong },
+            ]}
+          >
             {error_message}
           </Text>
         ) : null}
@@ -1055,6 +1133,7 @@ function AccountHeaderButton({
   onMenuOpen,
   profile_name = '',
   profile_photo = '',
+  scaled_text_styles,
   theme,
 }) {
   const menu_actions = React.useMemo(() => {
@@ -1108,6 +1187,7 @@ function AccountHeaderButton({
               <Text
                 style={[
                   styles.accountAvatarInitial,
+                  scaled_text_styles.accountAvatarInitial,
                   { color: theme.colors.accentStrong },
                 ]}
               >
@@ -1135,6 +1215,7 @@ function AccountHeaderButton({
 function FeedSearchField({
   input_ref,
   onChangeText,
+  scaled_text_styles,
   theme,
   value = '',
 }) {
@@ -1165,7 +1246,11 @@ function FeedSearchField({
         ref={input_ref}
         returnKeyType="search"
         selectionColor={theme.colors.accentStrong}
-        style={[styles.searchInput, { color: theme.colors.ink }]}
+        style={[
+          styles.searchInput,
+          scaled_text_styles.searchInput,
+          { color: theme.colors.ink },
+        ]}
         value={value}
       />
     </View>
@@ -1210,7 +1295,12 @@ function FeedSearchToggleButton({
   );
 }
 
-function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
+function FeedSourceAvatar({
+  avatar_url = '',
+  scaled_text_styles,
+  source = '',
+  theme,
+}) {
   const trimmed_avatar_url = `${avatar_url || ''}`.trim();
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const [is_image_loaded, set_is_image_loaded] = React.useState(false);
@@ -1238,6 +1328,7 @@ function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
           <Text
             style={[
               styles.sourceAvatarInitial,
+              scaled_text_styles.sourceAvatarInitial,
               { color: theme.colors.accentStrong },
             ]}
           >

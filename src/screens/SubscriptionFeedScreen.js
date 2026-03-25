@@ -20,6 +20,7 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
+import { createScaledTextStyles } from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const LIST_TOP_PADDING = 12;
@@ -27,10 +28,28 @@ const LIST_BOTTOM_PADDING = 28;
 const FEED_AVATAR_SIZE = 28;
 const FEED_AVATAR_TRANSITION_MS = 180;
 const READ_ROW_OPACITY = 0.56;
+const TEXT_STYLE_NAMES = [
+  'inlineStateBody',
+  'inlineStateTitle',
+  'rowSummary',
+  'rowTitle',
+  'sourceAvatarInitial',
+  'sourceLabel',
+  'stateBody',
+  'stateTitle',
+  'summaryBadgeLabel',
+  'summaryCopy',
+  'summaryLink',
+  'timestamp',
+];
 
 function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const feed_id = normalize_string(route?.params?.feed_id);
@@ -117,10 +136,22 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
           >
             <AuthCard style={styles.stateCard} theme={theme}>
               <View style={styles.stateCopy}>
-                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                <Text
+                  style={[
+                    styles.stateTitle,
+                    scaled_text_styles.stateTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
                   No subscription selected
                 </Text>
-                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                <Text
+                  style={[
+                    styles.stateBody,
+                    scaled_text_styles.stateBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
                   Go back and choose a subscription to browse its entries.
                 </Text>
               </View>
@@ -165,10 +196,22 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
                 />
               </View>
               <View style={styles.stateCopy}>
-                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                <Text
+                  style={[
+                    styles.stateTitle,
+                    scaled_text_styles.stateTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
                   Loading feed entries
                 </Text>
-                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                <Text
+                  style={[
+                    styles.stateBody,
+                    scaled_text_styles.stateBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
                   Recent posts from this subscription will show up here shortly.
                 </Text>
               </View>
@@ -194,6 +237,7 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
               <SubscriptionFeedEmptyState
                 error_message={error_message}
                 onRetry={handle_refresh}
+                scaled_text_styles={scaled_text_styles}
                 theme={theme}
               />
             }
@@ -202,6 +246,7 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
                 error_message={
                   subscription_feed_entries.length > 0 ? error_message : ''
                 }
+                scaled_text_styles={scaled_text_styles}
                 subscription={subscription}
                 theme={theme}
               />
@@ -220,6 +265,7 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
                 <FeedTimelineRow
                   entry={item}
                   onPress={handle_entry_press}
+                  scaled_text_styles={scaled_text_styles}
                   theme={theme}
                 />
               );
@@ -235,6 +281,7 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
 
 function SubscriptionFeedHeader({
   error_message = '',
+  scaled_text_styles,
   subscription = null,
   theme,
 }) {
@@ -272,18 +319,31 @@ function SubscriptionFeedHeader({
             <Text
               style={[
                 styles.summaryBadgeLabel,
+                scaled_text_styles.summaryBadgeLabel,
                 { color: theme.colors.accentStrong },
               ]}
             >
               Feed
             </Text>
           </View>
-          <Text style={[styles.summaryCopy, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.summaryCopy,
+              scaled_text_styles.summaryCopy,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             Latest entries
           </Text>
         </View>
         {supporting_url ? (
-          <Text style={[styles.summaryLink, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.summaryLink,
+              scaled_text_styles.summaryLink,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {supporting_url}
           </Text>
         ) : null}
@@ -291,10 +351,22 @@ function SubscriptionFeedHeader({
 
       {error_message ? (
         <AuthCard style={styles.inlineStateCard} theme={theme}>
-          <Text style={[styles.inlineStateTitle, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.inlineStateTitle,
+              scaled_text_styles.inlineStateTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
             {"Couldn't refresh this feed"}
           </Text>
-          <Text style={[styles.inlineStateBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.inlineStateBody,
+              scaled_text_styles.inlineStateBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {error_message}
           </Text>
         </AuthCard>
@@ -303,7 +375,7 @@ function SubscriptionFeedHeader({
   );
 }
 
-function FeedTimelineRow({ entry, onPress, theme }) {
+function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
   const source_label = entry.source || 'Feed';
   const title = resolve_entry_title(entry);
   const has_title = Boolean(title);
@@ -331,17 +403,28 @@ function FeedTimelineRow({ entry, onPress, theme }) {
         <View style={styles.sourceWrap}>
           <FeedSourceAvatar
             avatar_url={entry.avatar_url}
+            scaled_text_styles={scaled_text_styles}
             source={source_label}
             theme={theme}
           />
           <Text
             numberOfLines={1}
-            style={[styles.sourceLabel, { color: theme.colors.inkSoft }]}
+            style={[
+              styles.sourceLabel,
+              scaled_text_styles.sourceLabel,
+              { color: theme.colors.inkSoft },
+            ]}
           >
             {source_label}
           </Text>
         </View>
-        <Text style={[styles.timestamp, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.timestamp,
+            scaled_text_styles.timestamp,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           {timestamp}
         </Text>
       </View>
@@ -351,7 +434,11 @@ function FeedTimelineRow({ entry, onPress, theme }) {
           {has_title ? (
             <Text
               numberOfLines={2}
-              style={[styles.rowTitle, { color: theme.colors.ink }]}
+              style={[
+                styles.rowTitle,
+                scaled_text_styles.rowTitle,
+                { color: theme.colors.ink },
+              ]}
             >
               {title}
             </Text>
@@ -359,7 +446,11 @@ function FeedTimelineRow({ entry, onPress, theme }) {
           {summary ? (
             <Text
               numberOfLines={3}
-              style={[styles.rowSummary, { color: theme.colors.inkSoft }]}
+              style={[
+                styles.rowSummary,
+                scaled_text_styles.rowSummary,
+                { color: theme.colors.inkSoft },
+              ]}
             >
               {summary}
             </Text>
@@ -370,7 +461,12 @@ function FeedTimelineRow({ entry, onPress, theme }) {
   );
 }
 
-function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
+function FeedSourceAvatar({
+  avatar_url = '',
+  scaled_text_styles,
+  source = '',
+  theme,
+}) {
   const trimmed_avatar_url = normalize_string(avatar_url);
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const [is_image_loaded, set_is_image_loaded] = React.useState(false);
@@ -390,7 +486,13 @@ function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
       ]}
     >
       {should_show_initial ? (
-        <Text style={[styles.sourceAvatarInitial, { color: theme.colors.accentStrong }]}>
+        <Text
+          style={[
+            styles.sourceAvatarInitial,
+            scaled_text_styles.sourceAvatarInitial,
+            { color: theme.colors.accentStrong },
+          ]}
+        >
           {initial}
         </Text>
       ) : null}
@@ -412,16 +514,29 @@ function FeedSourceAvatar({ avatar_url = '', source = '', theme }) {
 function SubscriptionFeedEmptyState({
   error_message = '',
   onRetry,
+  scaled_text_styles,
   theme,
 }) {
   if (error_message) {
     return (
       <AuthCard style={styles.stateCard} theme={theme}>
         <View style={styles.stateCopy}>
-          <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.stateTitle,
+              scaled_text_styles.stateTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
             {"Couldn't load this feed"}
           </Text>
-          <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.stateBody,
+              scaled_text_styles.stateBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {error_message}
           </Text>
         </View>
@@ -437,10 +552,22 @@ function SubscriptionFeedEmptyState({
   return (
     <AuthCard style={styles.stateCard} theme={theme}>
       <View style={styles.stateCopy}>
-        <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+        <Text
+          style={[
+            styles.stateTitle,
+            scaled_text_styles.stateTitle,
+            { color: theme.colors.ink },
+          ]}
+        >
           No entries yet
         </Text>
-        <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.stateBody,
+            scaled_text_styles.stateBody,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           This subscription does not have any recent entries right now.
         </Text>
       </View>

@@ -12,12 +12,15 @@ import SubscriptionFeedScreen from '../screens/SubscriptionFeedScreen';
 import SubscriptionsScreen from '../screens/SubscriptionsScreen';
 import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
+import { scaleTextMetric } from '../theme/textScale';
 
 const Stack = createNativeStackNavigator();
 
 function SignedInTabs({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const header_title_font_size = scaleTextMetric(17, text_scale);
   const header_background_color =
     resolve_translucent_header_background_color(theme, Platform.OS);
   const translucent_header_options = {
@@ -39,7 +42,7 @@ function SignedInTabs({ isDark = false }) {
     headerTintColor: theme.colors.ink,
     headerTitleStyle: {
       color: theme.colors.ink,
-      fontSize: 17,
+      fontSize: header_title_font_size,
       fontWeight: '600',
     },
     headerTransparent: true,

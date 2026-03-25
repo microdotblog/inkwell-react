@@ -22,15 +22,31 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import AppStore from '../stores/App';
 import Highlights, { resolve_highlight_post_label } from '../stores/Highlights';
 import { getAuthTheme } from '../theme/authTheme';
+import { createScaledTextStyles } from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const COPIED_FEEDBACK_DURATION_MS = 1600;
+const TEXT_STYLE_NAMES = [
+  'searchInput',
+  'summaryBadgeLabel',
+  'summaryCopy',
+  'stateTitle',
+  'stateBody',
+  'highlightText',
+  'postLabel',
+  'timestamp',
+  'copyButtonLabel',
+];
 
 function HighlightsScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const highlight_entries = Highlights.highlight_entries();
@@ -115,10 +131,22 @@ function HighlightsScreen({ isDark = false }) {
                 <ActivityIndicator color={theme.colors.accentStrong} size="small" />
               </View>
               <View style={styles.stateCopy}>
-                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                <Text
+                  style={[
+                    styles.stateTitle,
+                    scaled_text_styles.stateTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
                   Loading your highlights
                 </Text>
-                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                <Text
+                  style={[
+                    styles.stateBody,
+                    scaled_text_styles.stateBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
                   Saved passages will show up here as soon as Micro.blog responds.
                 </Text>
               </View>
@@ -144,6 +172,7 @@ function HighlightsScreen({ isDark = false }) {
                 has_highlights={has_highlights}
                 has_search_query={has_search_query}
                 onRetry={Highlights.refresh}
+                scaled_text_styles={scaled_text_styles}
                 theme={theme}
               />
             }
@@ -151,6 +180,7 @@ function HighlightsScreen({ isDark = false }) {
               <HighlightsHeader
                 matching_count={highlight_entries.length}
                 onChangeSearch={handle_search_query_change}
+                scaled_text_styles={scaled_text_styles}
                 search_query={search_query}
                 theme={theme}
                 total_count={total_highlights}
@@ -171,6 +201,7 @@ function HighlightsScreen({ isDark = false }) {
                   entry={item}
                   is_copied={copied_highlight_id === item.id}
                   onCopyPress={handle_copy_press}
+                  scaled_text_styles={scaled_text_styles}
                   theme={theme}
                 />
               );
@@ -187,6 +218,7 @@ function HighlightsScreen({ isDark = false }) {
 function HighlightsHeader({
   matching_count = 0,
   onChangeSearch,
+  scaled_text_styles,
   search_query = '',
   theme,
   total_count = 0,
@@ -197,6 +229,7 @@ function HighlightsHeader({
     <View style={styles.headerContent}>
       <SearchField
         onChangeText={onChangeSearch}
+        scaled_text_styles={scaled_text_styles}
         theme={theme}
         value={search_query}
       />
@@ -228,13 +261,20 @@ function HighlightsHeader({
             <Text
               style={[
                 styles.summaryBadgeLabel,
+                scaled_text_styles.summaryBadgeLabel,
                 { color: theme.colors.accentStrong },
               ]}
             >
               Highlights
             </Text>
           </View>
-          <Text style={[styles.summaryCopy, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.summaryCopy,
+              scaled_text_styles.summaryCopy,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {summary_copy}
           </Text>
         </View>
@@ -245,6 +285,7 @@ function HighlightsHeader({
 
 function SearchField({
   onChangeText,
+  scaled_text_styles,
   theme,
   value = '',
 }) {
@@ -275,7 +316,11 @@ function SearchField({
         placeholderTextColor={theme.colors.inkSoft}
         returnKeyType="search"
         selectionColor={theme.colors.accentStrong}
-        style={[styles.searchInput, { color: theme.colors.ink }]}
+        style={[
+          styles.searchInput,
+          scaled_text_styles.searchInput,
+          { color: theme.colors.ink },
+        ]}
         value={value}
       />
     </View>
@@ -287,16 +332,29 @@ function HighlightsEmptyState({
   has_highlights = false,
   has_search_query = false,
   onRetry,
+  scaled_text_styles,
   theme,
 }) {
   if (has_highlights && has_search_query) {
     return (
       <AuthCard style={styles.stateCard} theme={theme}>
         <View style={styles.stateCopy}>
-          <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.stateTitle,
+              scaled_text_styles.stateTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
             No matching highlights
           </Text>
-          <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.stateBody,
+              scaled_text_styles.stateBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             Try a different phrase, title, or source to narrow the list another way.
           </Text>
         </View>
@@ -308,10 +366,22 @@ function HighlightsEmptyState({
     return (
       <AuthCard style={styles.stateCard} theme={theme}>
         <View style={styles.stateCopy}>
-          <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.stateTitle,
+              scaled_text_styles.stateTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
             Couldn't load your highlights
           </Text>
-          <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.stateBody,
+              scaled_text_styles.stateBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {error_message}
           </Text>
         </View>
@@ -327,10 +397,22 @@ function HighlightsEmptyState({
   return (
     <AuthCard style={styles.stateCard} theme={theme}>
       <View style={styles.stateCopy}>
-        <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+        <Text
+          style={[
+            styles.stateTitle,
+            scaled_text_styles.stateTitle,
+            { color: theme.colors.ink },
+          ]}
+        >
           No highlights yet
         </Text>
-        <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.stateBody,
+            scaled_text_styles.stateBody,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           Highlights you save on Micro.blog will collect here for later reference.
         </Text>
       </View>
@@ -342,6 +424,7 @@ function HighlightRow({
   entry,
   is_copied = false,
   onCopyPress,
+  scaled_text_styles,
   theme,
 }) {
   const post_label = resolve_highlight_post_label(entry);
@@ -366,17 +449,35 @@ function HighlightRow({
           },
         ]}
       >
-        <Text style={[styles.highlightText, { color: theme.colors.ink }]}>
+        <Text
+          style={[
+            styles.highlightText,
+            scaled_text_styles.highlightText,
+            { color: theme.colors.ink },
+          ]}
+        >
           {entry.text}
         </Text>
       </View>
 
       <View style={styles.rowMeta}>
-        <Text style={[styles.postLabel, { color: theme.colors.ink }]}>
+        <Text
+          style={[
+            styles.postLabel,
+            scaled_text_styles.postLabel,
+            { color: theme.colors.ink },
+          ]}
+        >
           {post_label}
         </Text>
         {timestamp ? (
-          <Text style={[styles.timestamp, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.timestamp,
+              scaled_text_styles.timestamp,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {timestamp}
           </Text>
         ) : null}
@@ -403,6 +504,7 @@ function HighlightRow({
           <Text
             style={[
               styles.copyButtonLabel,
+              scaled_text_styles.copyButtonLabel,
               {
                 color: is_copied
                   ? theme.colors.accentStrong

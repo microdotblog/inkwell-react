@@ -32,6 +32,7 @@ import Bookmarks from './stores/Bookmarks';
 import Feed from './stores/Feed';
 import Highlights from './stores/Highlights';
 import { getAuthTheme } from './theme/authTheme';
+import { getScaledTextStyle } from './theme/textScale';
 
 WebBrowser.maybeCompleteAuthSession();
 const TOAST_ENTERING = FadeInDown.springify()
@@ -46,6 +47,7 @@ function App() {
   const toast_key = AppStore.toast_key;
   const toast_message = AppStore.toast_message;
   const toast_top_offset = AppStore.toast_top_offset;
+  const text_scale = AppStore.text_scale;
   const is_signed_in = Auth.is_signed_in();
   const is_auth_loading = Auth.is_loading();
   const is_feed_bootstrapping = Feed.is_bootstrapping;
@@ -164,6 +166,7 @@ function App() {
             toast_key={toast_key}
             toast_message={toast_message}
             toast_top_offset={toast_top_offset}
+            text_scale={text_scale}
           />
         </KeyboardProvider>
       </SafeAreaProvider>
@@ -176,9 +179,13 @@ function ToastOverlay({
   toast_key = 0,
   toast_message = null,
   toast_top_offset = null,
+  text_scale = 1,
 }) {
   const insets = useSafeAreaInsets();
   const toast_icon_name = resolve_toast_icon_name(toast_message);
+  const toast_label_style = React.useMemo(() => {
+    return getScaledTextStyle(styles.toastLabel, text_scale);
+  }, [text_scale]);
   const resolved_top_offset = Number.isFinite(toast_top_offset)
     ? toast_top_offset
     : insets.top + 12;
@@ -229,7 +236,13 @@ function ToastOverlay({
           />
         </View>
         <View style={styles.toastCopy}>
-          <Text style={[styles.toastLabel, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.toastLabel,
+              toast_label_style,
+              { color: theme.colors.ink },
+            ]}
+          >
             {toast_message}
           </Text>
         </View>

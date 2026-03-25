@@ -1,12 +1,16 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import { observer } from 'mobx-react';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
 
-export default function PrimaryButton({
+import AppStore from '../../stores/App';
+import { getScaledTextStyle } from '../../theme/textScale';
+
+function PrimaryButton({
   label,
   onPress,
   variant = 'solid',
@@ -16,6 +20,13 @@ export default function PrimaryButton({
   disabled = false,
 }) {
   const scale = useSharedValue(1);
+  const text_scale = AppStore.text_scale;
+  const scaled_label_style = React.useMemo(() => {
+    return getScaledTextStyle(styles.label, text_scale);
+  }, [text_scale]);
+  const scaled_custom_text_style = React.useMemo(() => {
+    return getScaledTextStyle(textStyle, text_scale);
+  }, [textStyle, text_scale]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -78,10 +89,12 @@ export default function PrimaryButton({
         <Text
           style={[
             styles.label,
+            scaled_label_style,
             variant === 'ghost'
               ? [styles.ghostLabel, { color: theme.colors.ink }]
               : styles.solidLabel,
             textStyle,
+            scaled_custom_text_style,
           ]}
         >
           {label}
@@ -127,3 +140,5 @@ const styles = StyleSheet.create({
   },
   ghostLabel: {},
 });
+
+export default observer(PrimaryButton);

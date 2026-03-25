@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { observer } from 'mobx-react';
 import Animated, {
   Easing,
   interpolate,
@@ -10,6 +11,9 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+
+import AppStore from '../../stores/App';
+import { createScaledTextStyles } from '../../theme/textScale';
 
 const PHASE_COPY = {
   connecting: {
@@ -37,7 +41,9 @@ function resolve_phase_copy(phase = 'loading_feeds') {
   }
 }
 
-export default function RssLoadingView({
+const TEXT_STYLE_NAMES = ['eyebrow', 'title', 'compactTitle', 'body'];
+
+function RssLoadingView({
   theme,
   phase = 'loading_feeds',
   title = '',
@@ -46,6 +52,10 @@ export default function RssLoadingView({
 }) {
   const orbit_progress = useSharedValue(0);
   const pulse_progress = useSharedValue(0);
+  const text_scale = AppStore.text_scale;
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
 
   React.useEffect(() => {
     orbit_progress.value = withRepeat(
@@ -145,11 +155,35 @@ export default function RssLoadingView({
       </View>
 
       <View style={styles.copy}>
-        <Text style={[styles.eyebrow, { color: theme.colors.accentStrong }]}>{phase_copy.eyebrow}</Text>
-        <Text style={[styles.title, compact ? styles.compactTitle : null, { color: theme.colors.ink }]}>
+        <Text
+          style={[
+            styles.eyebrow,
+            scaled_text_styles.eyebrow,
+            { color: theme.colors.accentStrong },
+          ]}
+        >
+          {phase_copy.eyebrow}
+        </Text>
+        <Text
+          style={[
+            styles.title,
+            scaled_text_styles.title,
+            compact ? styles.compactTitle : null,
+            compact ? scaled_text_styles.compactTitle : null,
+            { color: theme.colors.ink },
+          ]}
+        >
           {resolved_title}
         </Text>
-        <Text style={[styles.body, { color: theme.colors.inkSoft }]}>{resolved_body}</Text>
+        <Text
+          style={[
+            styles.body,
+            scaled_text_styles.body,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
+          {resolved_body}
+        </Text>
       </View>
     </View>
   );
@@ -233,3 +267,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default observer(RssLoadingView);

@@ -37,6 +37,10 @@ import Bookmarks from '../stores/Bookmarks';
 import Feed from '../stores/Feed';
 import Tokens from '../stores/Tokens';
 import { getAuthTheme } from '../theme/authTheme';
+import {
+  createScaledTextStyles,
+  scaleTextMetric,
+} from '../theme/textScale';
 
 const READER_HORIZONTAL_PADDING = 20;
 const READER_BOTTOM_PADDING = 32;
@@ -115,10 +119,37 @@ const READER_HTML_MODELS = {
     contentModel: HTMLContentModel.block,
   }),
 };
+const TEXT_STYLE_NAMES = [
+  'sourceLabel',
+  'hostLabel',
+  'feedDetailSeparator',
+  'dateLabel',
+  'title',
+  'recapBody',
+  'readerPaneButtonLabel',
+  'replyAuthor',
+  'replyDate',
+  'recapSettingsTitle',
+  'recapSettingsBody',
+  'recapDayChipLabel',
+  'recapBookmarkError',
+  'recapHeaderTitle',
+  'recapFaviconInitial',
+  'recapTopicLabel',
+  'recapPhotoTileFallbackLabel',
+  'recapQuoteButtonLabel',
+  'unavailableTitle',
+  'unavailableBody',
+  'openOriginalLabel',
+];
 
 function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -179,6 +210,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     header_height + (Platform.OS === 'ios' ? 0 : 12);
   const header_background_color =
     resolve_translucent_header_background_color(theme, Platform.OS);
+  const header_title_font_size = scaleTextMetric(17, text_scale);
   const reply_count = replies.length;
   const should_show_reply_tabs =
     detail_mode === 'entry' && !is_loading_replies && reply_count > 0;
@@ -215,6 +247,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         return (
           <RecapHeaderRenderer
             {...props}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
           />
         );
@@ -223,6 +256,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         return (
           <RecapTopicsRenderer
             {...props}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
           />
         );
@@ -231,6 +265,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         return (
           <RecapPhotoStripRenderer
             {...props}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
           />
         );
@@ -244,6 +279,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             onBookmarkPress={(bookmark_url) =>
               Feed.bookmark_recap_quote(bookmark_url)
             }
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
           />
         );
@@ -252,6 +288,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   }, [
     bookmarking_recap_quote_url,
     recap_bookmarked_quote_urls.join('|'),
+    scaled_text_styles,
     theme,
   ]);
   const recap_dom_visitors = React.useMemo(() => {
@@ -506,7 +543,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       headerTintColor: theme.colors.ink,
       headerTitleStyle: {
         color: theme.colors.ink,
-        fontSize: 17,
+        fontSize: header_title_font_size,
         fontWeight: '600',
       },
       title:
@@ -521,6 +558,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     entry_menu_actions,
     handle_entry_menu_action,
     header_background_color,
+    header_title_font_size,
     header_title,
     has_entry_menu,
     isDark,
@@ -569,7 +607,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             source_host={source_host}
             source_label={source_label}
             source_url={source_url}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
+            text_scale={text_scale}
             width={width}
           />
         ) : null}
@@ -586,7 +626,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             recap_html={sanitized_recap_html}
             recap_dom_visitors={recap_dom_visitors}
             recap_renderers={recap_renderers}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
+            text_scale={text_scale}
             width={width}
           />
         ) : null}
@@ -598,6 +640,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
                 ? "It may have been removed from your bookmarks, or the list refreshed before the reader finished opening it."
                 : "It may have scrolled out of the current timeline, or the feed refreshed before the reader finished opening it."
             }
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
             title={
               entry_source === 'bookmark'
@@ -610,6 +653,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         {detail_mode === 'recap' && !recap ? (
           <UnavailableScreen
             body="Build a Reading Recap from the Fading segment first, then open it here."
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
             title="This recap isn't available right now."
           />
@@ -636,7 +680,9 @@ function EntryReaderView({
   source_host = '',
   source_label = '',
   source_url = '',
+  scaled_text_styles,
   theme,
+  text_scale = 1,
   width = 0,
 }) {
   return (
@@ -662,13 +708,19 @@ function EntryReaderView({
                 color={theme.colors.ink}
                 label={source_label}
                 onPress={source_url ? () => open_external_url(source_url) : null}
-                style={styles.sourceLabel}
+                style={[styles.sourceLabel, scaled_text_styles.sourceLabel]}
               />
             </View>
             {source_host || formatted_date ? (
               <View style={styles.feedDetailsRow}>
                 {source_host ? (
-                  <Text style={[styles.hostLabel, { color: theme.colors.inkSoft }]}>
+                  <Text
+                    style={[
+                      styles.hostLabel,
+                      scaled_text_styles.hostLabel,
+                      { color: theme.colors.inkSoft },
+                    ]}
+                  >
                     {source_host}
                   </Text>
                 ) : null}
@@ -676,6 +728,7 @@ function EntryReaderView({
                   <Text
                     style={[
                       styles.feedDetailSeparator,
+                      scaled_text_styles.feedDetailSeparator,
                       { color: theme.colors.inkSoft },
                     ]}
                   >
@@ -689,7 +742,7 @@ function EntryReaderView({
                     onPress={
                       original_url ? () => open_external_url(original_url) : null
                     }
-                    style={styles.dateLabel}
+                    style={[styles.dateLabel, scaled_text_styles.dateLabel]}
                   />
                 ) : null}
               </View>
@@ -699,7 +752,13 @@ function EntryReaderView({
 
         {should_show_reader_title ? (
           <View style={styles.titleWrap}>
-            <Text style={[styles.title, { color: theme.colors.ink }]}>
+            <Text
+              style={[
+                styles.title,
+                scaled_text_styles.title,
+                { color: theme.colors.ink },
+              ]}
+            >
               {reader_title}
             </Text>
           </View>
@@ -712,6 +771,7 @@ function EntryReaderView({
           onPressPostPane={onPressPostPane}
           onPressRepliesPane={onPressRepliesPane}
           reply_count={reply_count}
+          scaled_text_styles={scaled_text_styles}
           theme={theme}
         />
       ) : null}
@@ -725,13 +785,17 @@ function EntryReaderView({
         {active_pane === 'replies' ? (
           <RepliesListView
             replies={replies}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
+            text_scale={text_scale}
             width={width}
           />
         ) : has_renderable_body ? (
           <ReaderHtml
             html={reader_html}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
+            text_scale={text_scale}
             width={width}
           />
         ) : (
@@ -739,6 +803,7 @@ function EntryReaderView({
             body="This item doesn't include readable body content in the current timeline payload."
             can_open_original={Boolean(original_url)}
             on_open_original={() => open_external_url(original_url)}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
             title="No readable preview yet."
           />
@@ -753,6 +818,7 @@ function ReaderPaneTabs({
   onPressPostPane,
   onPressRepliesPane,
   reply_count = 0,
+  scaled_text_styles,
   theme,
 }) {
   const reply_label = get_reply_count_label(reply_count);
@@ -773,12 +839,14 @@ function ReaderPaneTabs({
           is_active={active_pane === 'post'}
           label="Post"
           onPress={onPressPostPane}
+          scaled_text_styles={scaled_text_styles}
           theme={theme}
         />
         <ReaderPaneButton
           is_active={active_pane === 'replies'}
           label={reply_label}
           onPress={onPressRepliesPane}
+          scaled_text_styles={scaled_text_styles}
           theme={theme}
         />
       </View>
@@ -790,6 +858,7 @@ function ReaderPaneButton({
   is_active = false,
   label = '',
   onPress,
+  scaled_text_styles,
   theme,
 }) {
   return (
@@ -813,6 +882,7 @@ function ReaderPaneButton({
       <Text
         style={[
           styles.readerPaneButtonLabel,
+          scaled_text_styles.readerPaneButtonLabel,
           {
             color: is_active
               ? theme.colors.ink
@@ -828,7 +898,9 @@ function ReaderPaneButton({
 
 function RepliesListView({
   replies = [],
+  scaled_text_styles,
   theme,
+  text_scale = 1,
   width = 0,
 }) {
   return (
@@ -838,7 +910,9 @@ function RepliesListView({
           <ReplyRow
             key={resolve_reply_key(reply, index)}
             reply={reply}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
+            text_scale={text_scale}
             width={width}
           />
         );
@@ -849,7 +923,9 @@ function RepliesListView({
 
 function ReplyRow({
   reply,
+  scaled_text_styles,
   theme,
+  text_scale = 1,
   width = 0,
 }) {
   const author_name = get_reply_author_name(reply);
@@ -870,17 +946,24 @@ function ReplyRow({
           color={theme.colors.ink}
           label={author_name}
           onPress={author_url ? () => open_external_url(author_url) : null}
-          style={styles.replyAuthor}
+          style={[styles.replyAuthor, scaled_text_styles.replyAuthor]}
         />
         {reply_html ? (
           <ReplyHtml
             html={reply_html}
+            text_scale={text_scale}
             theme={theme}
             width={width}
           />
         ) : null}
         {formatted_date ? (
-          <Text style={[styles.replyDate, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.replyDate,
+              scaled_text_styles.replyDate,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {formatted_date}
           </Text>
         ) : null}
@@ -891,15 +974,19 @@ function ReplyRow({
 
 function ReplyHtml({
   html = '',
+  text_scale = 1,
   theme,
   width = 0,
 }) {
+  const reply_font_size = scaleTextMetric(15, text_scale);
+  const reply_line_height = scaleTextMetric(23, text_scale);
+
   return (
     <RenderHtml
       baseStyle={{
         color: theme.colors.inkSoft,
-        fontSize: 15,
-        lineHeight: 23,
+        fontSize: reply_font_size,
+        lineHeight: reply_line_height,
       }}
       contentWidth={Math.max(
         Math.min(
@@ -936,13 +1023,13 @@ function ReplyHtml({
         },
         body: {
           color: theme.colors.inkSoft,
-          fontSize: 15,
-          lineHeight: 23,
+          fontSize: reply_font_size,
+          lineHeight: reply_line_height,
         },
         p: {
           color: theme.colors.inkSoft,
-          fontSize: 15,
-          lineHeight: 23,
+          fontSize: reply_font_size,
+          lineHeight: reply_line_height,
           marginBottom: 10,
           marginTop: 0,
         },
@@ -962,7 +1049,9 @@ function RecapReaderView({
   recap_html = '',
   recap_dom_visitors,
   recap_renderers,
+  scaled_text_styles,
   theme,
+  text_scale = 1,
   width = 0,
 }) {
   return (
@@ -976,11 +1065,23 @@ function RecapReaderView({
         ]}
       >
         <View style={styles.titleWrapCompact}>
-          <Text style={[styles.title, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.title,
+              scaled_text_styles.title,
+              { color: theme.colors.ink },
+            ]}
+          >
             Reading Recap
           </Text>
         </View>
-        <Text style={[styles.recapBody, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.recapBody,
+            scaled_text_styles.recapBody,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           {get_recap_summary_copy(recap_entry_count)}
         </Text>
       </View>
@@ -991,30 +1092,40 @@ function RecapReaderView({
           is_loading={is_loading_recap_email_settings}
           is_saving={is_saving_recap_email_settings}
           selected_day={recap_email_day}
+          scaled_text_styles={scaled_text_styles}
           theme={theme}
           onSelectDay={(dayofweek) => Feed.update_recap_email_day(dayofweek)}
         />
 
         {recap_bookmark_error_message ? (
-          <Text style={[styles.recapBookmarkError, { color: theme.colors.accentStrong }]}>
+          <Text
+            style={[
+              styles.recapBookmarkError,
+              scaled_text_styles.recapBookmarkError,
+              { color: theme.colors.accentStrong },
+            ]}
+          >
             {recap_bookmark_error_message}
           </Text>
         ) : null}
 
         {has_renderable_body ? (
           <ReaderHtml
-            classes_styles={build_recap_classes_styles(theme)}
+            classes_styles={build_recap_classes_styles(theme, text_scale)}
             custom_element_models={READER_HTML_MODELS}
             dom_visitors={recap_dom_visitors}
             html={recap_html}
             renderers={recap_renderers}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
+            text_scale={text_scale}
             width={width}
           />
         ) : (
           <UnavailableBodyCard
             body="We couldn't render the current recap payload."
             can_open_original={false}
+            scaled_text_styles={scaled_text_styles}
             theme={theme}
             title="No recap yet."
           />
@@ -1030,15 +1141,20 @@ function ReaderHtml({
   dom_visitors,
   html = '',
   renderers,
+  scaled_text_styles,
   theme,
+  text_scale = 1,
   width = 0,
 }) {
+  const body_font_size = scaleTextMetric(18, text_scale);
+  const body_line_height = scaleTextMetric(29, text_scale);
+
   return (
     <RenderHtml
       baseStyle={{
         color: theme.colors.ink,
-        fontSize: 18,
-        lineHeight: 29,
+        fontSize: body_font_size,
+        lineHeight: body_line_height,
       }}
       classesStyles={{
         lead: {
@@ -1081,30 +1197,30 @@ function ReaderHtml({
         },
         body: {
           color: theme.colors.ink,
-          fontSize: 18,
-          lineHeight: 29,
+          fontSize: body_font_size,
+          lineHeight: body_line_height,
         },
         h1: {
           color: theme.colors.ink,
           fontFamily: 'Newsreader_600SemiBold',
-          fontSize: 30,
-          lineHeight: 36,
+          fontSize: scaleTextMetric(30, text_scale),
+          lineHeight: scaleTextMetric(36, text_scale),
         },
         h2: {
           color: theme.colors.ink,
           fontFamily: 'Newsreader_600SemiBold',
-          fontSize: 26,
-          lineHeight: 32,
+          fontSize: scaleTextMetric(26, text_scale),
+          lineHeight: scaleTextMetric(32, text_scale),
         },
         h3: {
           color: theme.colors.ink,
           fontFamily: 'Newsreader_600SemiBold',
-          fontSize: 22,
-          lineHeight: 28,
+          fontSize: scaleTextMetric(22, text_scale),
+          lineHeight: scaleTextMetric(28, text_scale),
         },
         li: {
           color: theme.colors.ink,
-          lineHeight: 29,
+          lineHeight: body_line_height,
         },
         p: {
           color: theme.colors.ink,
@@ -1160,7 +1276,7 @@ function RecapHeaderGroupRenderer({ ...props }) {
   );
 }
 
-function RecapHeaderRenderer({ theme, ...props }) {
+function RecapHeaderRenderer({ scaled_text_styles, theme, ...props }) {
   const title = normalize_reader_text(extract_tnode_text(props.tnode));
   const icon_url = find_tnode_image_source(props.tnode);
 
@@ -1168,17 +1284,24 @@ function RecapHeaderRenderer({ theme, ...props }) {
     <View style={[props.style, styles.recapHeader]}>
       <RecapFavicon
         icon_url={icon_url}
+        scaled_text_styles={scaled_text_styles}
         source={title}
         theme={theme}
       />
-      <Text style={[styles.recapHeaderTitle, { color: theme.colors.ink }]}>
+      <Text
+        style={[
+          styles.recapHeaderTitle,
+          scaled_text_styles.recapHeaderTitle,
+          { color: theme.colors.ink },
+        ]}
+      >
         {title}
       </Text>
     </View>
   );
 }
 
-function RecapTopicsRenderer({ ...props }) {
+function RecapTopicsRenderer({ scaled_text_styles, ...props }) {
   const topic_labels = extract_recap_topic_labels(props.tnode);
   const recap_card = find_tnode_ancestor_by_tag(props.tnode, 'recap-card');
   const recap_colors = resolve_recap_colors(recap_card?.attributes, props.theme);
@@ -1211,6 +1334,7 @@ function RecapTopicsRenderer({ ...props }) {
               <Text
                 style={[
                   styles.recapTopicLabel,
+                  scaled_text_styles.recapTopicLabel,
                   { color: props.theme.colors.ink },
                 ]}
               >
@@ -1224,7 +1348,7 @@ function RecapTopicsRenderer({ ...props }) {
   }
 }
 
-function RecapPhotoStripRenderer({ ...props }) {
+function RecapPhotoStripRenderer({ scaled_text_styles, ...props }) {
   const photo_items = extract_recap_photo_items(props.tnode);
 
   if (photo_items.length === 0) {
@@ -1245,6 +1369,7 @@ function RecapPhotoStripRenderer({ ...props }) {
               image_alt={photo_item.image_alt}
               image_url={photo_item.image_url}
               key={photo_item.key}
+              scaled_text_styles={scaled_text_styles}
               theme={props.theme}
             />
           );
@@ -1258,6 +1383,7 @@ function RecapPhotoTile({
   href = '',
   image_alt = '',
   image_url = '',
+  scaled_text_styles,
   theme,
 }) {
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
@@ -1278,6 +1404,7 @@ function RecapPhotoTile({
           numberOfLines={2}
           style={[
             styles.recapPhotoTileFallbackLabel,
+            scaled_text_styles.recapPhotoTileFallbackLabel,
             { color: theme.colors.inkSoft },
           ]}
         >
@@ -1331,6 +1458,7 @@ function RecapQuoteRenderer({
   bookmarked_quote_url_set,
   bookmarking_quote_url = '',
   onBookmarkPress,
+  scaled_text_styles,
   theme,
   ...props
 }) {
@@ -1373,6 +1501,7 @@ function RecapQuoteRenderer({
           <Text
             style={[
               styles.recapQuoteButtonLabel,
+              scaled_text_styles.recapQuoteButtonLabel,
               {
                 color: is_bookmarked
                   ? theme.colors.accentStrong
@@ -1390,6 +1519,7 @@ function RecapQuoteRenderer({
 
 function RecapFavicon({
   icon_url = '',
+  scaled_text_styles,
   source = '',
   theme,
 }) {
@@ -1422,6 +1552,7 @@ function RecapFavicon({
         <Text
           style={[
             styles.recapFaviconInitial,
+            scaled_text_styles.recapFaviconInitial,
             { color: theme.colors.accentStrong },
           ]}
         >
@@ -1448,6 +1579,7 @@ function RecapEmailSettingsCard({
   is_loading = false,
   is_saving = false,
   onSelectDay,
+  scaled_text_styles,
   selected_day = '',
   theme,
 }) {
@@ -1502,7 +1634,13 @@ function RecapEmailSettingsCard({
             layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
             style={styles.recapSettingsTitleRow}
           >
-            <Text style={[styles.recapSettingsTitle, { color: theme.colors.ink }]}>
+            <Text
+              style={[
+                styles.recapSettingsTitle,
+                scaled_text_styles.recapSettingsTitle,
+                { color: theme.colors.ink },
+              ]}
+            >
               Weekly email
             </Text>
             {!is_expanded ? (
@@ -1518,13 +1656,20 @@ function RecapEmailSettingsCard({
                   is_selected
                   label={summary_label}
                   onPress={() => set_is_expanded(true)}
+                  scaled_text_styles={scaled_text_styles}
                   selection_kind={summary_selection_kind}
                   theme={theme}
                 />
               </Animated.View>
             ) : null}
           </Animated.View>
-          <Text style={[styles.recapSettingsBody, { color: theme.colors.inkSoft }]}>
+          <Text
+            style={[
+              styles.recapSettingsBody,
+              scaled_text_styles.recapSettingsBody,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
             {helper_copy}
           </Text>
         </View>
@@ -1551,6 +1696,7 @@ function RecapEmailSettingsCard({
                 key={dayofweek}
                 label={get_recap_day_chip_label(dayofweek)}
                 onPress={() => handle_day_selection(dayofweek)}
+                scaled_text_styles={scaled_text_styles}
                 selection_kind="accent"
                 theme={theme}
               />
@@ -1562,6 +1708,7 @@ function RecapEmailSettingsCard({
             is_selected={!selected_day}
             label="Off"
             onPress={() => handle_day_selection('')}
+            scaled_text_styles={scaled_text_styles}
             selection_kind="destructive"
             theme={theme}
           />
@@ -1578,6 +1725,7 @@ function RecapDayChip({
   is_selected = false,
   label = '',
   onPress,
+  scaled_text_styles,
   selection_kind = 'accent',
   theme,
 }) {
@@ -1640,6 +1788,7 @@ function RecapDayChip({
       <Text
         style={[
           styles.recapDayChipLabel,
+          scaled_text_styles.recapDayChipLabel,
           {
             color: label_color,
           },
@@ -1778,14 +1927,31 @@ function MetaLink({ color, label, onPress, style }) {
   }
 }
 
-function UnavailableScreen({ body = '', theme, title = '' }) {
+function UnavailableScreen({
+  body = '',
+  scaled_text_styles,
+  theme,
+  title = '',
+}) {
   return (
     <View style={styles.unavailableScreen}>
       <View style={styles.unavailableCopy}>
-        <Text style={[styles.unavailableTitle, { color: theme.colors.ink }]}>
+        <Text
+          style={[
+            styles.unavailableTitle,
+            scaled_text_styles.unavailableTitle,
+            { color: theme.colors.ink },
+          ]}
+        >
           {title}
         </Text>
-        <Text style={[styles.unavailableBody, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.unavailableBody,
+            scaled_text_styles.unavailableBody,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           {body}
         </Text>
       </View>
@@ -1797,6 +1963,7 @@ function UnavailableBodyCard({
   body = '',
   can_open_original = false,
   on_open_original,
+  scaled_text_styles,
   theme,
   title = '',
 }) {
@@ -1811,10 +1978,22 @@ function UnavailableBodyCard({
       ]}
     >
       <View style={styles.unavailableCopy}>
-        <Text style={[styles.unavailableTitle, { color: theme.colors.ink }]}>
+        <Text
+          style={[
+            styles.unavailableTitle,
+            scaled_text_styles.unavailableTitle,
+            { color: theme.colors.ink },
+          ]}
+        >
           {title}
         </Text>
-        <Text style={[styles.unavailableBody, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.unavailableBody,
+            scaled_text_styles.unavailableBody,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           {body}
         </Text>
       </View>
@@ -1831,7 +2010,13 @@ function UnavailableBodyCard({
             },
           ]}
         >
-          <Text style={[styles.openOriginalLabel, { color: theme.colors.ink }]}>
+          <Text
+            style={[
+              styles.openOriginalLabel,
+              scaled_text_styles.openOriginalLabel,
+              { color: theme.colors.ink },
+            ]}
+          >
             Open original post
           </Text>
         </Pressable>
@@ -2419,12 +2604,12 @@ function resolve_entry_source(raw_source = '') {
   }
 }
 
-function build_recap_classes_styles(theme) {
+function build_recap_classes_styles(theme, text_scale = 1) {
   return {
     'recap-summary': {
       color: theme.colors.inkSoft,
-      fontSize: 15,
-      lineHeight: 23,
+      fontSize: scaleTextMetric(15, text_scale),
+      lineHeight: scaleTextMetric(23, text_scale),
       marginBottom: 18,
       marginTop: 0,
     },
@@ -2432,9 +2617,9 @@ function build_recap_classes_styles(theme) {
       borderWidth: 1,
       borderRadius: 999,
       color: theme.colors.ink,
-      fontSize: 11,
+      fontSize: scaleTextMetric(11, text_scale),
       fontWeight: '700',
-      lineHeight: 14,
+      lineHeight: scaleTextMetric(14, text_scale),
       overflow: 'hidden',
       paddingHorizontal: 8,
       paddingVertical: 4,
@@ -2461,8 +2646,8 @@ function build_recap_classes_styles(theme) {
     'recap-posts-label': {
       color: theme.colors.ink,
       fontFamily: 'Newsreader_600SemiBold',
-      fontSize: 18,
-      lineHeight: 24,
+      fontSize: scaleTextMetric(18, text_scale),
+      lineHeight: scaleTextMetric(24, text_scale),
       marginBottom: 10,
       marginTop: 4,
     },
@@ -2473,8 +2658,8 @@ function build_recap_classes_styles(theme) {
     },
     'recap-post-item': {
       color: theme.colors.inkSoft,
-      fontSize: 15,
-      lineHeight: 22,
+      fontSize: scaleTextMetric(15, text_scale),
+      lineHeight: scaleTextMetric(22, text_scale),
       marginBottom: 8,
     },
     'recap-post-link': {

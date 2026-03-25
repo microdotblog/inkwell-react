@@ -20,16 +20,32 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import AppStore from '../stores/App';
 import Bookmarks from '../stores/Bookmarks';
 import { getAuthTheme } from '../theme/authTheme';
+import { createScaledTextStyles } from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const BOOKMARK_AVATAR_SIZE = 28;
 const BOOKMARK_AVATAR_TRANSITION_MS = 180;
+const TEXT_STYLE_NAMES = [
+  'summaryBadgeLabel',
+  'summaryCopy',
+  'stateTitle',
+  'stateBody',
+  'sourceAvatarInitial',
+  'sourceLabel',
+  'timestamp',
+  'rowTitle',
+  'rowSummary',
+];
 
 function BookmarksScreen({ navigation, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
+  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
+  const scaled_text_styles = React.useMemo(() => {
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
+  }, [text_scale]);
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const bookmark_entries = Bookmarks.bookmark_entries();
@@ -88,10 +104,22 @@ function BookmarksScreen({ navigation, isDark = false }) {
                 <ActivityIndicator color={theme.colors.accentStrong} size="small" />
               </View>
               <View style={styles.stateCopy}>
-                <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                <Text
+                  style={[
+                    styles.stateTitle,
+                    scaled_text_styles.stateTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
                   Loading your bookmarks
                 </Text>
-                <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                <Text
+                  style={[
+                    styles.stateBody,
+                    scaled_text_styles.stateBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
                   Recent saved posts will show up here as soon as Micro.blog responds.
                 </Text>
               </View>
@@ -112,16 +140,31 @@ function BookmarksScreen({ navigation, isDark = false }) {
             data={bookmark_entries}
             keyExtractor={(item) => item.id}
             ListHeaderComponent={
-              <BookmarksSummaryCard theme={theme} />
+              <BookmarksSummaryCard
+                scaled_text_styles={scaled_text_styles}
+                theme={theme}
+              />
             }
             ListEmptyComponent={
               error_message ? (
                 <AuthCard style={styles.stateCard} theme={theme}>
                   <View style={styles.stateCopy}>
-                    <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                    <Text
+                      style={[
+                        styles.stateTitle,
+                        scaled_text_styles.stateTitle,
+                        { color: theme.colors.ink },
+                      ]}
+                    >
                       Couldn't load your bookmarks
                     </Text>
-                    <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                    <Text
+                      style={[
+                        styles.stateBody,
+                        scaled_text_styles.stateBody,
+                        { color: theme.colors.inkSoft },
+                      ]}
+                    >
                       {error_message}
                     </Text>
                   </View>
@@ -134,10 +177,22 @@ function BookmarksScreen({ navigation, isDark = false }) {
               ) : (
                 <AuthCard style={styles.stateCard} theme={theme}>
                   <View style={styles.stateCopy}>
-                    <Text style={[styles.stateTitle, { color: theme.colors.ink }]}>
+                    <Text
+                      style={[
+                        styles.stateTitle,
+                        scaled_text_styles.stateTitle,
+                        { color: theme.colors.ink },
+                      ]}
+                    >
                       No bookmarks yet
                     </Text>
-                    <Text style={[styles.stateBody, { color: theme.colors.inkSoft }]}>
+                    <Text
+                      style={[
+                        styles.stateBody,
+                        scaled_text_styles.stateBody,
+                        { color: theme.colors.inkSoft },
+                      ]}
+                    >
                       Posts you save on Micro.blog will collect here for later reading.
                     </Text>
                   </View>
@@ -158,6 +213,7 @@ function BookmarksScreen({ navigation, isDark = false }) {
                 <BookmarkTimelineRow
                   entry={item}
                   onPress={handle_entry_press}
+                  scaled_text_styles={scaled_text_styles}
                   theme={theme}
                 />
               );
@@ -171,7 +227,7 @@ function BookmarksScreen({ navigation, isDark = false }) {
   );
 }
 
-function BookmarksSummaryCard({ theme }) {
+function BookmarksSummaryCard({ scaled_text_styles, theme }) {
   return (
     <View
       style={[
@@ -201,13 +257,20 @@ function BookmarksSummaryCard({ theme }) {
           <Text
             style={[
               styles.summaryBadgeLabel,
+              scaled_text_styles.summaryBadgeLabel,
               { color: theme.colors.accentStrong },
             ]}
           >
             Bookmarks
           </Text>
         </View>
-        <Text style={[styles.summaryCopy, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.summaryCopy,
+            scaled_text_styles.summaryCopy,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           Showing recent bookmarks
         </Text>
       </View>
@@ -215,7 +278,12 @@ function BookmarksSummaryCard({ theme }) {
   );
 }
 
-function BookmarkTimelineRow({ entry, onPress, theme }) {
+function BookmarkTimelineRow({
+  entry,
+  onPress,
+  scaled_text_styles,
+  theme,
+}) {
   const source_label = entry.source || 'Bookmarked';
   const title = resolve_entry_title(entry);
   const has_title = Boolean(title);
@@ -242,17 +310,28 @@ function BookmarkTimelineRow({ entry, onPress, theme }) {
         <View style={styles.sourceWrap}>
           <BookmarkSourceAvatar
             avatar_url={entry.avatar_url}
+            scaled_text_styles={scaled_text_styles}
             source={source_label}
             theme={theme}
           />
           <Text
             numberOfLines={1}
-            style={[styles.sourceLabel, { color: theme.colors.inkSoft }]}
+            style={[
+              styles.sourceLabel,
+              scaled_text_styles.sourceLabel,
+              { color: theme.colors.inkSoft },
+            ]}
           >
             {source_label}
           </Text>
         </View>
-        <Text style={[styles.timestamp, { color: theme.colors.inkSoft }]}>
+        <Text
+          style={[
+            styles.timestamp,
+            scaled_text_styles.timestamp,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
           {timestamp}
         </Text>
       </View>
@@ -262,7 +341,11 @@ function BookmarkTimelineRow({ entry, onPress, theme }) {
           {has_title ? (
             <Text
               numberOfLines={2}
-              style={[styles.rowTitle, { color: theme.colors.ink }]}
+              style={[
+                styles.rowTitle,
+                scaled_text_styles.rowTitle,
+                { color: theme.colors.ink },
+              ]}
             >
               {title}
             </Text>
@@ -270,7 +353,11 @@ function BookmarkTimelineRow({ entry, onPress, theme }) {
           {summary ? (
             <Text
               numberOfLines={3}
-              style={[styles.rowSummary, { color: theme.colors.inkSoft }]}
+              style={[
+                styles.rowSummary,
+                scaled_text_styles.rowSummary,
+                { color: theme.colors.inkSoft },
+              ]}
             >
               {summary}
             </Text>
@@ -281,7 +368,12 @@ function BookmarkTimelineRow({ entry, onPress, theme }) {
   );
 }
 
-function BookmarkSourceAvatar({ avatar_url = '', source = '', theme }) {
+function BookmarkSourceAvatar({
+  avatar_url = '',
+  scaled_text_styles,
+  source = '',
+  theme,
+}) {
   const trimmed_avatar_url = `${avatar_url || ''}`.trim();
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const [is_image_loaded, set_is_image_loaded] = React.useState(false);
@@ -310,6 +402,7 @@ function BookmarkSourceAvatar({ avatar_url = '', source = '', theme }) {
           <Text
             style={[
               styles.sourceAvatarInitial,
+              scaled_text_styles.sourceAvatarInitial,
               { color: theme.colors.accentStrong },
             ]}
           >

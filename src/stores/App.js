@@ -6,6 +6,10 @@ import {
   DEFAULT_ACCENT_PALETTE_ID,
   normalizeAccentPaletteId,
 } from '../theme/authTheme';
+import {
+  DEFAULT_TEXT_SCALE,
+  normalizeTextScale,
+} from '../theme/textScale';
 import Auth from './Auth';
 
 const APP_PREFERENCES_STORAGE_KEY = 'AppPreferences';
@@ -16,6 +20,7 @@ const AppStore = types
   .model('App', {
     theme: types.optional(types.string, 'light'),
     accent_palette_id: types.optional(types.string, DEFAULT_ACCENT_PALETTE_ID),
+    text_scale: types.optional(types.number, DEFAULT_TEXT_SCALE),
     is_hydrating: types.optional(types.boolean, true),
     toast_duration_ms: types.optional(types.number, DEFAULT_TOAST_DURATION_MS),
     toast_key: types.optional(types.number, 0),
@@ -35,6 +40,10 @@ const AppStore = types
 
     apply_accent_palette(accent_palette_id = DEFAULT_ACCENT_PALETTE_ID) {
       self.accent_palette_id = normalizeAccentPaletteId(accent_palette_id);
+    },
+
+    apply_text_scale(text_scale = DEFAULT_TEXT_SCALE) {
+      self.text_scale = normalizeTextScale(text_scale);
     },
 
     sync_current_theme() {
@@ -137,20 +146,27 @@ const AppStore = types
 
         if (!data) {
           self.apply_accent_palette(DEFAULT_ACCENT_PALETTE_ID);
+          self.apply_text_scale(DEFAULT_TEXT_SCALE);
           return;
         }
 
         const parsed_preferences = JSON.parse(data);
         self.apply_accent_palette(parsed_preferences?.accent_palette_id);
+        self.apply_text_scale(parsed_preferences?.text_scale);
       } catch (error) {
         self.apply_accent_palette(DEFAULT_ACCENT_PALETTE_ID);
+        self.apply_text_scale(DEFAULT_TEXT_SCALE);
       }
     }),
 
     persist_preferences: flow(function* () {
       const normalized_palette_id = normalizeAccentPaletteId(self.accent_palette_id);
+      const normalized_text_scale = normalizeTextScale(self.text_scale);
 
-      if (normalized_palette_id === DEFAULT_ACCENT_PALETTE_ID) {
+      if (
+        normalized_palette_id === DEFAULT_ACCENT_PALETTE_ID &&
+        normalized_text_scale === DEFAULT_TEXT_SCALE
+      ) {
         yield SecureStore.deleteItemAsync(APP_PREFERENCES_STORAGE_KEY);
         return;
       }
@@ -159,6 +175,7 @@ const AppStore = types
         APP_PREFERENCES_STORAGE_KEY,
         JSON.stringify({
           accent_palette_id: normalized_palette_id,
+          text_scale: normalized_text_scale,
         }),
       );
     }),
@@ -173,6 +190,12 @@ const AppStore = types
       self.apply_accent_palette(normalized_palette_id);
       yield self.persist_preferences();
       return self.accent_palette_id;
+    }),
+
+    set_text_scale: flow(function* (text_scale = DEFAULT_TEXT_SCALE) {
+      self.apply_text_scale(text_scale);
+      yield self.persist_preferences();
+      return self.text_scale;
     }),
 
     hydrate: flow(function* () {
