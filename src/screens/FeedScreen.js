@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { MenuView } from '@react-native-menu/menu';
-import { useScrollToTop } from '@react-navigation/native';
+import { useFocusEffect, useScrollToTop } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
@@ -144,6 +144,17 @@ function get_profile_menu_actions(theme) {
       imageColor: icon_color,
     },
   ];
+}
+
+function clear_feed_search_focus(
+  input_ref,
+  should_dismiss_keyboard = false,
+) {
+  input_ref?.current?.blur?.();
+
+  if (should_dismiss_keyboard) {
+    Keyboard.dismiss();
+  }
 }
 
 function FeedScreen({ navigation, isDark = false }) {
@@ -279,6 +290,14 @@ function FeedScreen({ navigation, isDark = false }) {
     [scroll_y],
   );
 
+  const handle_feed_screen_blur = React.useCallback(() => {
+    clear_feed_search_focus(search_input_ref);
+  }, []);
+
+  const handle_profile_menu_open = React.useCallback(() => {
+    clear_feed_search_focus(search_input_ref, true);
+  }, []);
+
   const update_footer_touch_blocking = React.useCallback(
     (next_should_block = false) => {
       set_should_block_footer_touches((current_value) => {
@@ -333,6 +352,12 @@ function FeedScreen({ navigation, isDark = false }) {
       }
     },
     [navigation],
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return handle_feed_screen_blur;
+    }, [handle_feed_screen_blur]),
   );
 
   const handle_recap_press = React.useCallback(async () => {
@@ -563,6 +588,7 @@ function FeedScreen({ navigation, isDark = false }) {
                 is_search_active={is_search_active}
                 is_dark={isDark}
                 onProfileMenuAction={handle_profile_menu_action}
+                onProfileMenuOpen={handle_profile_menu_open}
                 onSearchQueryChange={handle_search_query_change}
                 onSearchTogglePress={handle_search_toggle_press}
                 onSegmentPress={handle_segment_press}
@@ -613,6 +639,7 @@ function FeedScreen({ navigation, isDark = false }) {
                 is_search_active={is_search_active}
                 is_dark={isDark}
                 onProfileMenuAction={handle_profile_menu_action}
+                onProfileMenuOpen={handle_profile_menu_open}
                 onSearchQueryChange={handle_search_query_change}
                 onSearchTogglePress={handle_search_toggle_press}
                 onSegmentPress={handle_segment_press}
@@ -789,6 +816,7 @@ function FeedFooterControlsRow({
   is_dark = false,
   is_search_active = false,
   onProfileMenuAction,
+  onProfileMenuOpen,
   onSearchQueryChange,
   onSearchTogglePress,
   onSegmentPress,
@@ -803,6 +831,7 @@ function FeedFooterControlsRow({
       <AccountHeaderButton
         is_dark={is_dark}
         onMenuAction={onProfileMenuAction}
+        onMenuOpen={onProfileMenuOpen}
         profile_name={profile_name}
         profile_photo={profile_photo}
         theme={theme}
@@ -1023,6 +1052,7 @@ function FeedRecapSummaryCard({
 function AccountHeaderButton({
   is_dark = false,
   onMenuAction,
+  onMenuOpen,
   profile_name = '',
   profile_photo = '',
   theme,
@@ -1047,6 +1077,7 @@ function AccountHeaderButton({
     <MenuView
       accessibilityLabel="Open profile menu"
       actions={menu_actions}
+      onOpenMenu={onMenuOpen}
       onPressAction={({ nativeEvent }) => {
         onMenuAction?.(nativeEvent.event);
       }}
