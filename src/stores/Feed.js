@@ -2,9 +2,12 @@ import { flow, getSnapshot, types } from 'mobx-state-tree';
 
 import {
   bookmark_micro_blog_feed_entries,
+  create_micro_blog_feed_subscription,
   create_micro_blog_bookmark,
+  delete_micro_blog_feed_subscription,
   fetch_recap_email_settings,
   fetch_micro_blog_feed_entries,
+  fetch_micro_blog_feed_entries_for_feed,
   fetch_micro_blog_feed_icons,
   fetch_micro_blog_feed_starred_entry_ids,
   fetch_micro_blog_feed_subscriptions,
@@ -13,6 +16,7 @@ import {
   mark_micro_blog_feed_entries_unread,
   summarize_micro_blog_feed_entries,
   unbookmark_micro_blog_feed_entries,
+  update_micro_blog_feed_subscription,
   update_recap_email_settings,
 } from '../api/MicroBlogFeeds';
 import Tokens from './Tokens';
@@ -70,7 +74,14 @@ const Feed = types
     is_search_active: types.optional(types.boolean, false),
     search_query: types.optional(types.string, ''),
     subscriptions: types.optional(types.array(FeedSubscription), []),
+    is_loading_subscriptions: types.optional(types.boolean, false),
+    subscriptions_error_message: types.maybeNull(types.string),
     timeline_entries: types.optional(types.array(TimelineEntry), []),
+    active_subscription_feed_id: types.optional(types.string, ''),
+    subscription_feed_entries: types.optional(types.array(TimelineEntry), []),
+    is_loading_subscription_feed: types.optional(types.boolean, false),
+    has_loaded_subscription_feed: types.optional(types.boolean, false),
+    subscription_feed_error_message: types.maybeNull(types.string),
     is_bootstrapping: types.optional(types.boolean, false),
     has_bootstrapped: types.optional(types.boolean, false),
     error_message: types.maybeNull(types.string),
@@ -96,15 +107,24 @@ const Feed = types
     recap_request_token: 0,
     recap_email_request_token: 0,
     recap_bookmark_request_token: 0,
+    subscriptions_request_token: 0,
+    subscription_feed_request_token: 0,
   }))
   .actions((self) => ({
     clear_error() {
       self.error_message = null;
     },
 
+    clear_subscriptions_error() {
+      self.subscriptions_error_message = null;
+    },
+
     clear_feed_data() {
       self.subscriptions.replace([]);
       self.timeline_entries.replace([]);
+      self.clear_active_subscription_feed();
+      self.is_loading_subscriptions = false;
+      self.subscriptions_error_message = null;
     },
 
     clear_local_read_state() {
@@ -132,6 +152,8 @@ const Feed = types
       self.search_query = '';
       self.is_bootstrapping = false;
       self.has_bootstrapped = false;
+      self.is_loading_subscriptions = false;
+      self.subscriptions_error_message = null;
       self.error_message = null;
       self.clear_local_entry_state();
       self.clear_feed_data();
@@ -154,6 +176,65 @@ const Feed = types
 
     set_search_query(search_query = '') {
       self.search_query = `${search_query || ''}`;
+    },
+
+    clear_active_subscription_feed() {
+      self.subscription_feed_request_token += 1;
+      self.active_subscription_feed_id = '';
+      self.subscription_feed_entries.replace([]);
+      self.is_loading_subscription_feed = false;
+      self.has_loaded_subscription_feed = false;
+      self.subscription_feed_error_message = null;
+    },
+
+    sync_active_subscription_feed_metadata() {
+      if (
+        !self.active_subscription_feed_id ||
+        self.subscription_feed_entries.length === 0
+      ) {
+        return;
+      }
+
+      const active_subscription = self.subscriptions.find((subscription) => {
+        return subscription.feed_id === self.active_subscription_feed_id;
+      });
+
+      self.subscription_feed_entries.forEach((entry) => {
+        entry.source = resolve_source(active_subscription);
+        entry.source_url = resolve_source_url(active_subscription);
+        entry.avatar_url = resolve_avatar_url(active_subscription);
+      });
+    },
+
+    apply_subscriptions(
+      subscriptions = [],
+      icons = [],
+    ) {
+      const normalized_subscriptions = normalize_subscriptions(
+        subscriptions,
+        icons,
+      );
+
+      self.subscriptions.replace(normalized_subscriptions);
+      self.subscriptions_error_message = null;
+
+      if (
+        self.active_subscription_feed_id &&
+        !normalized_subscriptions.find((subscription) => {
+          return subscription.feed_id === self.active_subscription_feed_id;
+        })
+      ) {
+        self.clear_active_subscription_feed();
+        return;
+      }
+
+      self.sync_active_subscription_feed_metadata();
+    },
+
+    refresh_timeline_in_background() {
+      self.retry_bootstrap().catch(() => {
+        // Keep subscription management responsive even if the home timeline refresh fails.
+      });
     },
 
     clear_active_recap() {
@@ -434,13 +515,9 @@ const Feed = types
       const starred_ids = Array.isArray(starred_entry_ids)
         ? starred_entry_ids
         : [];
-      const normalized_subscriptions = normalize_subscriptions(
-        subscriptions,
-        icons,
-      );
       const normalized_entries = normalize_timeline_entries(
         entries,
-        normalized_subscriptions,
+        normalize_subscriptions(subscriptions, icons),
         unread_ids,
         starred_ids,
         self.local_read_entry_ids,
@@ -449,10 +526,453 @@ const Feed = types
         self.local_unbookmarked_entry_ids,
       );
 
-      self.subscriptions.replace(normalized_subscriptions);
+      self.apply_subscriptions(subscriptions, icons);
       self.timeline_entries.replace(normalized_entries);
+      self.is_loading_subscriptions = false;
       self.error_message = null;
     },
+
+    upsert_subscription(subscription = null, icons = []) {
+      const normalized_subscription = normalize_subscriptions(
+        [subscription],
+        icons,
+      )[0];
+
+      if (!normalized_subscription) {
+        return null;
+      }
+
+      const existing_subscription = self.subscriptions.find((entry) => {
+        return (
+          entry.id === normalized_subscription.id ||
+          entry.feed_id === normalized_subscription.feed_id
+        );
+      });
+
+      if (existing_subscription) {
+        existing_subscription.feed_id = normalized_subscription.feed_id;
+        existing_subscription.title = normalized_subscription.title;
+        existing_subscription.feed_url = normalized_subscription.feed_url;
+        existing_subscription.site_url = normalized_subscription.site_url;
+        existing_subscription.avatar_url =
+          normalized_subscription.avatar_url || existing_subscription.avatar_url;
+      } else {
+        self.subscriptions.push(normalized_subscription);
+      }
+
+      self.subscriptions_error_message = null;
+      self.sync_active_subscription_feed_metadata();
+      return normalized_subscription;
+    },
+
+    remove_subscription_locally(subscription_id = '') {
+      const normalized_subscription_id = normalize_string(subscription_id);
+
+      if (!normalized_subscription_id) {
+        return false;
+      }
+
+      const remaining_subscriptions = self.subscriptions.filter(
+        (subscription) => {
+          return (
+            subscription.id !== normalized_subscription_id &&
+            subscription.feed_id !== normalized_subscription_id
+          );
+        },
+      );
+      const did_remove =
+        remaining_subscriptions.length !== self.subscriptions.length;
+
+      if (!did_remove) {
+        return false;
+      }
+
+      self.subscriptions.replace(
+        remaining_subscriptions.map((subscription) => {
+          return getSnapshot(subscription);
+        }),
+      );
+
+      if (
+        self.active_subscription_feed_id &&
+        !remaining_subscriptions.find((subscription) => {
+          return subscription.feed_id === self.active_subscription_feed_id;
+        })
+      ) {
+        self.clear_active_subscription_feed();
+      } else {
+        self.sync_active_subscription_feed_metadata();
+      }
+
+      return true;
+    },
+
+    load_subscriptions: flow(function* (force = false) {
+      if (self.is_loading_subscriptions) {
+        return true;
+      }
+
+      if (
+        !force &&
+        self.subscriptions.length > 0 &&
+        !self.subscriptions_error_message
+      ) {
+        return true;
+      }
+
+      self.is_loading_subscriptions = true;
+      self.clear_subscriptions_error();
+      self.subscriptions_request_token += 1;
+      const request_token = self.subscriptions_request_token;
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+        if (!user_token) {
+          self.reset();
+          return false;
+        }
+
+        const [subscriptions_result, icons_result] = yield Promise.allSettled([
+          fetch_micro_blog_feed_subscriptions({ token: user_token }),
+          fetch_micro_blog_feed_icons({ token: user_token }),
+        ]);
+
+        if (subscriptions_result.status !== 'fulfilled') {
+          throw subscriptions_result.reason;
+        }
+
+        const current_user_token = Tokens.get_user_token();
+        if (current_user_token !== user_token) {
+          if (!current_user_token) {
+            self.reset();
+          }
+          return false;
+        }
+
+        if (self.subscriptions_request_token !== request_token) {
+          return false;
+        }
+
+        const icons =
+          icons_result.status === 'fulfilled' ? icons_result.value : [];
+
+        self.apply_subscriptions(subscriptions_result.value, icons);
+        return true;
+      } catch (error) {
+        if (self.subscriptions_request_token === request_token) {
+          self.subscriptions_error_message =
+            resolve_subscription_request_error_message(
+              error,
+              'We could not load your subscriptions.',
+            );
+        }
+        return false;
+      } finally {
+        if (self.subscriptions_request_token === request_token) {
+          self.is_loading_subscriptions = false;
+        }
+      }
+    }),
+
+    refresh_subscriptions: flow(function* () {
+      return yield self.load_subscriptions(true);
+    }),
+
+    create_subscription: flow(function* (feed_url = '') {
+      const normalized_feed_url = normalize_string(feed_url);
+
+      if (!normalized_feed_url) {
+        return {
+          ok: false,
+          error_message: 'Enter a site or feed URL to subscribe.',
+        };
+      }
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+        if (!user_token) {
+          return {
+            ok: false,
+            error_message:
+              'Your Micro.blog session expired. Please sign in again.',
+          };
+        }
+
+        const result = yield create_micro_blog_feed_subscription({
+          token: user_token,
+          feed_url: normalized_feed_url,
+        });
+
+        if (result?.kind === 'choices') {
+          return {
+            ok: false,
+            kind: 'choices',
+            choices: Array.isArray(result?.choices) ? result.choices : [],
+          };
+        }
+
+        const created_subscription = result?.subscription || null;
+
+        if (created_subscription) {
+          self.upsert_subscription(created_subscription);
+        }
+
+        const did_refresh = yield self.refresh_subscriptions();
+        self.refresh_timeline_in_background();
+
+        return {
+          ok: true,
+          kind: 'subscription',
+          subscription: created_subscription,
+          warning_message: did_refresh
+            ? ''
+            : 'Subscribed. Pull to refresh if it does not appear right away.',
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error_message: resolve_subscription_request_error_message(
+            error,
+            'We could not subscribe to that feed.',
+          ),
+        };
+      }
+    }),
+
+    rename_subscription: flow(function* (
+      subscription_id = '',
+      title = '',
+    ) {
+      const normalized_subscription_id = normalize_string(subscription_id);
+      const normalized_title = normalize_string(title);
+
+      if (!normalized_subscription_id) {
+        return {
+          ok: false,
+          error_message: 'That subscription could not be updated.',
+        };
+      }
+
+      if (!normalized_title) {
+        return {
+          ok: false,
+          error_message: 'Enter a title before saving.',
+        };
+      }
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+        if (!user_token) {
+          return {
+            ok: false,
+            error_message:
+              'Your Micro.blog session expired. Please sign in again.',
+          };
+        }
+
+        const updated_subscription = yield update_micro_blog_feed_subscription({
+          token: user_token,
+          subscription_id: normalized_subscription_id,
+          title: normalized_title,
+        });
+
+        if (updated_subscription) {
+          self.upsert_subscription(updated_subscription);
+        }
+
+        const did_refresh = yield self.refresh_subscriptions();
+        self.refresh_timeline_in_background();
+
+        return {
+          ok: true,
+          warning_message: did_refresh
+            ? ''
+            : 'Saved. Pull to refresh if the new title does not appear right away.',
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error_message: resolve_subscription_request_error_message(
+            error,
+            'We could not rename that subscription.',
+          ),
+        };
+      }
+    }),
+
+    delete_subscription: flow(function* (subscription_id = '') {
+      const normalized_subscription_id = normalize_string(subscription_id);
+
+      if (!normalized_subscription_id) {
+        return {
+          ok: false,
+          error_message: 'That subscription could not be removed.',
+        };
+      }
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+        if (!user_token) {
+          return {
+            ok: false,
+            error_message:
+              'Your Micro.blog session expired. Please sign in again.',
+          };
+        }
+
+        yield delete_micro_blog_feed_subscription({
+          token: user_token,
+          subscription_id: normalized_subscription_id,
+        });
+
+        self.remove_subscription_locally(normalized_subscription_id);
+        const did_refresh = yield self.refresh_subscriptions();
+        self.refresh_timeline_in_background();
+
+        return {
+          ok: true,
+          warning_message: did_refresh
+            ? ''
+            : 'Removed. Pull to refresh if the list looks out of date.',
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error_message: resolve_subscription_request_error_message(
+            error,
+            'We could not remove that subscription.',
+          ),
+        };
+      }
+    }),
+
+    load_subscription_feed: flow(function* (feed_id = '') {
+      const normalized_feed_id = normalize_string(feed_id);
+
+      if (!normalized_feed_id) {
+        self.clear_active_subscription_feed();
+        return false;
+      }
+
+      if (
+        self.is_loading_subscription_feed &&
+        self.active_subscription_feed_id === normalized_feed_id
+      ) {
+        return true;
+      }
+
+      const is_same_feed = self.active_subscription_feed_id === normalized_feed_id;
+
+      self.active_subscription_feed_id = normalized_feed_id;
+      self.is_loading_subscription_feed = true;
+      self.subscription_feed_error_message = null;
+      self.subscription_feed_request_token += 1;
+      const request_token = self.subscription_feed_request_token;
+
+      if (!is_same_feed) {
+        self.subscription_feed_entries.replace([]);
+        self.has_loaded_subscription_feed = false;
+      }
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+        if (!user_token) {
+          self.reset();
+          return false;
+        }
+
+        const [entries_result, unread_result, starred_result] =
+          yield Promise.allSettled([
+            fetch_micro_blog_feed_entries_for_feed({
+              token: user_token,
+              feed_id: normalized_feed_id,
+            }),
+            fetch_micro_blog_feed_unread_entry_ids({ token: user_token }),
+            fetch_micro_blog_feed_starred_entry_ids({ token: user_token }),
+          ]);
+
+        if (entries_result.status !== 'fulfilled') {
+          throw entries_result.reason;
+        }
+
+        if (unread_result.status !== 'fulfilled') {
+          throw unread_result.reason;
+        }
+
+        if (starred_result.status !== 'fulfilled') {
+          throw starred_result.reason;
+        }
+
+        const current_user_token = Tokens.get_user_token();
+        if (current_user_token !== user_token) {
+          if (!current_user_token) {
+            self.reset();
+          }
+          return false;
+        }
+
+        if (
+          self.subscription_feed_request_token !== request_token ||
+          self.active_subscription_feed_id !== normalized_feed_id
+        ) {
+          return false;
+        }
+
+        const normalized_entries = normalize_timeline_entries(
+          entries_result.value,
+          self.subscriptions.slice(),
+          unread_result.value,
+          starred_result.value,
+          self.local_read_entry_ids,
+          self.local_unread_entry_ids,
+          self.local_bookmarked_entry_ids,
+          self.local_unbookmarked_entry_ids,
+        );
+
+        self.subscription_feed_entries.replace(normalized_entries);
+        self.has_loaded_subscription_feed = true;
+        self.subscription_feed_error_message = null;
+        self.sync_active_subscription_feed_metadata();
+        return true;
+      } catch (error) {
+        if (
+          self.subscription_feed_request_token === request_token &&
+          self.active_subscription_feed_id === normalized_feed_id
+        ) {
+          self.has_loaded_subscription_feed = true;
+          self.subscription_feed_error_message =
+            resolve_subscription_request_error_message(
+              error,
+              'We could not load that feed right now.',
+            );
+        }
+        return false;
+      } finally {
+        if (
+          self.subscription_feed_request_token === request_token &&
+          self.active_subscription_feed_id === normalized_feed_id
+        ) {
+          self.is_loading_subscription_feed = false;
+        }
+      }
+    }),
+
+    refresh_subscription_feed: flow(function* (feed_id = '') {
+      const normalized_feed_id =
+        normalize_string(feed_id) || self.active_subscription_feed_id;
+
+      return yield self.load_subscription_feed(normalized_feed_id);
+    }),
 
     bootstrap: flow(function* () {
       if (self.is_bootstrapping) {
@@ -460,6 +980,7 @@ const Feed = types
       }
 
       self.is_bootstrapping = true;
+      self.is_loading_subscriptions = true;
       self.clear_error();
 
       try {
@@ -540,6 +1061,7 @@ const Feed = types
         return false;
       } finally {
         self.is_bootstrapping = false;
+        self.is_loading_subscriptions = false;
       }
     }),
 
@@ -554,15 +1076,25 @@ const Feed = types
         return false;
       }
 
-      const timeline_entry = self.timeline_entries.find((entry) => {
-        return entry.id === normalized_entry_id;
-      });
+      let did_change = false;
 
-      if (!timeline_entry || timeline_entry.is_read === next_is_read) {
+      [self.timeline_entries, self.subscription_feed_entries].forEach(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (
+              entry.id === normalized_entry_id &&
+              entry.is_read !== next_is_read
+            ) {
+              entry.is_read = next_is_read;
+              did_change = true;
+            }
+          });
+        },
+      );
+
+      if (!did_change) {
         return false;
       }
-
-      timeline_entry.is_read = next_is_read;
 
       if (next_is_read) {
         self.local_read_entry_ids.add(normalized_entry_id);
@@ -585,18 +1117,25 @@ const Feed = types
         return false;
       }
 
-      const timeline_entry = self.timeline_entries.find((entry) => {
-        return entry.id === normalized_entry_id;
-      });
+      let did_change = false;
 
-      if (
-        !timeline_entry ||
-        timeline_entry.is_bookmarked === next_is_bookmarked
-      ) {
+      [self.timeline_entries, self.subscription_feed_entries].forEach(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (
+              entry.id === normalized_entry_id &&
+              entry.is_bookmarked !== next_is_bookmarked
+            ) {
+              entry.is_bookmarked = next_is_bookmarked;
+              did_change = true;
+            }
+          });
+        },
+      );
+
+      if (!did_change) {
         return false;
       }
-
-      timeline_entry.is_bookmarked = next_is_bookmarked;
 
       if (next_is_bookmarked) {
         self.local_bookmarked_entry_ids.add(normalized_entry_id);
@@ -982,6 +1521,63 @@ const Feed = types
 
       return getSnapshot(timeline_entry);
     },
+
+    subscription_snapshots() {
+      return self.subscriptions.map((subscription) => {
+        return getSnapshot(subscription);
+      });
+    },
+
+    subscription_snapshot(feed_id = '') {
+      const normalized_feed_id = normalize_string(feed_id);
+
+      if (!normalized_feed_id) {
+        return null;
+      }
+
+      const subscription = self.subscriptions.find((entry) => {
+        return (
+          entry.feed_id === normalized_feed_id ||
+          entry.id === normalized_feed_id
+        );
+      });
+
+      if (!subscription) {
+        return null;
+      }
+
+      return getSnapshot(subscription);
+    },
+
+    active_subscription_feed_entries() {
+      if (!self.active_subscription_feed_id) {
+        return [];
+      }
+
+      return self.subscription_feed_entries.map((entry) => {
+        return getSnapshot(entry);
+      });
+    },
+
+    subscription_feed_entry_snapshot(entry_id = '') {
+      const normalized_entry_id = normalize_string(entry_id);
+
+      if (!normalized_entry_id) {
+        return null;
+      }
+
+      const subscription_feed_entry = self.subscription_feed_entries.find(
+        (entry) => {
+          return entry.id === normalized_entry_id;
+        },
+      );
+
+      if (!subscription_feed_entry) {
+        return null;
+      }
+
+      return getSnapshot(subscription_feed_entry);
+    },
   }))
   .create();
 
@@ -1289,6 +1885,11 @@ function resolve_subscription_avatar(
   subscription = null,
   icon_map = new Map(),
 ) {
+  const existing_avatar_url = normalize_string(subscription?.avatar_url);
+  if (existing_avatar_url) {
+    return existing_avatar_url;
+  }
+
   const json_feed_icon = normalize_string(subscription?.json_feed?.icon);
   if (json_feed_icon) {
     return json_feed_icon;
@@ -1327,6 +1928,11 @@ function get_subscription_host(subscription = null) {
 }
 
 function resolve_published_at(entry = null) {
+  const normalized_published_at = normalize_string(entry?.published_at);
+  if (normalized_published_at) {
+    return normalized_published_at;
+  }
+
   const published_at = normalize_string(entry?.published);
   if (published_at) {
     return published_at;
@@ -1404,4 +2010,25 @@ function normalize_unique_entry_ids(entry_ids = []) {
   }
 
   return [...new Set(entry_ids.map((entry_id) => normalize_string(entry_id)).filter(Boolean))];
+}
+
+function resolve_subscription_request_error_message(
+  error,
+  fallback_message = 'We could not complete that request.',
+) {
+  const status = Number(error?.status);
+
+  if (status === 401 || status === 403) {
+    return 'Your Micro.blog session expired. Please sign in again.';
+  }
+
+  if (status === 404) {
+    return 'We could not find a feed at that URL.';
+  }
+
+  if (status === 409) {
+    return 'That feed is already in your subscriptions.';
+  }
+
+  return fallback_message;
 }

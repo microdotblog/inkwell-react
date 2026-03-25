@@ -129,7 +129,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     detail_mode === 'entry'
       ? entry_source === 'bookmark'
         ? Bookmarks.bookmark_entry_snapshot(entry_id)
-        : Feed.timeline_entry_snapshot(entry_id)
+        : entry_source === 'subscription_feed'
+          ? Feed.subscription_feed_entry_snapshot(entry_id)
+          : Feed.timeline_entry_snapshot(entry_id)
       : null;
   const recap =
     detail_mode === 'recap' ? Feed.active_recap_snapshot() : null;
@@ -2408,6 +2410,10 @@ function resolve_entry_source(raw_source = '') {
 
   if (normalized_source === 'bookmark') {
     return 'bookmark';
+  }
+
+  if (normalized_source === 'subscription_feed') {
+    return 'subscription_feed';
   } else {
     return 'feed';
   }

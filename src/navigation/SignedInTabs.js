@@ -8,6 +8,8 @@ import BookmarksScreen from '../screens/BookmarksScreen';
 import FeedItemDetailScreen from '../screens/FeedItemDetailScreen';
 import FeedScreen from '../screens/FeedScreen';
 import HighlightsScreen from '../screens/HighlightsScreen';
+import SubscriptionFeedScreen from '../screens/SubscriptionFeedScreen';
+import SubscriptionsScreen from '../screens/SubscriptionsScreen';
 import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -93,6 +95,34 @@ function SignedInTabs({ isDark = false }) {
       >
         {(screen_props) => (
           <BookmarksScreen
+            {...screen_props}
+            isDark={isDark}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen
+        name="Subscriptions"
+        options={{
+          ...translucent_header_options,
+          title: 'Subscriptions',
+        }}
+      >
+        {(screen_props) => (
+          <SubscriptionsScreen
+            {...screen_props}
+            isDark={isDark}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen
+        name="SubscriptionFeed"
+        options={{
+          ...translucent_header_options,
+          title: 'Feed',
+        }}
+      >
+        {(screen_props) => (
+          <SubscriptionFeedScreen
             {...screen_props}
             isDark={isDark}
           />

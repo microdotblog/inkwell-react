@@ -78,6 +78,22 @@ function get_profile_menu_actions(theme) {
     }),
     imageColor: icon_color,
   };
+  const new_feed_action = {
+    id: 'new_feed',
+    title: 'New Feed...',
+    image: Platform.select({
+      ios: 'plus',
+    }),
+    imageColor: icon_color,
+  };
+  const subscriptions_action = {
+    id: 'subscriptions',
+    title: 'Subscriptions',
+    image: Platform.select({
+      ios: 'dot.radiowaves.left.and.right',
+    }),
+    imageColor: icon_color,
+  };
 
   if (Platform.OS === 'ios') {
     return [
@@ -86,6 +102,8 @@ function get_profile_menu_actions(theme) {
         subactions: [settings_action],
         title: '',
       },
+      new_feed_action,
+      subscriptions_action,
       {
         id: 'highlights',
         title: 'Highlights',
@@ -107,6 +125,8 @@ function get_profile_menu_actions(theme) {
 
   return [
     settings_action,
+    new_feed_action,
+    subscriptions_action,
     {
       id: 'highlights',
       title: 'Highlights',
@@ -288,7 +308,17 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const handle_profile_menu_action = React.useCallback(
     (menu_action_id = '') => {
-      if (menu_action_id === 'bookmarks') {
+      if (menu_action_id === 'new_feed') {
+        navigation.navigate('Subscriptions', {
+          mode: 'subscribe',
+          open_request_id: Date.now(),
+        });
+      } else if (menu_action_id === 'subscriptions') {
+        navigation.navigate('Subscriptions', {
+          mode: 'manage',
+          open_request_id: Date.now(),
+        });
+      } else if (menu_action_id === 'bookmarks') {
         navigation.navigate('Bookmarks');
       } else if (menu_action_id === 'highlights') {
         navigation.navigate('Highlights');

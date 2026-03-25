@@ -19,6 +19,67 @@ export async function fetch_micro_blog_feed_subscriptions({ token = '' } = {}) {
   );
 }
 
+export async function create_micro_blog_feed_subscription({
+  token = '',
+  feed_url = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_feed_url = `${feed_url || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error(
+      'A Micro.blog token is required to create subscriptions.',
+    );
+  }
+
+  if (!trimmed_feed_url) {
+    throw create_request_error('A feed URL is required to subscribe.');
+  }
+
+  const url = new URL('/feeds/v2/subscriptions.json', `${MICRO_BLOG_FEEDS_BASE_URL}/`);
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      feed_url: trimmed_feed_url,
+    }),
+  });
+  const response_text = await response.text();
+
+  if (response.status === 300) {
+    return {
+      kind: 'choices',
+      choices: parse_json_response_text(
+        response_text,
+        response.status,
+        'Feeds response parsing failed.',
+      ),
+    };
+  }
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Feeds subscription create request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  return {
+    kind: 'subscription',
+    subscription: parse_json_response_text(
+      response_text,
+      response.status,
+      'Feeds response parsing failed.',
+    ),
+  };
+}
+
 export async function fetch_micro_blog_feed_entries({ token = '' } = {}) {
   const trimmed_token = `${token || ''}`.trim();
   const per_page = 50;
@@ -73,6 +134,49 @@ export async function fetch_micro_blog_feed_entries({ token = '' } = {}) {
   return entries;
 }
 
+export async function fetch_micro_blog_feed_entries_for_feed({
+  token = '',
+  feed_id = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_feed_id = `${feed_id || ''}`.trim();
+  const per_page = 100;
+  const entries = [];
+  let page = 1;
+
+  if (!trimmed_feed_id) {
+    return [];
+  }
+
+  while (true) {
+    const params = new URLSearchParams({
+      per_page: String(per_page),
+      page: String(page),
+    });
+    const encoded_feed_id = encodeURIComponent(trimmed_feed_id);
+    const page_entries = await fetch_micro_blog_feeds_json(
+      `/feeds/v2/feeds/${encoded_feed_id}/entries.json?${params.toString()}`,
+      {
+        token: trimmed_token,
+      },
+    );
+
+    if (!Array.isArray(page_entries) || page_entries.length === 0) {
+      break;
+    }
+
+    entries.push(...page_entries);
+
+    if (page_entries.length < per_page) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return entries;
+}
+
 export async function fetch_micro_blog_feed_unread_entry_ids({
   token = '',
 } = {}) {
@@ -93,6 +197,87 @@ export async function fetch_micro_blog_feed_icons({ token = '' } = {}) {
   return fetch_micro_blog_feeds_json('/feeds/v2/icons.json', {
     token,
   });
+}
+
+export async function update_micro_blog_feed_subscription({
+  token = '',
+  subscription_id = '',
+  title = '',
+} = {}) {
+  const trimmed_subscription_id = `${subscription_id || ''}`.trim();
+  const trimmed_title = `${title || ''}`.trim();
+
+  if (!trimmed_subscription_id) {
+    throw create_request_error(
+      'A subscription id is required to rename a subscription.',
+    );
+  }
+
+  return fetch_micro_blog_feeds_json(
+    `/feeds/v2/subscriptions/${encodeURIComponent(trimmed_subscription_id)}.json`,
+    {
+      token,
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: trimmed_title,
+      }),
+    },
+  );
+}
+
+export async function delete_micro_blog_feed_subscription({
+  token = '',
+  subscription_id = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_subscription_id = `${subscription_id || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error(
+      'A Micro.blog token is required to delete subscriptions.',
+    );
+  }
+
+  if (!trimmed_subscription_id) {
+    throw create_request_error(
+      'A subscription id is required to delete a subscription.',
+    );
+  }
+
+  const url = new URL(
+    `/feeds/v2/subscriptions/${encodeURIComponent(trimmed_subscription_id)}.json`,
+    `${MICRO_BLOG_FEEDS_BASE_URL}/`,
+  );
+  const headers = new Headers({
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers,
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Feeds subscription delete request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return null;
+  }
+
+  return parse_json_response_text(
+    response_text,
+    response.status,
+    'Feeds response parsing failed.',
+  );
 }
 
 export async function fetch_micro_blog_bookmarks({ token = '' } = {}) {
@@ -556,15 +741,11 @@ async function fetch_micro_blog_feeds_json(
     return null;
   }
 
-  try {
-    return JSON.parse(response_text);
-  } catch (error) {
-    throw create_request_error(
-      'Feeds response parsing failed.',
-      response.status,
-      response_text,
-    );
-  }
+  return parse_json_response_text(
+    response_text,
+    response.status,
+    'Feeds response parsing failed.',
+  );
 }
 
 function get_oldest_timeline_midnight() {
@@ -611,6 +792,26 @@ function create_request_error(message, status = null, response_text = '') {
   error.status = status;
   error.response_text = response_text;
   return error;
+}
+
+function parse_json_response_text(
+  response_text = '',
+  status = null,
+  message = 'Feeds response parsing failed.',
+) {
+  if (!`${response_text || ''}`.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    throw create_request_error(
+      message,
+      status,
+      response_text,
+    );
+  }
 }
 
 function delay(duration_ms = 0) {
