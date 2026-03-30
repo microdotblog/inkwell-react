@@ -719,108 +719,110 @@ function NewFeedComposerCard({
   const has_choices = feed_choices.length > 0;
 
   return (
-    <View style={styles.composerStack}>
-      <View
-        style={[
-          styles.searchField,
-          styles.composerInputWrap,
-          {
-            backgroundColor: theme.colors.paper,
-            borderColor: theme.colors.line,
-            shadowColor: theme.colors.shadow,
-          },
-        ]}
-      >
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoFocus={true}
-          onChangeText={onChangeFeedUrl}
-          onSubmitEditing={() => onSubmit?.()}
-          placeholder="https://example.com"
-          placeholderTextColor={theme.colors.inkSoft}
-          ref={add_input_ref}
-          returnKeyType="go"
-          selectionColor={theme.colors.accentStrong}
+    <AuthCard style={styles.composerCard} theme={theme}>
+      <View style={styles.composerStack}>
+        <View
           style={[
-            styles.searchInput,
-            scaled_text_styles.searchInput,
-            { color: theme.colors.ink },
-          ]}
-          value={feed_url}
-        />
-      </View>
-
-      <View style={styles.composerActions}>
-        <PrimaryButton
-          disabled={is_submitting || !is_valid_url(feed_url)}
-          label={is_submitting ? 'Subscribing...' : 'Subscribe'}
-          onPress={() => onSubmit?.()}
-          style={[styles.composerPrimaryButton, styles.noShadow]}
-          textStyle={styles.composerPrimaryButtonText}
-          theme={theme}
-        />
-      </View>
-
-      {status?.message ? (
-        <Text
-          style={[
-            styles.statusText,
-            scaled_text_styles.statusText,
+            styles.searchField,
+            styles.composerInputWrap,
             {
-              color: resolve_status_color(theme, status?.tone),
+              backgroundColor: theme.colors.paper,
+              borderColor: theme.colors.line,
+              shadowColor: theme.colors.shadow,
             },
           ]}
         >
-          {status.message}
-        </Text>
-      ) : null}
-
-      {has_choices ? (
-        <View style={styles.choiceList}>
-          {feed_choices.map((choice) => {
-            return (
-              <Pressable
-                accessibilityRole="button"
-                key={choice.feed_url}
-                onPress={() => onFeedChoicePress?.(choice.feed_url)}
-                style={({ pressed }) => {
-                  return [
-                    styles.choiceButton,
-                    {
-                      backgroundColor: theme.colors.paper,
-                      borderColor: theme.colors.line,
-                      opacity: pressed ? 0.84 : 1,
-                    },
-                  ];
-                }}
-              >
-                <Text
-                  numberOfLines={2}
-                  style={[
-                    styles.choiceTitle,
-                    scaled_text_styles.choiceTitle,
-                    { color: theme.colors.ink },
-                  ]}
-                >
-                  {choice.title}
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.choiceSubtitle,
-                    scaled_text_styles.choiceSubtitle,
-                    { color: theme.colors.inkSoft },
-                  ]}
-                >
-                  {choice.feed_url}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus={true}
+            onChangeText={onChangeFeedUrl}
+            onSubmitEditing={() => onSubmit?.()}
+            placeholder="https://example.com"
+            placeholderTextColor={theme.colors.inkSoft}
+            ref={add_input_ref}
+            returnKeyType="go"
+            selectionColor={theme.colors.accentStrong}
+            style={[
+              styles.searchInput,
+              scaled_text_styles.searchInput,
+              { color: theme.colors.ink },
+            ]}
+            value={feed_url}
+          />
         </View>
-      ) : null}
-    </View>
+
+        <View style={styles.composerActions}>
+          <PrimaryButton
+            disabled={is_submitting || !is_valid_url(feed_url)}
+            label={is_submitting ? 'Subscribing...' : 'Subscribe'}
+            onPress={() => onSubmit?.()}
+            style={[styles.composerPrimaryButton, styles.noShadow]}
+            textStyle={styles.composerPrimaryButtonText}
+            theme={theme}
+          />
+        </View>
+
+        {status?.message ? (
+          <Text
+            style={[
+              styles.statusText,
+              scaled_text_styles.statusText,
+              {
+                color: resolve_status_color(theme, status?.tone),
+              },
+            ]}
+          >
+            {status.message}
+          </Text>
+        ) : null}
+
+        {has_choices ? (
+          <View style={styles.choiceList}>
+            {feed_choices.map((choice) => {
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={choice.feed_url}
+                  onPress={() => onFeedChoicePress?.(choice.feed_url)}
+                  style={({ pressed }) => {
+                    return [
+                      styles.choiceButton,
+                      {
+                        backgroundColor: theme.colors.paper,
+                        borderColor: theme.colors.line,
+                        opacity: pressed ? 0.84 : 1,
+                      },
+                    ];
+                  }}
+                >
+                  <Text
+                    numberOfLines={2}
+                    style={[
+                      styles.choiceTitle,
+                      scaled_text_styles.choiceTitle,
+                      { color: theme.colors.ink },
+                    ]}
+                  >
+                    {choice.title}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.choiceSubtitle,
+                      scaled_text_styles.choiceSubtitle,
+                      { color: theme.colors.inkSoft },
+                    ]}
+                  >
+                    {choice.feed_url}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+      </View>
+    </AuthCard>
   );
 }
 
