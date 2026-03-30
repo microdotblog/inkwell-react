@@ -596,7 +596,6 @@ function SubscriptionsHeader({
         style={[
           styles.summaryCard,
           {
-            backgroundColor: resolve_summary_card_background_color(theme),
             borderColor: theme.colors.line,
             shadowColor: theme.colors.shadow,
           },
@@ -607,7 +606,6 @@ function SubscriptionsHeader({
             style={[
               styles.summaryBadge,
               {
-                backgroundColor: theme.colors.accentSoft,
                 borderColor: theme.colors.line,
               },
             ]}
