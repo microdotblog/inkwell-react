@@ -751,12 +751,6 @@ function NewFeedComposerCard({
               },
             ]}
           >
-            <MaterialIcons
-              color={theme.colors.inkSoft}
-              name="link"
-              size={18}
-              style={styles.searchFieldIcon}
-            />
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
@@ -778,9 +772,11 @@ function NewFeedComposerCard({
 
           <View style={styles.composerActions}>
             <PrimaryButton
-              disabled={is_submitting}
+              disabled={is_submitting || !is_valid_url(feed_url)}
               label={is_submitting ? 'Subscribing...' : 'Subscribe'}
               onPress={() => onSubmit?.()}
+              style={[styles.composerPrimaryButton, styles.noShadow]}
+              textStyle={styles.composerPrimaryButtonText}
               theme={theme}
             />
             <Pressable
@@ -789,10 +785,8 @@ function NewFeedComposerCard({
               onPress={onClose}
               style={({ pressed }) => {
                 return [
-                  styles.secondaryActionButton,
+                  styles.composerCancelButton,
                   {
-                    backgroundColor: theme.colors.paper,
-                    borderColor: theme.colors.line,
                     opacity: is_submitting ? 0.56 : pressed ? 0.84 : 1,
                   },
                 ];
@@ -800,7 +794,7 @@ function NewFeedComposerCard({
             >
               <Text
                 style={[
-                  styles.secondaryActionButtonLabel,
+                  styles.composerCancelButtonLabel,
                   scaled_text_styles.secondaryActionButtonLabel,
                   { color: theme.colors.inkSoft },
                 ]}
@@ -1367,12 +1361,22 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   composerActions: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
+    flexDirection: 'column',
+    gap: 8,
   },
   composerBody: {
     fontSize: 13,
+    lineHeight: 18,
+  },
+  composerCancelButton: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  composerCancelButtonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
     lineHeight: 18,
   },
   composerCard: {
@@ -1389,6 +1393,13 @@ const styles = StyleSheet.create({
   },
   composerInputWrap: {
     minHeight: 52,
+  },
+  composerPrimaryButton: {
+    width: '100%',
+  },
+  composerPrimaryButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   composerStack: {
     gap: 12,
@@ -1524,6 +1535,12 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
+  },
+  noShadow: {
+    shadowOpacity: 0,
+    elevation: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
   },
   searchField: {
     alignItems: 'center',
@@ -1810,6 +1827,17 @@ function get_avatar_initial(source = '') {
   }
 
   return normalized_source.charAt(0).toUpperCase();
+}
+
+function is_valid_url(value = '') {
+  const normalized = normalize_string(value);
+  if (!normalized) {
+    return false;
+  }
+  
+  // Simple URL regex that supports http, https, and feed protocols
+  const url_regex = /^(https?:\/\/|feed:\/\/)[\w.-]+(\.\w+)+.*$/i;
+  return url_regex.test(normalized);
 }
 
 function resolve_summary_card_background_color(theme) {
