@@ -80,6 +80,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
   const toast_top_offset = header_height + 10;
   const add_input_ref = React.useRef(null);
   const [search_query, set_search_query] = React.useState('');
+  const [is_search_open, set_is_search_open] = React.useState(false);
   const [is_composer_open, set_is_composer_open] = React.useState(
     resolve_is_subscribe_mode(route),
   );
@@ -97,6 +98,28 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
     React.useState('');
   const [removing_subscription_id, set_removing_subscription_id] =
     React.useState('');
+
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={is_search_open ? 'Close search' : 'Open search'}
+          onPress={() => set_is_search_open((prev) => !prev)}
+          style={({ pressed }) => [
+            styles.headerButton,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <MaterialIcons
+            color={theme.colors.ink}
+            name={is_search_open ? 'close' : 'search'}
+            size={24}
+          />
+        </Pressable>
+      ),
+    });
+  }, [navigation, is_search_open, theme.colors.ink]);
 
   React.useEffect(() => {
     Feed.refresh_subscriptions();
@@ -485,6 +508,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 feed_choices={feed_choices}
                 feed_url={feed_url}
                 is_composer_open={is_composer_open}
+                is_search_open={is_search_open}
                 is_submitting={is_submitting}
                 onAddSubscription={handle_add_subscription}
                 onChangeFeedUrl={set_feed_url}
@@ -547,6 +571,7 @@ function SubscriptionsHeader({
   feed_choices = [],
   feed_url = '',
   is_composer_open = false,
+  is_search_open = false,
   is_submitting = false,
   onAddSubscription,
   onChangeFeedUrl,
@@ -567,24 +592,27 @@ function SubscriptionsHeader({
 
   return (
     <View style={styles.headerContent}>
-      <NewFeedComposerCard
-        add_input_ref={add_input_ref}
-        feed_choices={feed_choices}
-        feed_url={feed_url}
-        is_open={is_composer_open}
-        is_submitting={is_submitting}
-        onChangeFeedUrl={onChangeFeedUrl}
-        onClose={onCloseComposer}
-        onFeedChoicePress={onFeedChoicePress}
-        onOpen={onOpenComposer}
-        onSubmit={onAddSubscription}
-        scaled_text_styles={scaled_text_styles}
-        status={submit_status}
-        theme={theme}
-      />
+      {!is_search_open ? (
+        <NewFeedComposerCard
+          add_input_ref={add_input_ref}
+          feed_choices={feed_choices}
+          feed_url={feed_url}
+          is_open={is_composer_open}
+          is_submitting={is_submitting}
+          onChangeFeedUrl={onChangeFeedUrl}
+          onClose={onCloseComposer}
+          onFeedChoicePress={onFeedChoicePress}
+          onOpen={onOpenComposer}
+          onSubmit={onAddSubscription}
+          scaled_text_styles={scaled_text_styles}
+          status={submit_status}
+          theme={theme}
+        />
+      ) : null}
 
-      {total_count > 0 || search_query ? (
+      {is_search_open ? (
         <SearchField
+          autoFocus={true}
           onChangeText={onChangeSearchQuery}
           scaled_text_styles={scaled_text_styles}
           theme={theme}
@@ -852,6 +880,7 @@ function NewFeedComposerCard({
 }
 
 function SearchField({
+  autoFocus = false,
   onChangeText,
   scaled_text_styles,
   theme,
@@ -877,6 +906,7 @@ function SearchField({
       <TextInput
         autoCapitalize="none"
         autoCorrect={false}
+        autoFocus={autoFocus}
         onChangeText={onChangeText}
         placeholder="Search subscriptions"
         placeholderTextColor={theme.colors.inkSoft}
@@ -1429,6 +1459,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 18,
+  },
+  headerButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   headerContent: {
     gap: 14,
