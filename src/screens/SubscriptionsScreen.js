@@ -592,24 +592,9 @@ function SubscriptionsHeader({
         />
       ) : null}
 
-      <View
-        style={[
-          styles.summaryCard,
-          {
-            borderColor: theme.colors.line,
-            shadowColor: theme.colors.shadow,
-          },
-        ]}
-      >
+      <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
-          <View
-            style={[
-              styles.summaryBadge,
-              {
-                borderColor: theme.colors.line,
-              },
-            ]}
-          >
+          <View style={styles.summaryBadge}>
             <MaterialIcons
               color={theme.colors.accentStrong}
               name="rss-feed"
@@ -1629,11 +1614,8 @@ const styles = StyleSheet.create({
   summaryBadge: {
     alignItems: 'center',
     borderRadius: 999,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
   },
   summaryBadgeLabel: {
     fontSize: 12,
@@ -1642,15 +1624,6 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     borderRadius: 22,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    shadowOffset: {
-      height: 16,
-      width: 0,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 32,
   },
   summaryCopy: {
     fontSize: 13,
