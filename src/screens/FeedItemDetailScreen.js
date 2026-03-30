@@ -1840,6 +1840,10 @@ function get_entry_menu_actions({
   if (entry_source !== 'bookmark') {
     actions.push({
       id: 'toggle_read',
+      image: Platform.select({
+        ios: entry?.is_read ? 'envelope' : 'envelope.open',
+      }),
+      imageColor: icon_color,
       title: read_title,
     });
   }
