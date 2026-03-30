@@ -1554,6 +1554,7 @@ const styles = StyleSheet.create({
   },
   searchFieldIcon: {
     marginRight: 10,
+    marginTop: 2,
   },
   searchInput: {
     flex: 1,
