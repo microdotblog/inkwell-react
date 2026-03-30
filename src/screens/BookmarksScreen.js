@@ -28,8 +28,6 @@ const LIST_BOTTOM_PADDING = 28;
 const BOOKMARK_AVATAR_SIZE = 28;
 const BOOKMARK_AVATAR_TRANSITION_MS = 180;
 const TEXT_STYLE_NAMES = [
-  'summaryBadgeLabel',
-  'summaryCopy',
   'stateTitle',
   'stateBody',
   'sourceAvatarInitial',
@@ -139,12 +137,6 @@ function BookmarksScreen({ navigation, isDark = false }) {
             ]}
             data={bookmark_entries}
             keyExtractor={(item) => item.id}
-            ListHeaderComponent={
-              <BookmarksSummaryCard
-                scaled_text_styles={scaled_text_styles}
-                theme={theme}
-              />
-            }
             ListEmptyComponent={
               error_message ? (
                 <AuthCard style={styles.stateCard} theme={theme}>
@@ -222,57 +214,6 @@ function BookmarksScreen({ navigation, isDark = false }) {
             style={styles.list}
           />
         )}
-      </View>
-    </View>
-  );
-}
-
-function BookmarksSummaryCard({ scaled_text_styles, theme }) {
-  return (
-    <View
-      style={[
-        styles.summaryCard,
-        {
-          backgroundColor: resolve_summary_card_background_color(theme),
-          borderColor: theme.colors.line,
-          shadowColor: theme.colors.shadow,
-        },
-      ]}
-    >
-      <View style={styles.summaryRow}>
-        <View
-          style={[
-            styles.summaryBadge,
-            {
-              backgroundColor: theme.colors.accentSoft,
-              borderColor: theme.colors.line,
-            },
-          ]}
-        >
-          <MaterialIcons
-            color={theme.colors.accentStrong}
-            name="bookmark"
-            size={16}
-          />
-          <Text
-            style={[
-              styles.summaryBadgeLabel,
-              scaled_text_styles.summaryBadgeLabel,
-              { color: theme.colors.accentStrong },
-            ]}
-          >
-            Bookmarks
-          </Text>
-        </View>
-        <Text
-          style={[
-            styles.summaryCopy,
-            scaled_text_styles.summaryCopy,
-            { color: theme.colors.inkSoft },
-          ]}
-        >
-          Showing recent bookmarks
-        </Text>
       </View>
     </View>
   );
@@ -449,50 +390,6 @@ const styles = StyleSheet.create({
     minHeight: 220,
     justifyContent: 'center',
   },
-  summaryCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    marginBottom: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 3,
-  },
-  summaryRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 10,
-    columnGap: 12,
-  },
-  summaryBadge: {
-    alignItems: 'center',
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 6,
-    justifyContent: 'center',
-    minHeight: 34,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  summaryBadgeLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 16,
-  },
-  summaryCopy: {
-    flexShrink: 1,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'right',
-  },
   stateCopy: {
     alignItems: 'center',
     gap: 10,
@@ -586,10 +483,6 @@ const styles = StyleSheet.create({
 });
 
 export default observer(BookmarksScreen);
-
-function resolve_summary_card_background_color(theme) {
-  return theme?.colors?.badge || theme?.colors?.paper || '#ffffff';
-}
 
 function resolve_entry_title(entry = null) {
   const title = normalize_entry_text(entry?.title);

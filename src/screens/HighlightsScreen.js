@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { observer } from 'mobx-react';
@@ -49,6 +50,7 @@ function HighlightsScreen({ isDark = false }) {
   }, [text_scale]);
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const highlight_entries = Highlights.highlight_entries();
   const total_highlights = Highlights.highlights_count();
   const search_query = Highlights.search_query;
@@ -63,6 +65,37 @@ function HighlightsScreen({ isDark = false }) {
   const list_bottom_inset = insets.bottom + LIST_BOTTOM_PADDING;
   const [copied_highlight_id, set_copied_highlight_id] = React.useState('');
   const copied_timeout_ref = React.useRef(null);
+  const [is_search_open, set_is_search_open] = React.useState(false);
+
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={is_search_open ? 'Close search' : 'Open search'}
+          onPress={() => {
+            set_is_search_open((prev) => {
+              if (prev) {
+                // Closing search, clear the filter
+                Highlights.set_search_query('');
+              }
+              return !prev;
+            });
+          }}
+          style={({ pressed }) => [
+            styles.headerButton,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <MaterialIcons
+            color={theme.colors.ink}
+            name={is_search_open ? 'close' : 'search'}
+            size={24}
+          />
+        </Pressable>
+      ),
+    });
+  }, [navigation, is_search_open, theme.colors.ink]);
 
   React.useEffect(() => {
     Highlights.load();
@@ -178,6 +211,7 @@ function HighlightsScreen({ isDark = false }) {
             }
             ListHeaderComponent={
               <HighlightsHeader
+                is_search_open={is_search_open}
                 matching_count={highlight_entries.length}
                 onChangeSearch={handle_search_query_change}
                 scaled_text_styles={scaled_text_styles}
@@ -216,6 +250,7 @@ function HighlightsScreen({ isDark = false }) {
 }
 
 function HighlightsHeader({
+  is_search_open = false,
   matching_count = 0,
   onChangeSearch,
   scaled_text_styles,
@@ -223,36 +258,24 @@ function HighlightsHeader({
   theme,
   total_count = 0,
 }) {
-  const summary_copy = resolve_summary_copy(total_count, matching_count, search_query);
+  const display_count = is_search_open || search_query ? matching_count : total_count;
+  const summary_copy =
+    display_count === 1 ? '1 highlight' : `${display_count} highlights`;
 
   return (
     <View style={styles.headerContent}>
-      <SearchField
-        onChangeText={onChangeSearch}
-        scaled_text_styles={scaled_text_styles}
-        theme={theme}
-        value={search_query}
-      />
-      <View
-        style={[
-          styles.summaryCard,
-          {
-            backgroundColor: resolve_summary_card_background_color(theme),
-            borderColor: theme.colors.line,
-            shadowColor: theme.colors.shadow,
-          },
-        ]}
-      >
+      {is_search_open ? (
+        <SearchField
+          autoFocus={true}
+          onChangeText={onChangeSearch}
+          scaled_text_styles={scaled_text_styles}
+          theme={theme}
+          value={search_query}
+        />
+      ) : null}
+      <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
-          <View
-            style={[
-              styles.summaryBadge,
-              {
-                backgroundColor: theme.colors.accentSoft,
-                borderColor: theme.colors.line,
-              },
-            ]}
-          >
+          <View style={styles.summaryBadge}>
             <MaterialIcons
               color={theme.colors.accentStrong}
               name="format-quote"
@@ -265,18 +288,9 @@ function HighlightsHeader({
                 { color: theme.colors.accentStrong },
               ]}
             >
-              Highlights
+              {summary_copy}
             </Text>
           </View>
-          <Text
-            style={[
-              styles.summaryCopy,
-              scaled_text_styles.summaryCopy,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {summary_copy}
-          </Text>
         </View>
       </View>
     </View>
@@ -284,6 +298,7 @@ function HighlightsHeader({
 }
 
 function SearchField({
+  autoFocus = false,
   onChangeText,
   scaled_text_styles,
   theme,
@@ -309,6 +324,7 @@ function SearchField({
       <TextInput
         autoCapitalize="none"
         autoCorrect={false}
+        autoFocus={autoFocus}
         clearButtonMode="while-editing"
         onChangeText={onChangeText}
         onSubmitEditing={Keyboard.dismiss}
@@ -540,6 +556,10 @@ const styles = StyleSheet.create({
     gap: 14,
     marginBottom: 14,
   },
+  headerButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   searchField: {
     minHeight: 52,
     borderRadius: 24,
@@ -557,7 +577,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   searchFieldIcon: {
-    marginRight: 8,
+    marginRight: 10,
+    marginTop: 2,
   },
   searchInput: {
     flex: 1,
@@ -574,17 +595,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   summaryCard: {
-    borderWidth: 1,
     borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 3,
+    marginVertical: 8,
   },
   summaryRow: {
     alignItems: 'center',
@@ -597,13 +609,8 @@ const styles = StyleSheet.create({
   summaryBadge: {
     alignItems: 'center',
     borderRadius: 999,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: 6,
-    justifyContent: 'center',
-    minHeight: 34,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
   },
   summaryBadgeLabel: {
     fontSize: 13,
