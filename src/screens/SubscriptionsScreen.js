@@ -592,24 +592,6 @@ function SubscriptionsHeader({
 
   return (
     <View style={styles.headerContent}>
-      {!is_search_open ? (
-        <NewFeedComposerCard
-          add_input_ref={add_input_ref}
-          feed_choices={feed_choices}
-          feed_url={feed_url}
-          is_open={is_composer_open}
-          is_submitting={is_submitting}
-          onChangeFeedUrl={onChangeFeedUrl}
-          onClose={onCloseComposer}
-          onFeedChoicePress={onFeedChoicePress}
-          onOpen={onOpenComposer}
-          onSubmit={onAddSubscription}
-          scaled_text_styles={scaled_text_styles}
-          status={submit_status}
-          theme={theme}
-        />
-      ) : null}
-
       {is_search_open ? (
         <SearchField
           autoFocus={true}
@@ -635,20 +617,63 @@ function SubscriptionsHeader({
                 { color: theme.colors.accentStrong },
               ]}
             >
-              Subscriptions
+              {summary_copy}
             </Text>
           </View>
-          <Text
-            style={[
-              styles.summaryCopy,
-              scaled_text_styles.summaryCopy,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {summary_copy}
-          </Text>
+          {!is_search_open ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={is_composer_open ? 'Cancel' : 'Add feed'}
+              disabled={is_submitting}
+              onPress={is_composer_open ? onCloseComposer : onOpenComposer}
+              style={({ pressed }) => {
+                return [
+                  styles.addFeedButton,
+                  {
+                    opacity: is_submitting ? 0.56 : pressed ? 0.84 : 1,
+                  },
+                ];
+              }}
+            >
+              {!is_composer_open ? (
+                <MaterialIcons
+                  color={theme.colors.accentStrong}
+                  name="add"
+                  size={16}
+                  style={styles.addFeedButtonIcon}
+                />
+              ) : null}
+              <Text
+                style={[
+                  styles.addFeedButtonLabel,
+                  scaled_text_styles.secondaryActionButtonLabel,
+                  { color: theme.colors.accentStrong },
+                ]}
+              >
+                {is_composer_open ? 'Cancel' : 'Add feed'}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
+
+      {!is_search_open && is_composer_open ? (
+        <NewFeedComposerCard
+          add_input_ref={add_input_ref}
+          feed_choices={feed_choices}
+          feed_url={feed_url}
+          is_open={true}
+          is_submitting={is_submitting}
+          onChangeFeedUrl={onChangeFeedUrl}
+          onClose={onCloseComposer}
+          onFeedChoicePress={onFeedChoicePress}
+          onOpen={onOpenComposer}
+          onSubmit={onAddSubscription}
+          scaled_text_styles={scaled_text_styles}
+          status={submit_status}
+          theme={theme}
+        />
+      ) : null}
 
       {subscriptions_error_message ? (
         <AuthCard style={styles.inlineStateCard} theme={theme}>
@@ -694,188 +719,108 @@ function NewFeedComposerCard({
   const has_choices = feed_choices.length > 0;
 
   return (
-    <AuthCard style={styles.composerCard} theme={theme}>
-      <View style={styles.composerHeader}>
-        <View style={styles.composerCopy}>
-          <Text
-            style={[
-              styles.composerTitle,
-              scaled_text_styles.composerTitle,
-              { color: theme.colors.ink },
-            ]}
-          >
-            New Feed...
-          </Text>
-          <Text
-            style={[
-              styles.composerBody,
-              scaled_text_styles.composerBody,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            Subscribe with a site URL or a direct feed URL.
-          </Text>
-        </View>
-        {!is_open ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onOpen}
-            style={({ pressed }) => {
-              return [
-                styles.inlineUtilityButton,
-                {
-                  backgroundColor: theme.colors.accentSoft,
-                  borderColor: theme.colors.line,
-                  opacity: pressed ? 0.84 : 1,
-                },
-              ];
-            }}
-          >
-            <MaterialIcons
-              color={theme.colors.accentStrong}
-              name="add"
-              size={18}
-            />
-            <Text
-              style={[
-                styles.inlineUtilityButtonLabel,
-                scaled_text_styles.inlineUtilityButtonLabel,
-                { color: theme.colors.accentStrong },
-              ]}
-            >
-              Add
-            </Text>
-          </Pressable>
-        ) : null}
+    <View style={styles.composerStack}>
+      <View
+        style={[
+          styles.searchField,
+          styles.composerInputWrap,
+          {
+            backgroundColor: theme.colors.paper,
+            borderColor: theme.colors.line,
+            shadowColor: theme.colors.shadow,
+          },
+        ]}
+      >
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus={true}
+          onChangeText={onChangeFeedUrl}
+          onSubmitEditing={() => onSubmit?.()}
+          placeholder="https://example.com"
+          placeholderTextColor={theme.colors.inkSoft}
+          ref={add_input_ref}
+          returnKeyType="go"
+          selectionColor={theme.colors.accentStrong}
+          style={[
+            styles.searchInput,
+            scaled_text_styles.searchInput,
+            { color: theme.colors.ink },
+          ]}
+          value={feed_url}
+        />
       </View>
 
-      {is_open ? (
-        <View style={styles.composerStack}>
-          <View
-            style={[
-              styles.searchField,
-              styles.composerInputWrap,
-              {
-                backgroundColor: theme.colors.paper,
-                borderColor: theme.colors.line,
-                shadowColor: theme.colors.shadow,
-              },
-            ]}
-          >
-            <TextInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              onChangeText={onChangeFeedUrl}
-              onSubmitEditing={() => onSubmit?.()}
-              placeholder="https://example.com"
-              placeholderTextColor={theme.colors.inkSoft}
-              ref={add_input_ref}
-              returnKeyType="go"
-              selectionColor={theme.colors.accentStrong}
-              style={[
-                styles.searchInput,
-                scaled_text_styles.searchInput,
-                { color: theme.colors.ink },
-              ]}
-              value={feed_url}
-            />
-          </View>
+      <View style={styles.composerActions}>
+        <PrimaryButton
+          disabled={is_submitting || !is_valid_url(feed_url)}
+          label={is_submitting ? 'Subscribing...' : 'Subscribe'}
+          onPress={() => onSubmit?.()}
+          style={[styles.composerPrimaryButton, styles.noShadow]}
+          textStyle={styles.composerPrimaryButtonText}
+          theme={theme}
+        />
+      </View>
 
-          <View style={styles.composerActions}>
-            <PrimaryButton
-              disabled={is_submitting || !is_valid_url(feed_url)}
-              label={is_submitting ? 'Subscribing...' : 'Subscribe'}
-              onPress={() => onSubmit?.()}
-              style={[styles.composerPrimaryButton, styles.noShadow]}
-              textStyle={styles.composerPrimaryButtonText}
-              theme={theme}
-            />
-            <Pressable
-              accessibilityRole="button"
-              disabled={is_submitting}
-              onPress={onClose}
-              style={({ pressed }) => {
-                return [
-                  styles.composerCancelButton,
-                  {
-                    opacity: is_submitting ? 0.56 : pressed ? 0.84 : 1,
-                  },
-                ];
-              }}
-            >
-              <Text
-                style={[
-                  styles.composerCancelButtonLabel,
-                  scaled_text_styles.secondaryActionButtonLabel,
-                  { color: theme.colors.inkSoft },
-                ]}
+      {status?.message ? (
+        <Text
+          style={[
+            styles.statusText,
+            scaled_text_styles.statusText,
+            {
+              color: resolve_status_color(theme, status?.tone),
+            },
+          ]}
+        >
+          {status.message}
+        </Text>
+      ) : null}
+
+      {has_choices ? (
+        <View style={styles.choiceList}>
+          {feed_choices.map((choice) => {
+            return (
+              <Pressable
+                accessibilityRole="button"
+                key={choice.feed_url}
+                onPress={() => onFeedChoicePress?.(choice.feed_url)}
+                style={({ pressed }) => {
+                  return [
+                    styles.choiceButton,
+                    {
+                      backgroundColor: theme.colors.paper,
+                      borderColor: theme.colors.line,
+                      opacity: pressed ? 0.84 : 1,
+                    },
+                  ];
+                }}
               >
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
-
-          {status?.message ? (
-            <Text
-              style={[
-                styles.statusText,
-                scaled_text_styles.statusText,
-                {
-                  color: resolve_status_color(theme, status?.tone),
-                },
-              ]}
-            >
-              {status.message}
-            </Text>
-          ) : null}
-
-          {has_choices ? (
-            <View style={styles.choiceList}>
-              {feed_choices.map((choice) => {
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    key={choice.feed_url}
-                    onPress={() => onFeedChoicePress?.(choice.feed_url)}
-                    style={({ pressed }) => {
-                      return [
-                        styles.choiceButton,
-                        {
-                          backgroundColor: theme.colors.paper,
-                          borderColor: theme.colors.line,
-                          opacity: pressed ? 0.84 : 1,
-                        },
-                      ];
-                    }}
-                  >
-                    <Text
-                      numberOfLines={2}
-                      style={[
-                        styles.choiceTitle,
-                        scaled_text_styles.choiceTitle,
-                        { color: theme.colors.ink },
-                      ]}
-                    >
-                      {choice.title}
-                    </Text>
-                    <Text
-                      numberOfLines={1}
-                      style={[
-                        styles.choiceSubtitle,
-                        scaled_text_styles.choiceSubtitle,
-                        { color: theme.colors.inkSoft },
-                      ]}
-                    >
-                      {choice.feed_url}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
+                <Text
+                  numberOfLines={2}
+                  style={[
+                    styles.choiceTitle,
+                    scaled_text_styles.choiceTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
+                  {choice.title}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.choiceSubtitle,
+                    scaled_text_styles.choiceSubtitle,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  {choice.feed_url}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       ) : null}
-    </AuthCard>
+    </View>
   );
 }
 
@@ -1381,13 +1326,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  composerCancelButton: {
+  addFeedButton: {
     alignItems: 'center',
-    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  composerCancelButtonLabel: {
+  addFeedButtonIcon: {
+    marginRight: 2,
+  },
+  addFeedButtonLabel: {
     fontSize: 14,
     fontWeight: '600',
     lineHeight: 18,
