@@ -105,7 +105,15 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={is_search_open ? 'Close search' : 'Open search'}
-          onPress={() => set_is_search_open((prev) => !prev)}
+          onPress={() => {
+            set_is_search_open((prev) => {
+              if (prev) {
+                // Closing search, clear the filter
+                set_search_query('');
+              }
+              return !prev;
+            });
+          }}
           style={({ pressed }) => [
             styles.headerButton,
             { opacity: pressed ? 0.7 : 1 },
@@ -507,6 +515,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 add_input_ref={add_input_ref}
                 feed_choices={feed_choices}
                 feed_url={feed_url}
+                filtered_count={filtered_subscriptions.length}
                 is_composer_open={is_composer_open}
                 is_search_open={is_search_open}
                 is_submitting={is_submitting}
@@ -570,6 +579,7 @@ function SubscriptionsHeader({
   add_input_ref,
   feed_choices = [],
   feed_url = '',
+  filtered_count = 0,
   is_composer_open = false,
   is_search_open = false,
   is_submitting = false,
@@ -587,8 +597,9 @@ function SubscriptionsHeader({
   theme,
 }) {
   const total_count = subscriptions.length;
+  const display_count = is_search_open || search_query ? filtered_count : total_count;
   const summary_copy =
-    total_count === 1 ? '1 subscription' : `${total_count} subscriptions`;
+    display_count === 1 ? '1 subscription' : `${display_count} subscriptions`;
 
   return (
     <View style={styles.headerContent}>
