@@ -629,7 +629,10 @@ function SubscriptionsHeader({
               style={({ pressed }) => {
                 return [
                   styles.addFeedButton,
+                  !is_composer_open && styles.addFeedButtonShape,
                   {
+                    backgroundColor: !is_composer_open ? theme.colors.accentSoft : 'transparent',
+                    borderColor: !is_composer_open ? theme.colors.line : 'transparent',
                     opacity: is_submitting ? 0.56 : pressed ? 0.84 : 1,
                   },
                 ];
@@ -647,7 +650,7 @@ function SubscriptionsHeader({
                 style={[
                   styles.addFeedButtonLabel,
                   scaled_text_styles.secondaryActionButtonLabel,
-                  { color: theme.colors.accentStrong },
+                  { color: is_composer_open ? theme.colors.danger : theme.colors.accentStrong },
                 ]}
               >
                 {is_composer_open ? 'Cancel' : 'Add feed'}
@@ -721,6 +724,24 @@ function NewFeedComposerCard({
   return (
     <AuthCard style={styles.composerCard} theme={theme}>
       <View style={styles.composerStack}>
+        <Text
+          style={[
+            styles.composerTitle,
+            scaled_text_styles.composerTitle,
+            { color: theme.colors.ink },
+          ]}
+        >
+          New Feed...
+        </Text>
+        <Text
+          style={[
+            styles.composerBody,
+            scaled_text_styles.composerBody,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
+          Subscribe with a site URL or a direct feed URL.
+        </Text>
         <View
           style={[
             styles.searchField,
@@ -1337,6 +1358,10 @@ const styles = StyleSheet.create({
   },
   addFeedButtonIcon: {
     marginRight: 2,
+  },
+  addFeedButtonShape: {
+    borderRadius: 999,
+    borderWidth: 1,
   },
   addFeedButtonLabel: {
     fontSize: 14,
