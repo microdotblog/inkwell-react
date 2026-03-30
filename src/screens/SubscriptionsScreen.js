@@ -1624,6 +1624,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     borderRadius: 22,
+    marginVertical: 8,
   },
   summaryCopy: {
     fontSize: 13,
