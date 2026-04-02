@@ -59,7 +59,7 @@ export function getTextScaleSliderIndex(
   return TEXT_SCALE_DEFAULT_INDEX >= 0 ? TEXT_SCALE_DEFAULT_INDEX : 0;
 }
 
-export function scaleTextMetric(metric = 0, text_scale = DEFAULT_TEXT_SCALE) {
+export function scaleTextMetric(metric, text_scale = DEFAULT_TEXT_SCALE) {
   const parsed_metric = Number(metric);
 
   if (!Number.isFinite(parsed_metric)) {
