@@ -37,3 +37,4 @@ yarn-error.*
 
 # Android
 *.kotlin
+android/app/release/
