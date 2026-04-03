@@ -4,6 +4,7 @@ import {
   Platform,
   StyleSheet,
   Text,
+  useColorScheme,
   View,
 } from 'react-native';
 import { useFonts } from 'expo-font';
@@ -41,7 +42,8 @@ const TOAST_ENTERING = FadeInDown.springify()
 const TOAST_EXITING = FadeOutUp.duration(180);
 
 function App() {
-  const isDark = AppStore.theme === 'dark';
+  const system_color_scheme = useColorScheme();
+  const isDark = system_color_scheme === 'dark';
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const toast_key = AppStore.toast_key;
@@ -68,6 +70,10 @@ function App() {
       AppStore.stop();
     };
   }, []);
+
+  React.useEffect(() => {
+    AppStore.set_theme(system_color_scheme);
+  }, [system_color_scheme]);
 
   React.useLayoutEffect(() => {
     let is_cancelled = false;
