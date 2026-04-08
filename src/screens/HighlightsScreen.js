@@ -29,6 +29,8 @@ const SCREEN_HORIZONTAL_PADDING = 20;
 const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const COPIED_FEEDBACK_DURATION_MS = 1600;
+const HIGHLIGHT_LIGHT_BACKGROUND = '#FFF9D6';
+const HIGHLIGHT_DARK_BACKGROUND = '#D98C3A';
 const TEXT_STYLE_NAMES = [
   'searchInput',
   'summaryBadgeLabel',
@@ -445,36 +447,22 @@ function HighlightRow({
 }) {
   const post_label = resolve_highlight_post_label(entry);
   const timestamp = format_highlight_date(entry);
+  const highlight_background_color = resolve_highlight_background_color(theme);
 
   return (
-    <View
-      style={[
-        styles.rowCard,
-        {
-          backgroundColor: theme.colors.paper,
-          borderColor: theme.colors.line,
-        },
-      ]}
-    >
-      <View
+    <View style={styles.rowCard}>
+      <Text
         style={[
-          styles.highlightTextWrap,
+          styles.highlightText,
+          scaled_text_styles.highlightText,
           {
-            backgroundColor: theme.colors.accentSoft,
-            borderColor: theme.colors.line,
+            backgroundColor: highlight_background_color,
+            color: theme.colors.ink,
           },
         ]}
       >
-        <Text
-          style={[
-            styles.highlightText,
-            scaled_text_styles.highlightText,
-            { color: theme.colors.ink },
-          ]}
-        >
-          {entry.text}
-        </Text>
-      </View>
+        {entry.text}
+      </Text>
 
       <View style={styles.rowMeta}>
         <Text
@@ -649,51 +637,44 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   rowCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    gap: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-  },
-  highlightTextWrap: {
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: 8,
+    paddingVertical: 4,
   },
   highlightText: {
-    fontSize: 16,
-    lineHeight: 25,
+    alignSelf: 'flex-start',
+    fontSize: 15,
+    lineHeight: 24,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   rowMeta: {
     gap: 4,
   },
   postLabel: {
-    fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   timestamp: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   rowActions: {
     alignItems: 'flex-start',
   },
   copyButton: {
-    minHeight: 34,
-    minWidth: 72,
-    borderRadius: 999,
+    minHeight: 28,
+    minWidth: 56,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   copyButtonLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 16,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 14,
   },
 });
 
@@ -787,4 +768,12 @@ function parse_date(raw_value = '') {
   }
 
   return date;
+}
+
+function resolve_highlight_background_color(theme) {
+  if (theme?.isDark) {
+    return HIGHLIGHT_DARK_BACKGROUND;
+  }
+
+  return HIGHLIGHT_LIGHT_BACKGROUND;
 }
