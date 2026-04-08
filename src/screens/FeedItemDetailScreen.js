@@ -23,6 +23,7 @@ import RenderHtml, {
   defaultHTMLElementModels,
   useTNodeChildrenProps,
 } from 'react-native-render-html';
+import { WebView } from 'react-native-webview';
 import Animated, {
   FadeInDown,
   FadeOutUp,
@@ -35,6 +36,7 @@ import { fetch_micro_blog_conversation_replies } from '../api/MicroBlogFeeds';
 import AppStore from '../stores/App';
 import Bookmarks from '../stores/Bookmarks';
 import Feed from '../stores/Feed';
+import Highlights from '../stores/Highlights';
 import Tokens from '../stores/Tokens';
 import { getAuthTheme } from '../theme/authTheme';
 import {
@@ -45,6 +47,10 @@ import {
 const READER_HORIZONTAL_PADDING = 20;
 const READER_BOTTOM_PADDING = 32;
 const READER_COLUMN_MAX_WIDTH = 760;
+const READER_WEBVIEW_CONTENT_MAX_WIDTH = 600;
+const READER_WEBVIEW_MIN_HEIGHT = 1;
+const READER_HIGHLIGHT_LIGHT_BACKGROUND = '#FFF9D6';
+const READER_HIGHLIGHT_DARK_BACKGROUND = '#D98C3A';
 const READER_AVATAR_SIZE = 42;
 const READER_AVATAR_TRANSITION_MS = 180;
 const READER_TITLE_FONT_SIZE = 44;
@@ -172,10 +178,14 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const source_url = normalize_http_url(entry?.source_url);
   const original_url = normalize_http_url(entry?.url);
   const resolved_entry_id = `${entry?.id || entry_id || ''}`.trim();
+  const reader_base_url = original_url || source_url;
   const source_host = resolve_host_label(source_url || original_url);
   const should_show_reader_title = Boolean(reader_title);
   const reader_html = create_reader_body_html(entry);
-  const sanitized_reader_html = sanitize_reader_html(reader_html);
+  const sanitized_reader_html = sanitize_reader_html(reader_html, {
+    base_url: reader_base_url,
+  });
+  const reader_highlights = resolve_entry_highlight_payload(resolved_entry_id);
   const recap_entry_count = recap?.entry_ids?.length || 0;
   const recap_html = `${recap?.html || ''}`.trim();
   const decorated_recap_html = decorate_recap_html(recap_html);
@@ -598,8 +608,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             onPressPostPane={handle_post_pane_press}
             onPressRepliesPane={handle_replies_pane_press}
             original_url={original_url}
+            reader_base_url={reader_base_url}
             replies={replies}
             reader_html={sanitized_reader_html}
+            reader_highlights={reader_highlights}
             reader_title={reader_title}
             reply_count={reply_count}
             should_show_reply_tabs={should_show_reply_tabs}
@@ -671,8 +683,10 @@ function EntryReaderView({
   onPressPostPane,
   onPressRepliesPane,
   original_url = '',
+  reader_base_url = '',
   replies = [],
   reader_html = '',
+  reader_highlights = [],
   reader_title = '',
   reply_count = 0,
   should_show_reply_tabs = false,
@@ -791,9 +805,10 @@ function EntryReaderView({
             width={width}
           />
         ) : has_renderable_body ? (
-          <ReaderHtml
+          <ReaderPostWebView
+            base_url={reader_base_url}
+            highlight_payload={reader_highlights}
             html={reader_html}
-            scaled_text_styles={scaled_text_styles}
             theme={theme}
             text_scale={text_scale}
             width={width}
@@ -1131,6 +1146,178 @@ function RecapReaderView({
           />
         )}
       </View>
+    </View>
+  );
+}
+
+function ReaderPostWebView({
+  base_url = '',
+  highlight_payload = [],
+  html = '',
+  onSelectionChange,
+  theme,
+  text_scale = 1,
+  width = 0,
+}) {
+  const webview_ref = React.useRef(null);
+  const [content_height, set_content_height] = React.useState(
+    READER_WEBVIEW_MIN_HEIGHT,
+  );
+  const [did_finish_load, set_did_finish_load] = React.useState(false);
+  const content_width = Math.max(
+    Math.min(width - READER_HORIZONTAL_PADDING * 2, READER_COLUMN_MAX_WIDTH),
+    0,
+  );
+  const body_font_size = scaleTextMetric(18, text_scale) ?? 18;
+  const body_line_height = scaleTextMetric(29, text_scale) ?? 29;
+  const resolved_base_url = React.useMemo(() => {
+    return normalize_http_url(base_url) || 'https://example.com/';
+  }, [base_url]);
+  const document_html = React.useMemo(() => {
+    return create_reader_post_document_html({
+      base_url: resolved_base_url,
+      content_max_width: Math.max(
+        Math.min(content_width, READER_WEBVIEW_CONTENT_MAX_WIDTH),
+        0,
+      ),
+      html,
+      theme,
+      body_font_size,
+      body_line_height,
+    });
+  }, [
+    body_font_size,
+    body_line_height,
+    content_width,
+    html,
+    resolved_base_url,
+    theme.colors.accentStrong,
+    theme.colors.badge,
+    theme.colors.canvas,
+    theme.colors.ink,
+    theme.colors.inkSoft,
+    theme.colors.line,
+    theme.isDark,
+  ]);
+  const webview_source = React.useMemo(() => {
+    return {
+      baseUrl: resolved_base_url,
+      html: document_html,
+    };
+  }, [document_html, resolved_base_url]);
+
+  const apply_highlights = React.useCallback(() => {
+    if (!webview_ref.current || !did_finish_load) {
+      return;
+    }
+
+    webview_ref.current.injectJavaScript(
+      `window.inkwellDetail?.restoreHighlights(${JSON.stringify(
+        highlight_payload,
+      )}); true;`,
+    );
+  }, [did_finish_load, highlight_payload]);
+
+  React.useEffect(() => {
+    set_content_height(READER_WEBVIEW_MIN_HEIGHT);
+    set_did_finish_load(false);
+  }, [document_html]);
+
+  React.useEffect(() => {
+    apply_highlights();
+  }, [apply_highlights]);
+
+  const handle_message = React.useCallback(
+    (event) => {
+      const raw_data = `${event?.nativeEvent?.data || ''}`.trim();
+
+      if (!raw_data) {
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(raw_data);
+
+        if (payload?.type === 'height') {
+          const next_height = Number(payload?.value);
+
+          if (Number.isFinite(next_height)) {
+            set_content_height(Math.max(Math.ceil(next_height), 1));
+          }
+          return;
+        }
+
+        if (payload?.type === 'selection') {
+          onSelectionChange?.(Boolean(payload?.has_selection));
+          return;
+        }
+
+        if (payload?.type === 'link') {
+          open_external_url(payload?.href);
+        }
+      } catch (error) {
+        // Ignore malformed bridge events from the embedded document.
+      }
+    },
+    [onSelectionChange],
+  );
+
+  const handle_load_end = React.useCallback(() => {
+    set_did_finish_load(true);
+  }, []);
+
+  const handle_should_start = React.useCallback((request) => {
+    const request_url = `${request?.url || ''}`.trim();
+    const navigation_type = `${request?.navigationType || ''}`
+      .trim()
+      .toLowerCase();
+
+    if (
+      !request_url ||
+      request_url.startsWith('about:') ||
+      request_url.startsWith('data:text/html') ||
+      request_url === resolved_base_url ||
+      (navigation_type && navigation_type !== 'click')
+    ) {
+      return true;
+    }
+
+    const normalized_url = normalize_http_url(request_url, {
+      base_url,
+    });
+
+    if (!normalized_url) {
+      return false;
+    }
+
+    open_external_url(normalized_url);
+    return false;
+  }, [base_url, resolved_base_url]);
+
+  return (
+    <View style={styles.readerPostWebViewFrame}>
+      <WebView
+        androidLayerType="hardware"
+        automaticallyAdjustContentInsets={false}
+        bounces={false}
+        containerStyle={styles.readerPostWebViewContainer}
+        javaScriptEnabled
+        onLoadEnd={handle_load_end}
+        onMessage={handle_message}
+        onShouldStartLoadWithRequest={handle_should_start}
+        originWhitelist={['*']}
+        ref={webview_ref}
+        scrollEnabled={false}
+        setSupportMultipleWindows={false}
+        showsVerticalScrollIndicator={false}
+        source={webview_source}
+        style={[
+          styles.readerPostWebView,
+          {
+            height: content_height,
+          },
+        ]}
+      />
     </View>
   );
 }
@@ -2167,6 +2354,16 @@ const styles = StyleSheet.create({
   bodySection: {
     paddingTop: Platform.OS === 'ios' ? 20 : 24,
   },
+  readerPostWebViewFrame: {
+    width: '100%',
+  },
+  readerPostWebViewContainer: {
+    backgroundColor: 'transparent',
+  },
+  readerPostWebView: {
+    backgroundColor: 'transparent',
+    width: '100%',
+  },
   bodySectionWithPaneTabs: {
     paddingTop: 18,
   },
@@ -2517,6 +2714,341 @@ function create_reader_body_html(entry = null) {
   return '';
 }
 
+function create_reader_post_document_html({
+  base_url = '',
+  body_font_size = 18,
+  body_line_height = 29,
+  content_max_width = READER_WEBVIEW_CONTENT_MAX_WIDTH,
+  html = '',
+  theme,
+}) {
+  const resolved_base_url =
+    normalize_http_url(base_url) || 'https://example.com/';
+  const page_background_color = 'transparent';
+  const text_color = theme?.colors?.ink || '#1d1d1f';
+  const link_color = theme?.colors?.accentStrong || '#0b57d0';
+  const quote_color = theme?.colors?.inkSoft || '#4d4d4f';
+  const quote_border_color = theme?.colors?.line || '#d2d2d7';
+  const pre_background_color = theme?.colors?.badge || '#f5f5f7';
+  const pre_border_color = theme?.colors?.line || '#d2d2d7';
+  const highlight_background_color = theme?.isDark
+    ? READER_HIGHLIGHT_DARK_BACKGROUND
+    : READER_HIGHLIGHT_LIGHT_BACKGROUND;
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+  >
+  <base href="${escape_html_attribute(resolved_base_url)}">
+  <style>
+    :root {
+      --reader-highlight-background: ${highlight_background_color};
+      --page-background: ${page_background_color};
+      --text-color: ${text_color};
+      --link-color: ${link_color};
+      --quote-color: ${quote_color};
+      --quote-border-color: ${quote_border_color};
+      --pre-background-color: ${pre_background_color};
+      --pre-border-color: ${pre_border_color};
+    }
+
+    html {
+      background-color: var(--page-background);
+    }
+
+    body {
+      background-color: var(--page-background);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .content {
+      box-sizing: border-box;
+      margin-left: auto;
+      margin-right: auto;
+      max-width: ${Math.max(Math.round(content_max_width), 0)}px;
+      width: 100%;
+    }
+
+    .post-content {
+      color: var(--text-color);
+      font-size: ${body_font_size}px;
+      line-height: ${body_line_height}px;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .post-content .reader-highlight-text {
+      background: var(--reader-highlight-background);
+      border-radius: 2px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    .post-content:empty {
+      display: none;
+    }
+
+    p, li, td, th, pre, blockquote {
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: ${body_font_size}px;
+      line-height: ${body_line_height}px;
+    }
+
+    p, ul, ol, blockquote, pre, table, figure {
+      margin-top: 0;
+      margin-bottom: ${READER_PARAGRAPH_SPACING}px;
+    }
+
+    ul, ol {
+      padding-left: 1.35em;
+    }
+
+    img, video {
+      border-radius: 5px;
+      height: auto;
+      max-width: 100%;
+    }
+
+    figure {
+      margin-left: 0;
+      margin-right: 0;
+      padding: 0;
+    }
+
+    figcaption {
+      color: var(--quote-color);
+      font-size: ${Math.max(body_font_size - 2, 12)}px;
+      line-height: ${Math.max(body_line_height - 4, 16)}px;
+      margin-top: 8px;
+    }
+
+    pre {
+      background-color: var(--pre-background-color);
+      border: 1px solid var(--pre-border-color);
+      border-radius: 16px;
+      box-sizing: border-box;
+      overflow-x: auto;
+      padding: 16px;
+      white-space: pre-wrap;
+    }
+
+    code {
+      font-family: "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    blockquote {
+      border-left: 3px solid var(--quote-border-color);
+      color: var(--quote-color);
+      margin-left: 0;
+      padding-left: 16px;
+    }
+
+    a {
+      color: var(--link-color);
+      text-decoration: none;
+    }
+
+    table {
+      border-collapse: collapse;
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
+      width: 100%;
+    }
+
+    th, td {
+      text-align: left;
+      vertical-align: top;
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <article class="post-content">${html}</article>
+  </div>
+  <script>
+    ${create_reader_post_bridge_script()}
+  </script>
+</body>
+</html>`;
+}
+
+function create_reader_post_bridge_script() {
+  return `(function() {
+    if (window.__inkwellReaderBridgeInstalled) {
+      return;
+    }
+
+    window.__inkwellReaderBridgeInstalled = true;
+
+    function postBridgeMessage(type, payload) {
+      if (
+        !window.ReactNativeWebView ||
+        typeof window.ReactNativeWebView.postMessage !== 'function'
+      ) {
+        return;
+      }
+
+      try {
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: type,
+            ...(payload || {}),
+          })
+        );
+      } catch (error) {
+        return;
+      }
+    }
+
+    function currentHeight() {
+      var bodyHeight = document.body ? document.body.scrollHeight : 0;
+      var docHeight = document.documentElement
+        ? document.documentElement.scrollHeight
+        : 0;
+      var content = document.querySelector('.content');
+      var contentHeight = content ? content.scrollHeight : 0;
+      return Math.max(bodyHeight, docHeight, contentHeight, 1);
+    }
+
+    function postHeight() {
+      postBridgeMessage('height', {
+        value: currentHeight(),
+      });
+    }
+
+    function absoluteURL(rawValue) {
+      var value = String(rawValue || '').trim();
+      if (!value) {
+        return '';
+      }
+
+      try {
+        return new URL(value, document.baseURI).toString();
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function hasContentSelection() {
+      var selection = window.getSelection();
+      if (
+        !selection ||
+        selection.isCollapsed ||
+        selection.rangeCount === 0 ||
+        selection.toString().trim().length === 0
+      ) {
+        return false;
+      }
+
+      var content = document.querySelector('.post-content');
+      if (!content) {
+        return false;
+      }
+
+      try {
+        return content.contains(selection.getRangeAt(0).commonAncestorContainer);
+      } catch (error) {
+        return false;
+      }
+    }
+
+    var previousSelectionState = null;
+
+    function postSelectionState() {
+      var nextState = hasContentSelection();
+      if (nextState === previousSelectionState) {
+        return;
+      }
+
+      previousSelectionState = nextState;
+      postBridgeMessage('selection', {
+        has_selection: nextState,
+      });
+    }
+
+    function registerImageObservers() {
+      Array.prototype.forEach.call(document.images || [], function(image) {
+        if (!image) {
+          return;
+        }
+
+        if (image.complete) {
+          return;
+        }
+
+        image.addEventListener('load', postHeight);
+        image.addEventListener('error', postHeight);
+      });
+    }
+
+    document.addEventListener('click', function(event) {
+      if (!event.target || !event.target.closest) {
+        return;
+      }
+
+      var link = event.target.closest('a[href]');
+      if (!link) {
+        return;
+      }
+
+      var href = absoluteURL(link.getAttribute('href'));
+      if (!href) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      postBridgeMessage('link', {
+        href: href,
+      });
+    }, true);
+
+    document.addEventListener('selectionchange', postSelectionState);
+    document.addEventListener('mouseup', postSelectionState);
+    document.addEventListener('keyup', postSelectionState);
+    window.addEventListener('resize', postHeight);
+    window.addEventListener('load', function() {
+      registerImageObservers();
+      postSelectionState();
+      postHeight();
+    });
+
+    if (typeof ResizeObserver === 'function') {
+      var resizeObserver = new ResizeObserver(function() {
+        postHeight();
+      });
+      if (document.body) {
+        resizeObserver.observe(document.body);
+      }
+      var content = document.querySelector('.content');
+      if (content) {
+        resizeObserver.observe(content);
+      }
+    }
+
+    setTimeout(postHeight, 0);
+    setTimeout(postHeight, 60);
+    setTimeout(postHeight, 240);
+
+    window.inkwellDetail = {
+      restoreHighlights: function(payload) {
+        window.__inkwellHighlightPayload = Array.isArray(payload) ? payload : [];
+      },
+      postHeight: postHeight,
+    };
+  })();`;
+}
+
 function decorate_recap_html(markup = '') {
   const trimmed_markup = `${markup || ''}`.trim();
 
@@ -2541,47 +3073,49 @@ function decorate_recap_html(markup = '') {
   );
 }
 
-function sanitize_reader_html(markup = '') {
+function sanitize_reader_html(markup = '', options = {}) {
   const trimmed_markup = `${markup || ''}`.trim();
+  const base_url =
+    typeof options === 'string' ? options : options?.base_url || '';
 
   if (!trimmed_markup) {
     return '';
   }
 
-  return trimmed_markup
+  const stripped_markup = trimmed_markup
     .replace(
-      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta)\b[^>]*>[\s\S]*?<\s*\/\s*\1>/gi,
+      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1>/gi,
       '',
     )
     .replace(
-      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta)\b[^>]*\/?>/gi,
+      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta|base)\b[^>]*\/?>/gi,
       '',
     )
-    .replace(/\son[a-z]+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi, '')
-    .replace(
-      /\s(href|src)\s*=\s*(['"])(.*?)\2/gi,
-      (_match, attribute_name, quote, raw_url) => {
-        const safe_url = normalize_http_url(raw_url);
+    .replace(/<!--[\s\S]*?-->/g, '');
 
-        if (!safe_url) {
-          return '';
-        }
+  return stripped_markup.replace(
+    /<([a-z0-9:-]+)(\s[^<>]*?)?(\/?)>/gi,
+    (match, tag_name, raw_attributes = '', self_closing_marker = '') => {
+      const normalized_tag_name = `${tag_name || ''}`.toLowerCase();
 
-        return ` ${attribute_name}=${quote}${safe_url}${quote}`;
-      },
-    )
-    .replace(
-      /\s(href|src)\s*=\s*([^\s>"']+)/gi,
-      (_match, attribute_name, raw_url) => {
-        const safe_url = normalize_http_url(raw_url);
+      if (!normalized_tag_name) {
+        return '';
+      }
 
-        if (!safe_url) {
-          return '';
-        }
+      const normalized_attributes = sanitize_reader_html_attributes(
+        raw_attributes,
+        {
+          base_url,
+        },
+      );
 
-        return ` ${attribute_name}="${safe_url}"`;
-      },
-    );
+      if (self_closing_marker === '/') {
+        return `<${normalized_tag_name}${normalized_attributes} />`;
+      }
+
+      return `<${normalized_tag_name}${normalized_attributes}>`;
+    },
+  );
 }
 
 function resolve_detail_mode(raw_mode = '') {
@@ -3366,15 +3900,117 @@ function get_recap_email_settings_copy({
   return 'Reading Recap is not included in weekly email.';
 }
 
-function normalize_http_url(raw_url = '') {
+function resolve_entry_highlight_payload(entry_id = '') {
+  const normalized_entry_id = `${entry_id || ''}`.trim();
+
+  if (!normalized_entry_id) {
+    return [];
+  }
+
+  return Highlights.highlight_entries()
+    .filter((highlight) => {
+      return `${highlight?.post_id || ''}`.trim() === normalized_entry_id;
+    })
+    .map((highlight) => {
+      return resolve_entry_highlight_range(highlight);
+    })
+    .filter(Boolean);
+}
+
+function resolve_entry_highlight_range(highlight = null) {
+  const start_offset = Number(highlight?.start_offset);
+  const end_offset = Number(highlight?.end_offset);
+
+  if (!Number.isFinite(start_offset) || !Number.isFinite(end_offset)) {
+    return null;
+  }
+
+  const normalized_start_offset = Math.max(0, Math.floor(start_offset));
+  const normalized_end_offset = Math.max(0, Math.floor(end_offset));
+
+  if (normalized_end_offset <= normalized_start_offset) {
+    return null;
+  }
+
+  return {
+    end_offset: normalized_end_offset,
+    highlight_id: `${highlight?.highlight_id || highlight?.id || ''}`.trim(),
+    start_offset: normalized_start_offset,
+  };
+}
+
+function sanitize_reader_html_attributes(raw_attributes = '', options = {}) {
+  const sanitized_attributes = [];
+  const base_url =
+    typeof options === 'string' ? options : options?.base_url || '';
+  const attribute_pattern =
+    /([^\s"'<>\/=]+)(?:\s*=\s*(".*?"|'.*?'|[^\s"'=<>`]+))?/g;
+  let attribute_match = attribute_pattern.exec(raw_attributes);
+
+  while (attribute_match) {
+    const attribute_name = `${attribute_match[1] || ''}`.trim();
+    const normalized_attribute_name = attribute_name.toLowerCase();
+    let attribute_value = attribute_match[2];
+
+    if (
+      normalized_attribute_name &&
+      !normalized_attribute_name.startsWith('on') &&
+      normalized_attribute_name !== 'target' &&
+      normalized_attribute_name !== 'rel' &&
+      normalized_attribute_name !== 'srcdoc' &&
+      normalized_attribute_name !== 'srcset'
+    ) {
+      if (attribute_value === undefined) {
+        sanitized_attributes.push(attribute_name);
+      } else {
+        attribute_value = attribute_value.replace(/^['"]|['"]$/g, '');
+
+        if (
+          normalized_attribute_name === 'href' ||
+          normalized_attribute_name === 'src'
+        ) {
+          const safe_url = normalize_http_url(attribute_value, {
+            base_url,
+          });
+
+          if (safe_url) {
+            sanitized_attributes.push(
+              `${attribute_name}="${escape_html_attribute(safe_url)}"`,
+            );
+          }
+        } else {
+          sanitized_attributes.push(
+            `${attribute_name}="${escape_html_attribute(
+              decode_html_entities(attribute_value),
+            )}"`,
+          );
+        }
+      }
+    }
+
+    attribute_match = attribute_pattern.exec(raw_attributes);
+  }
+
+  if (sanitized_attributes.length === 0) {
+    return '';
+  }
+
+  return ` ${sanitized_attributes.join(' ')}`;
+}
+
+function normalize_http_url(raw_url = '', options = {}) {
   const trimmed_url = decode_html_entities(`${raw_url || ''}`).trim();
+  const base_url =
+    typeof options === 'string' ? options : options?.base_url || '';
 
   if (!trimmed_url) {
     return '';
   }
 
   try {
-    const parsed_url = new URL(trimmed_url);
+    const parsed_url = base_url
+      ? new URL(trimmed_url, base_url)
+      : new URL(trimmed_url);
 
     if (parsed_url.protocol === 'http:' || parsed_url.protocol === 'https:') {
       return parsed_url.toString();
