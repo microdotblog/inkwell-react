@@ -65,7 +65,7 @@ const FOOTER_VISIBILITY_TOP_THRESHOLD = 24;
 const SEGMENT_CONTROL_INSET = 3;
 const SEGMENT_BUTTON_HEIGHT = HEADER_CONTROL_HEIGHT - SEGMENT_CONTROL_INSET * 2;
 const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
-const FEED_AVATAR_SIZE = 28;
+const FEED_AVATAR_SIZE = 26;
 const READ_ROW_OPACITY = 0.56;
 const FEED_AVATAR_TRANSITION_MS = 180;
 const TEXT_STYLE_NAMES = [
@@ -78,7 +78,7 @@ const TEXT_STYLE_NAMES = [
   'recapButtonLabel',
   'accountAvatarInitial',
   'sourceAvatarInitial',
-  'sourceLabel',
+  'rowSourceLabel',
   'timestamp',
   'rowTitle',
   'rowSummary',
@@ -959,10 +959,13 @@ function FeedFooterControlsRow({
 
 function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
   const source_label = entry.source || 'Feed';
-  const title = resolve_entry_title(entry);
-  const has_title = Boolean(title);
-  const summary = resolve_entry_summary(entry, title);
-  const should_show_body = has_title || Boolean(summary);
+  const post_title = resolve_entry_title(entry);
+  const display_title = resolve_entry_display_title(entry, source_label);
+  const secondary_source_label = resolve_entry_secondary_source_label(
+    source_label,
+    post_title,
+  );
+  const summary = resolve_entry_summary(entry, post_title);
   const timestamp = format_entry_timestamp(entry.published_at);
   const row_opacity = entry.is_read ? READ_ROW_OPACITY : 1;
 
@@ -981,50 +984,24 @@ function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
         ];
       }}
     >
-      <View style={styles.rowHeader}>
-        <View style={styles.sourceWrap}>
-          <FeedSourceAvatar
-            avatar_url={entry.avatar_url}
-            scaled_text_styles={scaled_text_styles}
-            source={source_label}
-            theme={theme}
-          />
+      <View style={styles.rowContentWrap}>
+        <FeedSourceAvatar
+          avatar_url={entry.avatar_url}
+          scaled_text_styles={scaled_text_styles}
+          source={source_label}
+          theme={theme}
+        />
+        <View style={styles.rowContent}>
           <Text
-            numberOfLines={1}
+            numberOfLines={2}
             style={[
-              styles.sourceLabel,
-              scaled_text_styles.sourceLabel,
-              { color: theme.colors.inkSoft },
+              styles.rowTitle,
+              scaled_text_styles.rowTitle,
+              { color: theme.colors.ink },
             ]}
           >
-            {source_label}
+            {display_title}
           </Text>
-        </View>
-        <Text
-          style={[
-            styles.timestamp,
-            scaled_text_styles.timestamp,
-            { color: theme.colors.inkSoft },
-          ]}
-        >
-          {timestamp}
-        </Text>
-      </View>
-
-      {should_show_body ? (
-        <View style={styles.rowBody}>
-          {has_title ? (
-            <Text
-              numberOfLines={2}
-              style={[
-                styles.rowTitle,
-                scaled_text_styles.rowTitle,
-                { color: theme.colors.ink },
-              ]}
-            >
-              {title}
-            </Text>
-          ) : null}
           {summary ? (
             <Text
               numberOfLines={3}
@@ -1037,8 +1014,31 @@ function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
               {summary}
             </Text>
           ) : null}
+          {secondary_source_label ? (
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.rowSourceLabel,
+                scaled_text_styles.rowSourceLabel,
+                { color: theme.colors.inkSoft },
+              ]}
+            >
+              {secondary_source_label}
+            </Text>
+          ) : null}
+          {timestamp ? (
+            <Text
+              style={[
+                styles.timestamp,
+                scaled_text_styles.timestamp,
+                { color: theme.colors.inkSoft },
+              ]}
+            >
+              {timestamp}
+            </Text>
+          ) : null}
         </View>
-      ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -1361,6 +1361,27 @@ function resolve_entry_title(entry) {
   }
 }
 
+function resolve_entry_display_title(entry, source_label = '') {
+  const title = resolve_entry_title(entry);
+
+  if (title) {
+    return title;
+  } else {
+    return source_label;
+  }
+}
+
+function resolve_entry_secondary_source_label(
+  source_label = '',
+  post_title = '',
+) {
+  if (post_title) {
+    return source_label;
+  } else {
+    return '';
+  }
+}
+
 function resolve_entry_summary(entry, title = '') {
   const normalized_title = normalize_entry_text(title || entry?.title);
   const summary = normalize_entry_text(entry?.summary);
@@ -1410,27 +1431,22 @@ function format_entry_timestamp(raw_date = '') {
     return '';
   }
 
-  if (is_today(date)) {
-    return date.toLocaleTimeString([], {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+  const date_part = date.toLocaleDateString([], {
+    day: 'numeric',
+    month: 'short',
+  });
+  const time_part = date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  if (!date_part) {
+    return time_part;
+  } else if (!time_part) {
+    return date_part;
   } else {
-    return date.toLocaleDateString([], {
-      month: 'short',
-      day: 'numeric',
-    });
+    return `${date_part}, ${time_part}`;
   }
-}
-
-function is_today(date) {
-  const now = new Date();
-
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
 }
 
 function get_empty_state_title(
@@ -1698,7 +1714,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 18,
     paddingVertical: 16,
-    gap: 14,
   },
   recapCard: {
     borderWidth: 1,
@@ -1751,17 +1766,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 16,
   },
-  rowHeader: {
+  rowContentWrap: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 12,
-  },
-  sourceWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
   },
   sourceAvatarFrame: {
     width: FEED_AVATAR_SIZE,
@@ -1785,28 +1793,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 15,
   },
-  sourceLabel: {
+  rowContent: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-  },
-  timestamp: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  rowBody: {
     gap: 8,
   },
   rowTitle: {
-    fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 22,
   },
   rowSummary: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  rowSourceLabel: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  timestamp: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
 
