@@ -82,7 +82,9 @@ function WelcomeScreen({ isDark = false }) {
                 { color: theme.colors.inkSoft },
               ]}
             >
-              Feed reader with Micro.blog sync and highlighting.
+              Inkwell is a feed reader that syncs with Micro.blog.
+              {'\n\n'}
+              Make highlights to remember passages later or to blog quotes from them.
             </Text>
           </Animated.View>
 
