@@ -967,6 +967,7 @@ function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
   );
   const summary = resolve_entry_summary(entry, post_title);
   const timestamp = format_entry_timestamp(entry.published_at);
+  const is_bookmarked = Boolean(entry?.is_bookmarked);
   const row_opacity = entry.is_read ? READ_ROW_OPACITY : 1;
 
   return (
@@ -1026,16 +1027,41 @@ function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
               {secondary_source_label}
             </Text>
           ) : null}
-          {timestamp ? (
-            <Text
-              style={[
-                styles.timestamp,
-                scaled_text_styles.timestamp,
-                { color: theme.colors.inkSoft },
-              ]}
-            >
-              {timestamp}
-            </Text>
+          {timestamp || is_bookmarked ? (
+            <View style={styles.rowFooter}>
+              {timestamp ? (
+                <Text
+                  style={[
+                    styles.timestamp,
+                    scaled_text_styles.timestamp,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  {timestamp}
+                </Text>
+              ) : (
+                <View />
+              )}
+              {is_bookmarked ? (
+                <View style={styles.bookmarkIndicator}>
+                  <MaterialIcons
+                    color={theme.colors.inkSoft}
+                    name="star"
+                    size={16}
+                  />
+                  <Text
+                    style={[
+                      styles.timestamp,
+                      scaled_text_styles.timestamp,
+                      styles.bookmarkLabel,
+                      { color: theme.colors.inkSoft },
+                    ]}
+                  >
+                    Bookmarked
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           ) : null}
         </View>
       </View>
@@ -1809,6 +1835,21 @@ const styles = StyleSheet.create({
   rowSourceLabel: {
     fontSize: 15,
     lineHeight: 20,
+  },
+  rowFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  bookmarkIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  bookmarkLabel: {
+    flexShrink: 0,
   },
   timestamp: {
     fontSize: 13,
