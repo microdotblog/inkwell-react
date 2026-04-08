@@ -2920,6 +2920,283 @@ function create_reader_post_bridge_script() {
       return Math.max(bodyHeight, docHeight, contentHeight, 1);
     }
 
+    function contentElement() {
+      return document.querySelector('.post-content');
+    }
+
+    function currentSelectionRange() {
+      var selection = window.getSelection();
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+        return null;
+      }
+
+      return selection.getRangeAt(0);
+    }
+
+    function getSelectionPayload() {
+      var content = contentElement();
+      var range = currentSelectionRange();
+      if (!content || !range || !content.contains(range.commonAncestorContainer)) {
+        return null;
+      }
+
+      var rawText = window.getSelection().toString();
+      var trimmedText = String(rawText || '').trim();
+      if (!trimmedText) {
+        return null;
+      }
+
+      try {
+        var rootRange = document.createRange();
+        rootRange.selectNodeContents(content);
+        rootRange.setEnd(range.startContainer, range.startOffset);
+        var startOffset = rootRange.toString().length;
+        var selectionText = range.toString();
+        var endOffset = startOffset + selectionText.length;
+        return {
+          selection_text: selectionText,
+          start_offset: startOffset,
+          end_offset: endOffset,
+        };
+      } catch (error) {
+        return {
+          selection_text: rawText,
+          start_offset: null,
+          end_offset: null,
+        };
+      }
+    }
+
+    function clearSelection() {
+      var selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+      }
+    }
+
+    function clearReaderHighlightMarkup(content) {
+      if (!content) {
+        return;
+      }
+
+      var highlightNodes = Array.from(
+        content.querySelectorAll('span.reader-highlight-text')
+      );
+
+      highlightNodes.forEach(function(highlightNode) {
+        var parentNode = highlightNode.parentNode;
+        if (!parentNode) {
+          return;
+        }
+
+        while (highlightNode.firstChild) {
+          parentNode.insertBefore(highlightNode.firstChild, highlightNode);
+        }
+
+        parentNode.removeChild(highlightNode);
+      });
+
+      content.normalize();
+    }
+
+    function parseHighlightID(item) {
+      if (!item || typeof item !== 'object') {
+        return '';
+      }
+
+      var rawID =
+        item.highlight_id != null
+          ? item.highlight_id
+          : item.id != null
+            ? item.id
+            : item.local_id;
+
+      return String(rawID || '').trim();
+    }
+
+    function parseOffsetRange(item) {
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      var rawStart =
+        item.start_offset != null
+          ? item.start_offset
+          : item.selection_start != null
+            ? item.selection_start
+            : item.start;
+      var rawEnd =
+        item.end_offset != null
+          ? item.end_offset
+          : item.selection_end != null
+            ? item.selection_end
+            : item.end;
+      var startOffset = Number(rawStart);
+      var endOffset = Number(rawEnd);
+
+      if (!Number.isFinite(startOffset) || !Number.isFinite(endOffset)) {
+        return null;
+      }
+
+      var normalizedStart = Math.max(0, Math.floor(startOffset));
+      var normalizedEnd = Math.max(0, Math.floor(endOffset));
+
+      if (normalizedEnd <= normalizedStart) {
+        return null;
+      }
+
+      return {
+        start_offset: normalizedStart,
+        end_offset: normalizedEnd,
+        highlight_id: parseHighlightID(item),
+      };
+    }
+
+    function buildMergedOffsetRanges(items) {
+      var ranges = (Array.isArray(items) ? items : [])
+        .map(function(item) {
+          return parseOffsetRange(item);
+        })
+        .filter(Boolean)
+        .sort(function(left, right) {
+          return left.start_offset - right.start_offset;
+        });
+
+      if (ranges.length === 0) {
+        return [];
+      }
+
+      var merged = [ranges[0]];
+      for (var index = 1; index < ranges.length; index += 1) {
+        var range = ranges[index];
+        var lastRange = merged[merged.length - 1];
+        var sameHighlightID = range.highlight_id === lastRange.highlight_id;
+
+        if (!sameHighlightID || range.start_offset > lastRange.end_offset) {
+          merged.push(range);
+          continue;
+        }
+
+        if (range.end_offset > lastRange.end_offset) {
+          lastRange.end_offset = range.end_offset;
+        }
+      }
+
+      return merged;
+    }
+
+    function buildReaderHighlightSegments(content, ranges) {
+      var segments = [];
+      var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
+      var node = walker.nextNode();
+      var absoluteOffset = 0;
+
+      while (node) {
+        var text = node.textContent || '';
+        var textLength = text.length;
+        var nodeStart = absoluteOffset;
+        var nodeEnd = absoluteOffset + textLength;
+
+        if (textLength > 0) {
+          ranges.forEach(function(range) {
+            if (range.end_offset <= nodeStart) {
+              return;
+            }
+
+            if (range.start_offset >= nodeEnd) {
+              return;
+            }
+
+            var overlapStart = Math.max(range.start_offset, nodeStart);
+            var overlapEnd = Math.min(range.end_offset, nodeEnd);
+
+            if (overlapEnd <= overlapStart) {
+              return;
+            }
+
+            segments.push({
+              node: node,
+              start_offset: overlapStart - nodeStart,
+              end_offset: overlapEnd - nodeStart,
+              absolute_start: overlapStart,
+              highlight_id: range.highlight_id,
+            });
+          });
+        }
+
+        absoluteOffset = nodeEnd;
+        node = walker.nextNode();
+      }
+
+      return segments;
+    }
+
+    function wrapReaderHighlightRange(range, highlightID) {
+      var span = document.createElement('span');
+      span.className = 'reader-highlight-text';
+
+      if (highlightID && highlightID.length > 0) {
+        span.dataset.highlightId = highlightID;
+      }
+
+      try {
+        range.surroundContents(span);
+      } catch (error) {
+        var fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+      }
+    }
+
+    function restoreHighlights(items) {
+      var content = contentElement();
+      if (!content) {
+        return;
+      }
+
+      clearReaderHighlightMarkup(content);
+
+      var ranges = buildMergedOffsetRanges(items);
+      if (ranges.length === 0) {
+        postHeight();
+        return;
+      }
+
+      var segments = buildReaderHighlightSegments(content, ranges);
+      if (segments.length === 0) {
+        postHeight();
+        return;
+      }
+
+      segments
+        .sort(function(left, right) {
+          return right.absolute_start - left.absolute_start;
+        })
+        .forEach(function(segment) {
+          if (!segment.node || !segment.node.parentNode) {
+            return;
+          }
+
+          var textLength = segment.node.textContent.length;
+          var startOffset = Math.max(
+            0,
+            Math.min(segment.start_offset, textLength)
+          );
+          var endOffset = Math.max(0, Math.min(segment.end_offset, textLength));
+
+          if (endOffset <= startOffset) {
+            return;
+          }
+
+          var range = document.createRange();
+          range.setStart(segment.node, startOffset);
+          range.setEnd(segment.node, endOffset);
+          wrapReaderHighlightRange(range, segment.highlight_id);
+        });
+
+      postHeight();
+    }
+
     function postHeight() {
       postBridgeMessage('height', {
         value: currentHeight(),
@@ -3041,8 +3318,10 @@ function create_reader_post_bridge_script() {
     setTimeout(postHeight, 240);
 
     window.inkwellDetail = {
+      clearSelection: clearSelection,
+      getSelectionPayload: getSelectionPayload,
       restoreHighlights: function(payload) {
-        window.__inkwellHighlightPayload = Array.isArray(payload) ? payload : [];
+        restoreHighlights(Array.isArray(payload) ? payload : []);
       },
       postHeight: postHeight,
     };
