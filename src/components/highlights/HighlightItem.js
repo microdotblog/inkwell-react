@@ -26,12 +26,11 @@ export default function HighlightItem({
   is_deleting = false,
   onCopyPress,
   onDeletePress,
-  text_scale = 1,
   theme,
 }) {
   const scaled_text_styles = React.useMemo(() => {
-    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
-  }, [text_scale]);
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
+  }, []);
   const post_label = resolve_highlight_post_label(entry);
   const timestamp = format_highlight_date(entry);
   const highlight_background_color = resolve_highlight_background_color(theme);

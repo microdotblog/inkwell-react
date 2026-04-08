@@ -231,11 +231,10 @@ function get_entry_menu_actions({ entry = null, theme }) {
 
 function FeedScreen({ navigation, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
-  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const scaled_text_styles = React.useMemo(() => {
-    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
-  }, [text_scale]);
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
+  }, []);
   const insets = useSafeAreaInsets();
   const active_segment = Feed.active_segment;
   const is_search_active = Feed.is_search_active;

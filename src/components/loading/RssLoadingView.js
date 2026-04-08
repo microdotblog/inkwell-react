@@ -11,8 +11,6 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-
-import AppStore from '../../stores/App';
 import { createScaledTextStyles } from '../../theme/textScale';
 
 const PHASE_COPY = {
@@ -52,10 +50,9 @@ function RssLoadingView({
 }) {
   const orbit_progress = useSharedValue(0);
   const pulse_progress = useSharedValue(0);
-  const text_scale = AppStore.text_scale;
   const scaled_text_styles = React.useMemo(() => {
-    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
-  }, [text_scale]);
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
+  }, []);
 
   React.useEffect(() => {
     orbit_progress.value = withRepeat(

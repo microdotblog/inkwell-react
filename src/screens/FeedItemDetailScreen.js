@@ -156,11 +156,11 @@ const TEXT_STYLE_NAMES = [
 
 function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
-  const text_scale = AppStore.text_scale;
+  const reader_text_scale = AppStore.reader_text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const scaled_text_styles = React.useMemo(() => {
-    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
-  }, [text_scale]);
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
+  }, []);
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -231,7 +231,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     header_height + (Platform.OS === 'ios' ? 0 : 12);
   const header_background_color =
     resolve_translucent_header_background_color(theme, Platform.OS);
-  const header_title_font_size = scaleTextMetric(17, text_scale);
+  const header_title_font_size = 17;
   const reply_count = replies.length;
   const highlight_count = entry_highlights.length;
   const should_show_entry_pane_tabs =
@@ -721,7 +721,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             source_url={source_url}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
-            text_scale={text_scale}
+            reader_text_scale={reader_text_scale}
             width={width}
             deleting_highlight_id={deleting_highlight_id}
           />
@@ -741,7 +741,6 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             recap_renderers={recap_renderers}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
-            text_scale={text_scale}
             width={width}
           />
         ) : null}
@@ -803,7 +802,7 @@ function EntryReaderView({
   source_url = '',
   scaled_text_styles,
   theme,
-  text_scale = 1,
+  reader_text_scale = 1,
   width = 0,
 }) {
   return (
@@ -910,7 +909,6 @@ function EntryReaderView({
             replies={replies}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
-            text_scale={text_scale}
             width={width}
           />
         ) : active_pane === 'highlights' ? (
@@ -920,7 +918,6 @@ function EntryReaderView({
             onCopyHighlight={onCopyHighlight}
             onDeleteHighlight={onDeleteHighlight}
             theme={theme}
-            text_scale={text_scale}
           />
         ) : has_renderable_body ? (
           <ReaderPostWebView
@@ -928,7 +925,7 @@ function EntryReaderView({
             highlight_payload={reader_highlights}
             html={reader_html}
             theme={theme}
-            text_scale={text_scale}
+            text_scale={reader_text_scale}
             width={width}
           />
         ) : (
@@ -1141,7 +1138,6 @@ function RepliesListView({
   replies = [],
   scaled_text_styles,
   theme,
-  text_scale = 1,
   width = 0,
 }) {
   return (
@@ -1153,7 +1149,6 @@ function RepliesListView({
             reply={reply}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
-            text_scale={text_scale}
             width={width}
           />
         );
@@ -1168,7 +1163,6 @@ function HighlightsListView({
   onCopyHighlight,
   onDeleteHighlight,
   theme,
-  text_scale = 1,
 }) {
   return (
     <View style={styles.highlightsList}>
@@ -1182,7 +1176,6 @@ function HighlightsListView({
             onCopyPress={onCopyHighlight}
             onDeletePress={onDeleteHighlight}
             theme={theme}
-            text_scale={text_scale}
           />
         );
       })}
@@ -1194,7 +1187,6 @@ function ReplyRow({
   reply,
   scaled_text_styles,
   theme,
-  text_scale = 1,
   width = 0,
 }) {
   const author_name = get_reply_author_name(reply);
@@ -1220,7 +1212,6 @@ function ReplyRow({
         {reply_html ? (
           <ReplyHtml
             html={reply_html}
-            text_scale={text_scale}
             theme={theme}
             width={width}
           />
@@ -1243,12 +1234,11 @@ function ReplyRow({
 
 function ReplyHtml({
   html = '',
-  text_scale = 1,
   theme,
   width = 0,
 }) {
-  const reply_font_size = scaleTextMetric(15, text_scale);
-  const reply_line_height = scaleTextMetric(23, text_scale);
+  const reply_font_size = 15;
+  const reply_line_height = 23;
 
   return (
     <RenderHtml
@@ -1320,7 +1310,6 @@ function RecapReaderView({
   recap_renderers,
   scaled_text_styles,
   theme,
-  text_scale = 1,
   width = 0,
 }) {
   return (
@@ -1380,14 +1369,12 @@ function RecapReaderView({
 
         {has_renderable_body ? (
           <ReaderHtml
-            classes_styles={build_recap_classes_styles(theme, text_scale)}
+            classes_styles={build_recap_classes_styles(theme)}
             custom_element_models={READER_HTML_MODELS}
             dom_visitors={recap_dom_visitors}
             html={recap_html}
             renderers={recap_renderers}
-            scaled_text_styles={scaled_text_styles}
             theme={theme}
-            text_scale={text_scale}
             width={width}
           />
         ) : (
@@ -1582,13 +1569,11 @@ function ReaderHtml({
   dom_visitors,
   html = '',
   renderers,
-  scaled_text_styles,
   theme,
-  text_scale = 1,
   width = 0,
 }) {
-  const body_font_size = scaleTextMetric(18, text_scale);
-  const body_line_height = scaleTextMetric(29, text_scale);
+  const body_font_size = 18;
+  const body_line_height = 29;
 
   return (
     <RenderHtml
@@ -1644,20 +1629,20 @@ function ReaderHtml({
         h1: {
           color: theme.colors.ink,
           fontFamily: 'Newsreader_600SemiBold',
-          fontSize: scaleTextMetric(30, text_scale),
-          lineHeight: scaleTextMetric(36, text_scale),
+          fontSize: 30,
+          lineHeight: 36,
         },
         h2: {
           color: theme.colors.ink,
           fontFamily: 'Newsreader_600SemiBold',
-          fontSize: scaleTextMetric(26, text_scale),
-          lineHeight: scaleTextMetric(32, text_scale),
+          fontSize: 26,
+          lineHeight: 32,
         },
         h3: {
           color: theme.colors.ink,
           fontFamily: 'Newsreader_600SemiBold',
-          fontSize: scaleTextMetric(22, text_scale),
-          lineHeight: scaleTextMetric(28, text_scale),
+          fontSize: 22,
+          lineHeight: 28,
         },
         li: {
           color: theme.colors.ink,
@@ -3689,12 +3674,12 @@ function resolve_entry_source(raw_source = '') {
   }
 }
 
-function build_recap_classes_styles(theme, text_scale = 1) {
+function build_recap_classes_styles(theme) {
   return {
     'recap-summary': {
       color: theme.colors.inkSoft,
-      fontSize: scaleTextMetric(15, text_scale),
-      lineHeight: scaleTextMetric(23, text_scale),
+      fontSize: 15,
+      lineHeight: 23,
       marginBottom: 18,
       marginTop: 0,
     },
@@ -3702,9 +3687,9 @@ function build_recap_classes_styles(theme, text_scale = 1) {
       borderWidth: 1,
       borderRadius: 999,
       color: theme.colors.ink,
-      fontSize: scaleTextMetric(11, text_scale),
+      fontSize: 11,
       fontWeight: '700',
-      lineHeight: scaleTextMetric(14, text_scale),
+      lineHeight: 14,
       overflow: 'hidden',
       paddingHorizontal: 8,
       paddingVertical: 4,
@@ -3731,8 +3716,8 @@ function build_recap_classes_styles(theme, text_scale = 1) {
     'recap-posts-label': {
       color: theme.colors.ink,
       fontFamily: 'Newsreader_600SemiBold',
-      fontSize: scaleTextMetric(18, text_scale),
-      lineHeight: scaleTextMetric(24, text_scale),
+      fontSize: 18,
+      lineHeight: 24,
       marginBottom: 10,
       marginTop: 4,
     },
@@ -3743,8 +3728,8 @@ function build_recap_classes_styles(theme, text_scale = 1) {
     },
     'recap-post-item': {
       color: theme.colors.inkSoft,
-      fontSize: scaleTextMetric(15, text_scale),
-      lineHeight: scaleTextMetric(22, text_scale),
+      fontSize: 15,
+      lineHeight: 22,
       marginBottom: 8,
     },
     'recap-post-link': {

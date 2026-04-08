@@ -22,7 +22,6 @@ import AppStore from '../stores/App';
 import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
 import {
   DEFAULT_TEXT_SCALE,
-  createScaledTextStyles,
   formatTextScaleLabel,
   MAX_TEXT_SCALE,
   MIN_TEXT_SCALE,
@@ -33,17 +32,6 @@ import {
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const CONTENT_TOP_PADDING = 12;
-const TEXT_STYLE_NAMES = [
-  'avatarInitial',
-  'signedInAs',
-  'profileName',
-  'profileHandle',
-  'preferenceTitle',
-  'preferenceBody',
-  'paletteLabel',
-  'textScaleValue',
-  'sliderMarkerLabel',
-];
 
 function format_profile_handle(profile_url = '') {
   const trimmed_profile_url = `${profile_url || ''}`.trim();
@@ -86,14 +74,11 @@ function format_profile_handle(profile_url = '') {
 
 function AccountScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
-  const text_scale = AppStore.text_scale;
-  const text_scale_slider_index = React.useMemo(() => {
-    return getTextScaleSliderIndex(text_scale);
-  }, [text_scale]);
+  const reader_text_scale = AppStore.reader_text_scale;
+  const reader_text_scale_slider_index = React.useMemo(() => {
+    return getTextScaleSliderIndex(reader_text_scale);
+  }, [reader_text_scale]);
   const theme = getAuthTheme(isDark, accent_palette_id);
-  const scaled_text_styles = React.useMemo(() => {
-    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
-  }, [text_scale]);
   const profile = Auth.current_profile();
   const profile_name = profile.name || 'Micro.blog account';
   const profile_handle = format_profile_handle(profile.url);
@@ -151,10 +136,9 @@ function AccountScreen({ isDark = false }) {
         profile_handle={profile_handle}
         profile_name={profile_name}
         profile_photo={profile_photo}
-        scaled_text_styles={scaled_text_styles}
+        reader_text_scale={reader_text_scale}
+        reader_text_scale_slider_index={reader_text_scale_slider_index}
         theme={theme}
-        text_scale={text_scale}
-        text_scale_slider_index={text_scale_slider_index}
         transition_progress={transition_progress}
         transition_theme={transition_theme}
       />
@@ -170,10 +154,9 @@ function AccountScreenContent({
   profile_handle = '',
   profile_name = '',
   profile_photo = '',
-  scaled_text_styles,
+  reader_text_scale = DEFAULT_TEXT_SCALE,
+  reader_text_scale_slider_index = 0,
   theme,
-  text_scale = DEFAULT_TEXT_SCALE,
-  text_scale_slider_index = 0,
   transition_progress,
   transition_theme,
 }) {
@@ -236,7 +219,6 @@ function AccountScreenContent({
                   <Animated.Text
                     style={[
                       styles.avatarInitial,
-                      scaled_text_styles.avatarInitial,
                       avatar_initial_style,
                     ]}
                   >
@@ -249,7 +231,6 @@ function AccountScreenContent({
                 <Text
                   style={[
                     styles.signedInAs,
-                    scaled_text_styles.signedInAs,
                     { color: theme.colors.inkSoft },
                   ]}
                 >
@@ -258,7 +239,6 @@ function AccountScreenContent({
                 <Text
                   style={[
                     styles.profileName,
-                    scaled_text_styles.profileName,
                     { color: theme.colors.ink },
                   ]}
                 >
@@ -268,7 +248,6 @@ function AccountScreenContent({
                   <Text
                     style={[
                       styles.profileHandle,
-                      scaled_text_styles.profileHandle,
                       { color: theme.colors.inkSoft },
                     ]}
                   >
@@ -285,7 +264,6 @@ function AccountScreenContent({
                 <Text
                   style={[
                     styles.preferenceTitle,
-                    scaled_text_styles.preferenceTitle,
                     { color: theme.colors.ink },
                   ]}
                 >
@@ -294,7 +272,6 @@ function AccountScreenContent({
                 <Text
                   style={[
                     styles.preferenceBody,
-                    scaled_text_styles.preferenceBody,
                     { color: theme.colors.inkSoft },
                   ]}
                 >
@@ -312,7 +289,6 @@ function AccountScreenContent({
                       label={option.label}
                       onPress={() => AppStore.set_accent_palette(option.id)}
                       previous_is_selected={option.id === transition_theme?.accent_palette_id}
-                      scaled_text_styles={scaled_text_styles}
                       swatch_color={is_dark ? option.dark_swatch : option.light_swatch}
                       theme={theme}
                       transition_progress={transition_progress}
@@ -327,30 +303,27 @@ function AccountScreenContent({
                   <Text
                     style={[
                       styles.preferenceTitle,
-                      scaled_text_styles.preferenceTitle,
                       { color: theme.colors.ink },
                     ]}
                   >
-                    Text size
+                    Reader text size
                   </Text>
                   <Text
                     style={[
                       styles.textScaleValue,
-                      scaled_text_styles.textScaleValue,
                       { color: theme.colors.accentStrong },
                     ]}
                   >
-                    {formatTextScaleLabel(text_scale)}
+                    {formatTextScaleLabel(reader_text_scale)}
                   </Text>
                 </View>
                 <Text
                   style={[
                     styles.preferenceBody,
-                    scaled_text_styles.preferenceBody,
                     { color: theme.colors.inkSoft },
                   ]}
                 >
-                  Adjust font size throughout the app.
+                  Adjust the text size in the reader post view on this device.
                 </Text>
               </View>
 
@@ -361,24 +334,23 @@ function AccountScreenContent({
                   minimumTrackTintColor={theme.colors.accent}
                   minimumValue={0}
                   onSlidingComplete={(next_slider_index) => {
-                    AppStore.set_text_scale(
+                    AppStore.set_reader_text_scale(
                       getTextScaleForSliderIndex(next_slider_index),
                     );
                   }}
                   onValueChange={(next_slider_index) => {
-                    AppStore.apply_text_scale(
+                    AppStore.apply_reader_text_scale(
                       getTextScaleForSliderIndex(next_slider_index),
                     );
                   }}
                   step={1}
                   thumbTintColor={theme.colors.accentStrong}
-                  value={text_scale_slider_index}
+                  value={reader_text_scale_slider_index}
                 />
                 <View style={styles.sliderMarkersRow}>
                   <Text
                     style={[
                       styles.sliderMarkerLabel,
-                      scaled_text_styles.sliderMarkerLabel,
                       { color: theme.colors.inkSoft },
                     ]}
                   >
@@ -387,7 +359,6 @@ function AccountScreenContent({
                   <Text
                     style={[
                       styles.sliderMarkerLabel,
-                      scaled_text_styles.sliderMarkerLabel,
                       { color: theme.colors.accentStrong },
                     ]}
                   >
@@ -396,7 +367,6 @@ function AccountScreenContent({
                   <Text
                     style={[
                       styles.sliderMarkerLabel,
-                      scaled_text_styles.sliderMarkerLabel,
                       { color: theme.colors.inkSoft },
                     ]}
                   >
@@ -405,7 +375,7 @@ function AccountScreenContent({
                 </View>
                 <View style={styles.sliderStepDotsRow}>
                   {Array.from({ length: TEXT_SCALE_PRESET_COUNT }).map((_, index) => {
-                    const is_active = index === text_scale_slider_index;
+                    const is_active = index === reader_text_scale_slider_index;
 
                     return (
                       <View
@@ -449,7 +419,6 @@ function AccentPaletteChip({
   label = '',
   onPress,
   previous_is_selected = false,
-  scaled_text_styles,
   swatch_color = '',
   theme,
   transition_progress,
@@ -539,7 +508,6 @@ function AccentPaletteChip({
         <Animated.Text
           style={[
             styles.paletteLabel,
-            scaled_text_styles.paletteLabel,
             label_style,
           ]}
         >

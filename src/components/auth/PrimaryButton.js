@@ -8,9 +8,6 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
-import AppStore from '../../stores/App';
-import { getScaledTextStyle } from '../../theme/textScale';
-
 function PrimaryButton({
   label,
   onPress,
@@ -22,13 +19,6 @@ function PrimaryButton({
   leadingIconSource = null,
 }) {
   const scale = useSharedValue(1);
-  const text_scale = AppStore.text_scale;
-  const scaled_label_style = React.useMemo(() => {
-    return getScaledTextStyle(styles.label, text_scale);
-  }, [text_scale]);
-  const scaled_custom_text_style = React.useMemo(() => {
-    return getScaledTextStyle(textStyle, text_scale);
-  }, [textStyle, text_scale]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -100,12 +90,10 @@ function PrimaryButton({
           <Text
             style={[
               styles.label,
-              scaled_label_style,
               variant === 'ghost'
                 ? [styles.ghostLabel, { color: theme.colors.ink }]
                 : styles.solidLabel,
               textStyle,
-              scaled_custom_text_style,
             ]}
           >
             {label}

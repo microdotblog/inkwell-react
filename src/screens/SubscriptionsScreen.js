@@ -60,11 +60,10 @@ const TEXT_STYLE_NAMES = [
 
 function SubscriptionsScreen({ navigation, route, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
-  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const scaled_text_styles = React.useMemo(() => {
-    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
-  }, [text_scale]);
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
+  }, []);
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const subscriptions = Feed.subscription_snapshots();

@@ -23,11 +23,10 @@ const MICRO_BLOG_LOGO = require('../assets/mb_logo.png');
 
 function WelcomeScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
-  const text_scale = AppStore.text_scale;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const scaled_text_styles = React.useMemo(() => {
-    return createScaledTextStyles(styles, TEXT_STYLE_NAMES, text_scale);
-  }, [text_scale]);
+    return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
+  }, []);
   const actionOpacity = useSharedValue(0);
   const actionTranslateY = useSharedValue(26);
   const is_signing_in = Auth.is_loading();
