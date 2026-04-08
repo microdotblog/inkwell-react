@@ -50,7 +50,7 @@ function SignedInTabs({ isDark = false }) {
 
   return (
     <Stack.Navigator
-      initialRouteName="SignedInHome"
+      initialRouteName="Feed"
       screenOptions={{
         contentStyle: {
           backgroundColor: theme.colors.canvas,
@@ -63,7 +63,7 @@ function SignedInTabs({ isDark = false }) {
       }}
     >
       <Stack.Screen
-        name="SignedInHome"
+        name="Feed"
         options={{
           headerShown: false,
         }}
