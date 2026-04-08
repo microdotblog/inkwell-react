@@ -17,6 +17,7 @@ import { useFocusEffect, useScrollToTop } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { observer } from 'mobx-react';
 import {
   KeyboardStickyView,
@@ -70,6 +71,8 @@ const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
 const FEED_AVATAR_SIZE = 26;
 const READ_ROW_OPACITY = 0.56;
 const FEED_AVATAR_TRANSITION_MS = 180;
+const TOP_STATUS_SCRIM_EXTRA_HEIGHT = 44;
+const TOP_STATUS_SCRIM_SCROLL_DISTANCE = 24;
 const TEXT_STYLE_NAMES = [
   'searchInput',
   'segmentLabel',
@@ -248,6 +251,16 @@ function FeedScreen({ navigation, isDark = false }) {
   const is_generating_recap = Feed.is_generating_recap;
   const background_intensity = visible_timeline_entries.length > 0 ? 0.14 : 1;
   const list_top_inset = insets.top + LIST_TOP_PADDING;
+  const top_status_scrim_height = insets.top + TOP_STATUS_SCRIM_EXTRA_HEIGHT;
+  const top_status_scrim_color = resolve_top_status_scrim_color(theme);
+  const top_status_scrim_mid_color = with_color_opacity(
+    theme?.colors?.canvas,
+    Platform.OS === 'ios' ? 0.34 : 0.42,
+  );
+  const top_status_scrim_transparent_color = with_color_opacity(
+    theme?.colors?.canvas,
+    0,
+  );
   const toast_top_offset = insets.top + 12;
   const footer_bottom_inset = insets.bottom + FOOTER_FLOAT_GAP;
   const list_bottom_inset =
@@ -695,6 +708,17 @@ function FeedScreen({ navigation, isDark = false }) {
     };
   }, [is_search_active, search_footer_open_offset]);
 
+  const top_status_scrim_style = useAnimatedStyle(() => {
+    return {
+      opacity: interpolate(
+        scroll_y.value,
+        [0, TOP_STATUS_SCRIM_SCROLL_DISTANCE],
+        [0, 1],
+        Extrapolation.CLAMP,
+      ),
+    };
+  }, []);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
@@ -724,7 +748,29 @@ function FeedScreen({ navigation, isDark = false }) {
             visible_timeline_entries,
             scaled_text_styles,
           })}
-        </Animated.View>
+      </Animated.View>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.topStatusScrim,
+          {
+            height: top_status_scrim_height,
+          },
+          top_status_scrim_style,
+        ]}
+      >
+        <LinearGradient
+          colors={[
+            top_status_scrim_color,
+            top_status_scrim_mid_color,
+            top_status_scrim_transparent_color,
+          ]}
+          end={{ x: 0.5, y: 1 }}
+          locations={[0, 0.58, 1]}
+          start={{ x: 0.5, y: 0 }}
+          style={styles.topStatusScrimGradient}
+        />
+      </Animated.View>
       {is_search_active ? (
         <View pointerEvents="box-none" style={styles.searchFooterOverlay}>
           <KeyboardStickyView
@@ -1727,8 +1773,22 @@ function get_recap_summary_label(count = 0) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    position: 'relative',
   },
   contentSurface: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 0,
+  },
+  topStatusScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    elevation: 2,
+    zIndex: 2,
+  },
+  topStatusScrimGradient: {
     flex: 1,
   },
   list: {
@@ -1739,7 +1799,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 2,
+    zIndex: 3,
   },
   footer: {
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
@@ -1750,7 +1810,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 3,
+    zIndex: 4,
   },
   searchFooterSticky: {
     width: '100%',
@@ -2047,6 +2107,13 @@ export default observer(FeedScreen);
 
 function resolve_footer_backdrop_color(theme) {
   return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.78 : 0.84);
+}
+
+function resolve_top_status_scrim_color(theme, platform = Platform.OS) {
+  return with_color_opacity(
+    theme?.colors?.canvas,
+    platform === 'ios' ? 0.56 : 0.64,
+  );
 }
 
 function resolve_recap_card_background_color(theme) {
