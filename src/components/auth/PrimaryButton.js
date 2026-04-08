@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import Animated, {
   useAnimatedStyle,
@@ -18,6 +19,7 @@ function PrimaryButton({
   textStyle,
   theme,
   disabled = false,
+  leadingIconSource = null,
 }) {
   const scale = useSharedValue(1);
   const text_scale = AppStore.text_scale;
@@ -86,19 +88,29 @@ function PrimaryButton({
           disabled ? styles.disabled : null,
         ]}
       >
-        <Text
-          style={[
-            styles.label,
-            scaled_label_style,
-            variant === 'ghost'
-              ? [styles.ghostLabel, { color: theme.colors.ink }]
-              : styles.solidLabel,
-            textStyle,
-            scaled_custom_text_style,
-          ]}
-        >
-          {label}
-        </Text>
+        <View style={styles.content}>
+          {leadingIconSource ? (
+            <Image
+              accessibilityIgnoresInvertColors
+              contentFit="contain"
+              source={leadingIconSource}
+              style={styles.leadingIcon}
+            />
+          ) : null}
+          <Text
+            style={[
+              styles.label,
+              scaled_label_style,
+              variant === 'ghost'
+                ? [styles.ghostLabel, { color: theme.colors.ink }]
+                : styles.solidLabel,
+              textStyle,
+              scaled_custom_text_style,
+            ]}
+          >
+            {label}
+          </Text>
+        </View>
       </Pressable>
     </Animated.View>
   );
@@ -111,6 +123,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
   solidButton: {
     shadowOffset: {
@@ -134,6 +152,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  leadingIcon: {
+    width: 20,
+    height: 20,
   },
   solidLabel: {
     color: '#ffffff',

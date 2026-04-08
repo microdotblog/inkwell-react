@@ -19,6 +19,7 @@ import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
 const TEXT_STYLE_NAMES = ['title', 'body', 'errorMessage'];
+const MICRO_BLOG_LOGO = require('../assets/mb_logo.png');
 
 function WelcomeScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
@@ -103,6 +104,7 @@ function WelcomeScreen({ isDark = false }) {
               ) : null}
               <PrimaryButton
                 label={is_signing_in ? 'Connecting to Micro.blog...' : 'Sign in with Micro.blog'}
+                leadingIconSource={MICRO_BLOG_LOGO}
                 onPress={Auth.sign_in_with_micro_blog}
                 disabled={is_signing_in}
                 style={styles.primaryButton}
