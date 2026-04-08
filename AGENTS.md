@@ -10,14 +10,16 @@ Prefer these terms consistently in code, comments, and UI copy.
 For Expo specific documentation and how-to's, reference https://docs.expo.dev/llms.txt.
 
 ## IMPORTANT! Reference Projects
-Always check code styling and implementation patterns as per "./../Strata" or "./../epilogue" for React Native code.
+Always check code styling and implementation patterns as per "./../strata" or "./../epilogue" for React Native code.
 When instructions in those projects conflict with their live code, follow the implemented pattern in the reference project, not stale guidance.
 
 `./../inkwell-web` is the primary reference for endpoint behavior, API semantics, domain naming, and user flows for timeline, reader, bookmarks, highlights, and subscriptions.
 `./../inkwell-web/docs/feedbin/` contains Feedbin API documentation that is useful when implementing subscription, timeline, and entry behavior.
 
-Use `./../Strata` or `./../epilogue` for React Native implementation style.
+Use `./../strata` or `./../epilogue` for React Native implementation style.
 Use `./../inkwell-web` for product behavior and data semantics.
+
+Use `./../inkwell-mac` to reference the Mac app implementation for this app so that we align on styles.
 
 Do not import notebook, posting, or notes concepts from Strata unless the feature truly requires them. Inkwell is a reader-first product.
 
