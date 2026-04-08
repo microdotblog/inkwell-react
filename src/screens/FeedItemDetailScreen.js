@@ -1841,7 +1841,7 @@ function get_entry_menu_actions({
     actions.push({
       id: 'toggle_read',
       image: Platform.select({
-        ios: entry?.is_read ? 'envelope' : 'envelope.open',
+        ios: entry?.is_read ? 'button.programmable' : 'circle',
       }),
       imageColor: icon_color,
       title: read_title,

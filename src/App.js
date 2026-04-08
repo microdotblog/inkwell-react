@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react';
 import { DefaultTheme, DarkTheme, NavigationContainer } from '@react-navigation/native';
+import { SFSymbol } from 'react-native-sfsymbols';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import Animated, {
@@ -235,11 +236,19 @@ function ToastOverlay({
             },
           ]}
         >
-          <MaterialIcons
-            color={theme.colors.accentStrong}
-            name={toast_icon_name}
-            size={18}
-          />
+          {Platform.OS === 'ios' ? (
+            <SFSymbol
+              color={theme.colors.accentStrong}
+              name={toast_icon_name.ios}
+              style={styles.toastSymbol}
+            />
+          ) : (
+            <MaterialIcons
+              color={theme.colors.accentStrong}
+              name={toast_icon_name.android}
+              size={18}
+            />
+          )}
         </View>
         <View style={styles.toastCopy}>
           <Text
@@ -318,6 +327,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 32,
   },
+  toastSymbol: {
+    height: 18,
+    width: 18,
+  },
   toastCopy: {
     flex: 1,
   },
@@ -334,28 +347,49 @@ function resolve_toast_icon_name(toast_message = '') {
   const normalized_toast_message = `${toast_message || ''}`.trim().toLowerCase();
 
   if (!normalized_toast_message) {
-    return 'check-circle-outline';
+    return {
+      android: 'check-circle-outline',
+      ios: 'checkmark.circle',
+    };
   }
 
   if (normalized_toast_message.includes('link')) {
-    return 'link';
+    return {
+      android: 'link',
+      ios: 'link',
+    };
   }
 
   if (normalized_toast_message.includes('bookmark removed')) {
-    return 'bookmark-border';
+    return {
+      android: 'bookmark-border',
+      ios: 'bookmark',
+    };
   }
 
   if (normalized_toast_message.includes('bookmarked')) {
-    return 'bookmark';
+    return {
+      android: 'bookmark',
+      ios: 'bookmark',
+    };
   }
 
   if (normalized_toast_message.includes('unread')) {
-    return 'mark-email-unread';
+    return {
+      android: 'radio-button-unchecked',
+      ios: 'circle',
+    };
   }
 
   if (normalized_toast_message.includes('read')) {
-    return 'mark-email-read';
+    return {
+      android: 'smart-button',
+      ios: 'button.programmable',
+    };
   }
 
-  return 'check-circle-outline';
+  return {
+    android: 'check-circle-outline',
+    ios: 'checkmark.circle',
+  };
 }
