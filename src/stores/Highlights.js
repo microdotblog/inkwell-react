@@ -1,6 +1,9 @@
 import { flow, getSnapshot, types } from 'mobx-state-tree';
 
-import { fetch_micro_blog_highlights } from '../api/MicroBlogFeeds';
+import {
+  delete_micro_blog_highlight,
+  fetch_micro_blog_highlights,
+} from '../api/MicroBlogFeeds';
 import Tokens from './Tokens';
 
 const HighlightEntry = types.model('HighlightEntry', {
@@ -45,6 +48,25 @@ const Highlights = types
       self.error_message = null;
     },
 
+    remove_highlight_entry_locally(highlight_id = '') {
+      const normalized_highlight_id = normalize_string(highlight_id);
+
+      if (!normalized_highlight_id) {
+        return false;
+      }
+
+      const remaining_items = self.items.filter((item) => {
+        return item.id !== normalized_highlight_id;
+      });
+
+      if (remaining_items.length === self.items.length) {
+        return false;
+      }
+
+      self.items.replace(remaining_items);
+      return true;
+    },
+
     set_search_query(search_query = '') {
       self.search_query = `${search_query || ''}`;
     },
@@ -63,6 +85,65 @@ const Highlights = types
 
     refresh: flow(function* () {
       return yield self.fetch_highlights();
+    }),
+
+    delete_highlight: flow(function* (highlight_id = '') {
+      const normalized_highlight_id = normalize_string(highlight_id);
+
+      if (!normalized_highlight_id) {
+        return {
+          error_message: 'We could not delete that highlight.',
+          ok: false,
+        };
+      }
+
+      const highlight_entry = self.items.find((item) => {
+        return item.id === normalized_highlight_id;
+      });
+      const post_id = normalize_string(highlight_entry?.post_id);
+      const remote_highlight_id = normalize_string(
+        highlight_entry?.highlight_id,
+      );
+
+      if (!highlight_entry || !post_id || !remote_highlight_id) {
+        return {
+          error_message: 'We could not delete that highlight.',
+          ok: false,
+        };
+      }
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return {
+            error_message: 'Your Micro.blog session expired. Please sign in again.',
+            ok: false,
+          };
+        }
+
+        yield delete_micro_blog_highlight({
+          token: user_token,
+          post_id,
+          highlight_id: remote_highlight_id,
+        });
+
+        self.remove_highlight_entry_locally(normalized_highlight_id);
+
+        return {
+          ok: true,
+        };
+      } catch (error) {
+        return {
+          error_message:
+            error?.status === 401 || error?.status === 403
+              ? 'Your Micro.blog session expired. Please sign in again.'
+              : 'We could not delete that highlight.',
+          ok: false,
+        };
+      }
     }),
 
     fetch_highlights: flow(function* () {

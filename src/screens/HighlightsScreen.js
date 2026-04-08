@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
   Pressable,
@@ -19,9 +20,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
+import HighlightItem from '../components/highlights/HighlightItem';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import AppStore from '../stores/App';
-import Highlights, { resolve_highlight_post_label } from '../stores/Highlights';
+import Highlights from '../stores/Highlights';
 import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
@@ -29,18 +31,12 @@ const SCREEN_HORIZONTAL_PADDING = 20;
 const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const COPIED_FEEDBACK_DURATION_MS = 1600;
-const HIGHLIGHT_LIGHT_BACKGROUND = '#FFF9D6';
-const HIGHLIGHT_DARK_BACKGROUND = '#D98C3A';
 const TEXT_STYLE_NAMES = [
   'searchInput',
   'summaryBadgeLabel',
   'summaryCopy',
   'stateTitle',
   'stateBody',
-  'highlightText',
-  'postLabel',
-  'timestamp',
-  'copyButtonLabel',
 ];
 
 function HighlightsScreen({ isDark = false }) {
@@ -66,6 +62,7 @@ function HighlightsScreen({ isDark = false }) {
   const content_top_padding = header_height + LIST_TOP_PADDING;
   const list_bottom_inset = insets.bottom + LIST_BOTTOM_PADDING;
   const [copied_highlight_id, set_copied_highlight_id] = React.useState('');
+  const [deleting_highlight_id, set_deleting_highlight_id] = React.useState('');
   const copied_timeout_ref = React.useRef(null);
   const [is_search_open, set_is_search_open] = React.useState(false);
 
@@ -113,9 +110,9 @@ function HighlightsScreen({ isDark = false }) {
     Highlights.set_search_query(next_query);
   }, []);
 
-  const handle_copy_press = React.useCallback(async (highlight_id = '', text = '') => {
-    const normalized_highlight_id = `${highlight_id || ''}`.trim();
-    const normalized_text = `${text || ''}`.trim();
+  const handle_copy_press = React.useCallback(async (entry = null) => {
+    const normalized_highlight_id = `${entry?.id || ''}`.trim();
+    const normalized_text = `${entry?.text || ''}`.trim();
 
     if (!normalized_highlight_id || !normalized_text) {
       return;
@@ -137,6 +134,59 @@ function HighlightsScreen({ isDark = false }) {
       console.warn('Failed to copy highlight', error);
     }
   }, []);
+
+  const handle_delete_press = React.useCallback((entry = null) => {
+    const normalized_highlight_id = `${entry?.id || ''}`.trim();
+
+    if (!normalized_highlight_id || deleting_highlight_id) {
+      return;
+    }
+
+    Alert.alert(
+      'Delete highlight?',
+      'This removes the saved passage from your highlights.',
+      [
+        {
+          style: 'cancel',
+          text: 'Cancel',
+        },
+        {
+          style: 'destructive',
+          text: 'Delete',
+          onPress: async () => {
+            set_deleting_highlight_id(normalized_highlight_id);
+
+            try {
+              const result = await Highlights.delete_highlight(
+                normalized_highlight_id,
+              );
+
+              if (!result?.ok) {
+                AppStore.show_toast(
+                  result?.error_message ||
+                    'We could not delete that highlight.',
+                  {
+                    top_offset: header_height + 10,
+                  },
+                );
+                return;
+              }
+
+              if (copied_highlight_id === normalized_highlight_id) {
+                set_copied_highlight_id('');
+              }
+
+              AppStore.show_toast('Highlight deleted', {
+                top_offset: header_height + 10,
+              });
+            } finally {
+              set_deleting_highlight_id('');
+            }
+          },
+        },
+      ],
+    );
+  }, [copied_highlight_id, deleting_highlight_id, header_height]);
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
@@ -233,11 +283,13 @@ function HighlightsScreen({ isDark = false }) {
             }
             renderItem={({ item }) => {
               return (
-                <HighlightRow
+                <HighlightItem
                   entry={item}
                   is_copied={copied_highlight_id === item.id}
+                  is_deleting={deleting_highlight_id === item.id}
                   onCopyPress={handle_copy_press}
-                  scaled_text_styles={scaled_text_styles}
+                  onDeletePress={handle_delete_press}
+                  text_scale={text_scale}
                   theme={theme}
                 />
               );
@@ -438,92 +490,6 @@ function HighlightsEmptyState({
   );
 }
 
-function HighlightRow({
-  entry,
-  is_copied = false,
-  onCopyPress,
-  scaled_text_styles,
-  theme,
-}) {
-  const post_label = resolve_highlight_post_label(entry);
-  const timestamp = format_highlight_date(entry);
-  const highlight_background_color = resolve_highlight_background_color(theme);
-
-  return (
-    <View style={styles.rowCard}>
-      <Text
-        style={[
-          styles.highlightText,
-          scaled_text_styles.highlightText,
-          {
-            backgroundColor: highlight_background_color,
-            color: theme.colors.ink,
-          },
-        ]}
-      >
-        {entry.text}
-      </Text>
-
-      <View style={styles.rowMeta}>
-        <Text
-          style={[
-            styles.postLabel,
-            scaled_text_styles.postLabel,
-            { color: theme.colors.ink },
-          ]}
-        >
-          {post_label}
-        </Text>
-        {timestamp ? (
-          <Text
-            style={[
-              styles.timestamp,
-              scaled_text_styles.timestamp,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {timestamp}
-          </Text>
-        ) : null}
-      </View>
-
-      <View style={styles.rowActions}>
-        <Pressable
-          accessibilityLabel={is_copied ? 'Copied highlight text' : 'Copy highlight text'}
-          accessibilityRole="button"
-          onPress={() => onCopyPress?.(entry.id, entry.text)}
-          style={({ pressed }) => {
-            return [
-              styles.copyButton,
-              {
-                backgroundColor: is_copied
-                  ? theme.colors.accentSoft
-                  : theme.colors.buttonGhost,
-                borderColor: theme.colors.line,
-                opacity: pressed ? 0.84 : 1,
-              },
-            ];
-          }}
-        >
-          <Text
-            style={[
-              styles.copyButtonLabel,
-              scaled_text_styles.copyButtonLabel,
-              {
-                color: is_copied
-                  ? theme.colors.accentStrong
-                  : theme.colors.inkSoft,
-              },
-            ]}
-          >
-            {is_copied ? 'Copied' : 'Copy'}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -636,144 +602,6 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     textAlign: 'center',
   },
-  rowCard: {
-    gap: 8,
-    paddingVertical: 4,
-  },
-  highlightText: {
-    alignSelf: 'flex-start',
-    fontSize: 15,
-    lineHeight: 24,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  rowMeta: {
-    gap: 4,
-  },
-  postLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  timestamp: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  rowActions: {
-    alignItems: 'flex-start',
-  },
-  copyButton: {
-    minHeight: 28,
-    minWidth: 56,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  copyButtonLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 14,
-  },
 });
 
 export default observer(HighlightsScreen);
-
-function resolve_summary_card_background_color(theme) {
-  return theme?.colors?.badge || theme?.colors?.paper || '#ffffff';
-}
-
-function resolve_summary_copy(total_count = 0, matching_count = 0, search_query = '') {
-  const has_search_query = `${search_query || ''}`.trim().length > 0;
-
-  if (total_count === 0) {
-    return 'Search saved highlights';
-  }
-
-  if (has_search_query) {
-    return `${matching_count} matching highlight${matching_count === 1 ? '' : 's'}`;
-  }
-
-  return `Showing ${total_count} highlight${total_count === 1 ? '' : 's'}`;
-}
-
-function format_highlight_date(highlight = null) {
-  const date = resolve_highlight_date(highlight);
-
-  if (!date) {
-    return '';
-  }
-
-  const date_text = date.toLocaleDateString([], {
-    day: 'numeric',
-    month: 'numeric',
-    year: 'numeric',
-  });
-  const time_text = date
-    .toLocaleTimeString([], {
-      hour: 'numeric',
-      hour12: true,
-      minute: '2-digit',
-    })
-    .toLowerCase();
-
-  return `${date_text} ${time_text}`;
-}
-
-function resolve_highlight_date(highlight = null) {
-  const created_at = parse_date(highlight?.created_at);
-
-  if (created_at) {
-    return created_at;
-  }
-
-  const published_at = parse_date(highlight?.post_published_at);
-
-  if (published_at) {
-    return published_at;
-  }
-
-  const local_id = typeof highlight?.id === 'string' ? highlight.id : '';
-  const local_match = local_id.match(/^hl-(\d+)$/);
-
-  if (!local_match) {
-    return null;
-  }
-
-  const timestamp = Number(local_match[1]);
-
-  if (!Number.isFinite(timestamp)) {
-    return null;
-  }
-
-  const date = new Date(timestamp);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
-}
-
-function parse_date(raw_value = '') {
-  if (!raw_value) {
-    return null;
-  }
-
-  const date = new Date(raw_value);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
-}
-
-function resolve_highlight_background_color(theme) {
-  if (theme?.isDark) {
-    return HIGHLIGHT_DARK_BACKGROUND;
-  }
-
-  return HIGHLIGHT_LIGHT_BACKGROUND;
-}

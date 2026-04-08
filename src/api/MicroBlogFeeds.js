@@ -292,6 +292,64 @@ export async function fetch_micro_blog_highlights({ token = '' } = {}) {
   });
 }
 
+export async function delete_micro_blog_highlight({
+  token = '',
+  post_id = '',
+  highlight_id = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_post_id = `${post_id || ''}`.trim();
+  const trimmed_highlight_id = `${highlight_id || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error(
+      'A Micro.blog token is required to delete highlights.',
+    );
+  }
+
+  if (!trimmed_post_id) {
+    throw create_request_error('A post id is required to delete a highlight.');
+  }
+
+  if (!trimmed_highlight_id) {
+    throw create_request_error(
+      'A highlight id is required to delete a highlight.',
+    );
+  }
+
+  const url = new URL(
+    `/feeds/${encodeURIComponent(trimmed_post_id)}/highlights/${encodeURIComponent(trimmed_highlight_id)}`,
+    `${MICRO_BLOG_FEEDS_BASE_URL}/`,
+  );
+  const headers = new Headers({
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers,
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Micro.blog highlight delete request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function fetch_micro_blog_conversation_replies({
   token = '',
   post_url = '',

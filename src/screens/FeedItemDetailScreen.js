@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -35,6 +36,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
+import HighlightItem from '../components/highlights/HighlightItem';
 import { fetch_micro_blog_conversation_replies } from '../api/MicroBlogFeeds';
 import AppStore from '../stores/App';
 import Bookmarks from '../stores/Bookmarks';
@@ -138,10 +140,6 @@ const TEXT_STYLE_NAMES = [
   'readerPaneButtonLabel',
   'replyAuthor',
   'replyDate',
-  'highlightText',
-  'highlightPostLabel',
-  'highlightTimestamp',
-  'highlightCopyButtonLabel',
   'recapSettingsTitle',
   'recapSettingsBody',
   'recapDayChipLabel',
@@ -215,6 +213,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const bookmarking_recap_quote_url =
     `${Feed.bookmarking_recap_quote_url || ''}`.trim();
   const [active_pane, set_active_pane] = React.useState('post');
+  const [deleting_highlight_id, set_deleting_highlight_id] = React.useState('');
   const [is_loading_replies, set_is_loading_replies] = React.useState(false);
   const [replies, set_replies] = React.useState([]);
   const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
@@ -441,8 +440,8 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     set_active_pane('highlights');
   }, [highlight_count]);
 
-  const handle_copy_highlight = React.useCallback(async (text = '') => {
-    const normalized_text = `${text || ''}`.trim();
+  const handle_copy_highlight = React.useCallback(async (entry = null) => {
+    const normalized_text = `${entry?.text || ''}`.trim();
 
     if (!normalized_text) {
       return;
@@ -457,6 +456,55 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       console.warn('Failed to copy highlight', error);
     }
   }, [toast_top_offset]);
+
+  const handle_delete_highlight = React.useCallback((entry = null) => {
+    const normalized_highlight_id = `${entry?.id || ''}`.trim();
+
+    if (!normalized_highlight_id || deleting_highlight_id) {
+      return;
+    }
+
+    Alert.alert(
+      'Delete highlight?',
+      'This removes the saved passage from your highlights.',
+      [
+        {
+          style: 'cancel',
+          text: 'Cancel',
+        },
+        {
+          style: 'destructive',
+          text: 'Delete',
+          onPress: async () => {
+            set_deleting_highlight_id(normalized_highlight_id);
+
+            try {
+              const result = await Highlights.delete_highlight(
+                normalized_highlight_id,
+              );
+
+              if (!result?.ok) {
+                AppStore.show_toast(
+                  result?.error_message ||
+                    'We could not delete that highlight.',
+                  {
+                    top_offset: toast_top_offset,
+                  },
+                );
+                return;
+              }
+
+              AppStore.show_toast('Highlight deleted', {
+                top_offset: toast_top_offset,
+              });
+            } finally {
+              set_deleting_highlight_id('');
+            }
+          },
+        },
+      ],
+    );
+  }, [deleting_highlight_id, toast_top_offset]);
 
   const handle_copy_link = React.useCallback(async () => {
     if (!original_url) {
@@ -655,6 +703,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             has_renderable_body={has_entry_body}
             highlight_count={highlight_count}
             onCopyHighlight={handle_copy_highlight}
+            onDeleteHighlight={handle_delete_highlight}
             onPressHighlightsPane={handle_highlights_pane_press}
             onPressPostPane={handle_post_pane_press}
             onPressRepliesPane={handle_replies_pane_press}
@@ -674,6 +723,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             theme={theme}
             text_scale={text_scale}
             width={width}
+            deleting_highlight_id={deleting_highlight_id}
           />
         ) : null}
 
@@ -728,12 +778,14 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
 function EntryReaderView({
   active_pane = 'post',
+  deleting_highlight_id = '',
   entry,
   entry_highlights = [],
   formatted_date,
   has_renderable_body = false,
   highlight_count = 0,
   onCopyHighlight,
+  onDeleteHighlight,
   onPressHighlightsPane,
   onPressPostPane,
   onPressRepliesPane,
@@ -863,10 +915,12 @@ function EntryReaderView({
           />
         ) : active_pane === 'highlights' ? (
           <HighlightsListView
+            deleting_highlight_id={deleting_highlight_id}
             highlights={entry_highlights}
             onCopyHighlight={onCopyHighlight}
-            scaled_text_styles={scaled_text_styles}
+            onDeleteHighlight={onDeleteHighlight}
             theme={theme}
+            text_scale={text_scale}
           />
         ) : has_renderable_body ? (
           <ReaderPostWebView
@@ -1109,105 +1163,29 @@ function RepliesListView({
 }
 
 function HighlightsListView({
+  deleting_highlight_id = '',
   highlights = [],
   onCopyHighlight,
-  scaled_text_styles,
+  onDeleteHighlight,
   theme,
+  text_scale = 1,
 }) {
   return (
     <View style={styles.highlightsList}>
       {highlights.map((highlight) => {
         return (
-          <HighlightSnippetRow
+          <HighlightItem
             entry={highlight}
+            is_copied={false}
+            is_deleting={deleting_highlight_id === highlight.id}
             key={highlight.id}
-            onCopyHighlight={onCopyHighlight}
-            scaled_text_styles={scaled_text_styles}
+            onCopyPress={onCopyHighlight}
+            onDeletePress={onDeleteHighlight}
             theme={theme}
+            text_scale={text_scale}
           />
         );
       })}
-    </View>
-  );
-}
-
-function HighlightSnippetRow({
-  entry,
-  onCopyHighlight,
-  scaled_text_styles,
-  theme,
-}) {
-  const post_label = resolve_entry_highlight_post_label(entry);
-  const timestamp = format_entry_highlight_date(entry);
-  const highlight_background_color = resolve_reader_highlight_background_color(
-    theme,
-  );
-
-  return (
-    <View style={styles.highlightRowCard}>
-      <Text
-        style={[
-          styles.highlightText,
-          scaled_text_styles.highlightText,
-          {
-            backgroundColor: highlight_background_color,
-            color: theme.colors.ink,
-          },
-        ]}
-      >
-        {entry.text}
-      </Text>
-
-      <View style={styles.highlightMeta}>
-        <Text
-          style={[
-            styles.highlightPostLabel,
-            scaled_text_styles.highlightPostLabel,
-            { color: theme.colors.ink },
-          ]}
-        >
-          {post_label}
-        </Text>
-        {timestamp ? (
-          <Text
-            style={[
-              styles.highlightTimestamp,
-              scaled_text_styles.highlightTimestamp,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {timestamp}
-          </Text>
-        ) : null}
-      </View>
-
-      <View style={styles.highlightActions}>
-        <Pressable
-          accessibilityLabel="Copy highlight text"
-          accessibilityRole="button"
-          onPress={() => onCopyHighlight?.(entry.text)}
-          style={({ pressed }) => {
-            return [
-              styles.highlightCopyButton,
-              {
-                backgroundColor: theme.colors.buttonGhost,
-                borderColor: theme.colors.line,
-                opacity: pressed ? 0.84 : 1,
-              },
-            ];
-          }}
-        >
-          <Text
-            style={[
-              styles.highlightCopyButtonLabel,
-              scaled_text_styles.highlightCopyButtonLabel,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            Copy
-          </Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -2710,46 +2688,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  highlightRowCard: {
-    gap: 8,
-    paddingVertical: 4,
-  },
-  highlightText: {
-    alignSelf: 'flex-start',
-    fontSize: 15,
-    lineHeight: 24,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  highlightMeta: {
-    gap: 4,
-  },
-  highlightPostLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  highlightTimestamp: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  highlightActions: {
-    alignItems: 'flex-start',
-  },
-  highlightCopyButton: {
-    alignItems: 'center',
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 28,
-    minWidth: 56,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  highlightCopyButtonLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 14,
-  },
   recapSettingsCard: {
     borderRadius: 22,
     borderWidth: 1,
@@ -3026,14 +2964,6 @@ function with_color_opacity(color_value = '', opacity = 1) {
   const blue = parseInt(hex.slice(4, 6), 16);
 
   return `rgba(${red}, ${green}, ${blue}, ${normalized_opacity})`;
-}
-
-function resolve_reader_highlight_background_color(theme) {
-  if (theme?.isDark) {
-    return READER_HIGHLIGHT_DARK_BACKGROUND;
-  }
-
-  return READER_HIGHLIGHT_LIGHT_BACKGROUND;
 }
 
 function create_reader_body_html(entry = null) {
@@ -4431,72 +4361,6 @@ function get_reply_author_name(reply = null) {
   }
 
   return 'Unknown';
-}
-
-function resolve_entry_highlight_post_label(highlight = null) {
-  const post_title = normalize_reader_text(highlight?.post_title);
-  const post_source = normalize_reader_text(highlight?.post_source);
-  const has_valid_title =
-    highlight?.post_has_title === true &&
-    Boolean(post_title) &&
-    post_title.toLowerCase() !== 'untitled';
-
-  if (has_valid_title) {
-    return post_title;
-  } else if (post_source) {
-    return post_source;
-  } else {
-    return 'Post';
-  }
-}
-
-function format_entry_highlight_date(highlight = null) {
-  const date = resolve_entry_highlight_date(highlight);
-
-  if (!date) {
-    return '';
-  }
-
-  const date_text = date.toLocaleDateString([], {
-    day: 'numeric',
-    month: 'numeric',
-    year: 'numeric',
-  });
-  const time_text = date
-    .toLocaleTimeString([], {
-      hour: 'numeric',
-      hour12: true,
-      minute: '2-digit',
-    })
-    .toLowerCase();
-
-  return `${date_text} ${time_text}`;
-}
-
-function resolve_entry_highlight_date(highlight = null) {
-  const created_at = parse_reader_date(highlight?.created_at);
-
-  if (created_at) {
-    return created_at;
-  }
-
-  return parse_reader_date(highlight?.post_published_at);
-}
-
-function parse_reader_date(raw_date = '') {
-  const trimmed_date = `${raw_date || ''}`.trim();
-
-  if (!trimmed_date) {
-    return null;
-  }
-
-  const date = new Date(trimmed_date);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
 }
 
 function format_reply_date(raw_date = '') {
