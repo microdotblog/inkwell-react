@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -14,6 +15,7 @@ import {
 import { MenuView } from '@react-native-menu/menu';
 import { useFocusEffect, useScrollToTop } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import {
@@ -173,6 +175,60 @@ function clear_feed_search_focus(
   }
 }
 
+function get_entry_menu_actions({ entry = null, theme }) {
+  if (!entry) {
+    return [];
+  }
+
+  const icon_color = theme?.colors?.ink;
+  const original_url = normalize_http_url(entry?.url);
+  const bookmark_title = entry?.is_bookmarked ? 'Unbookmark' : 'Bookmark';
+  const read_title = entry?.is_read ? 'Mark as Unread' : 'Mark as Read';
+  const actions = [];
+
+  if (original_url) {
+    actions.push({
+      id: 'copy_link',
+      image: Platform.select({
+        ios: 'link',
+      }),
+      imageColor: icon_color,
+      title: 'Copy Link',
+    });
+  }
+
+  actions.push({
+    id: 'toggle_read',
+    image: Platform.select({
+      ios: entry?.is_read ? 'button.programmable' : 'circle',
+    }),
+    imageColor: icon_color,
+    title: read_title,
+  });
+
+  actions.push({
+    id: 'toggle_bookmark',
+    image: Platform.select({
+      ios: bookmark_title === 'Unbookmark' ? 'bookmark.slash' : 'bookmark',
+    }),
+    imageColor: icon_color,
+    title: bookmark_title,
+  });
+
+  if (original_url) {
+    actions.push({
+      id: 'open_web',
+      image: Platform.select({
+        ios: 'safari',
+      }),
+      imageColor: icon_color,
+      title: 'Open on Web',
+    });
+  }
+
+  return actions;
+}
+
 function FeedScreen({ navigation, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const text_scale = AppStore.text_scale;
@@ -193,6 +249,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const is_generating_recap = Feed.is_generating_recap;
   const background_intensity = visible_timeline_entries.length > 0 ? 0.14 : 1;
   const list_top_inset = insets.top + LIST_TOP_PADDING;
+  const toast_top_offset = insets.top + 12;
   const footer_bottom_inset = insets.bottom + FOOTER_FLOAT_GAP;
   const list_bottom_inset =
     footer_bottom_inset +
@@ -343,6 +400,90 @@ function FeedScreen({ navigation, isDark = false }) {
       });
     },
     [navigation],
+  );
+
+  const handle_entry_menu_action = React.useCallback(
+    async (entry, menu_action_id = '') => {
+      const resolved_entry_id = `${entry?.id || ''}`.trim();
+      const original_url = normalize_http_url(entry?.url);
+
+      if (!resolved_entry_id) {
+        return;
+      }
+
+      if (menu_action_id === 'copy_link') {
+        if (!original_url) {
+          return;
+        }
+
+        try {
+          await Clipboard.setStringAsync(original_url);
+          AppStore.show_toast('Link copied', {
+            top_offset: toast_top_offset,
+          });
+        } catch (error) {
+          console.warn('Failed to copy link', error);
+        }
+        return;
+      }
+
+      if (menu_action_id === 'open_web') {
+        if (!original_url) {
+          return;
+        }
+
+        try {
+          await Linking.openURL(original_url);
+        } catch (error) {
+          console.warn('Failed to open url', error);
+        }
+        return;
+      }
+
+      if (menu_action_id === 'toggle_read') {
+        if (entry?.is_read) {
+          const did_mark_unread = Feed.mark_entry_unread(resolved_entry_id);
+
+          if (did_mark_unread) {
+            AppStore.show_toast('Marked as unread', {
+              top_offset: toast_top_offset,
+            });
+          }
+        } else {
+          const did_mark_read = Feed.mark_entry_read(resolved_entry_id);
+
+          if (did_mark_read) {
+            AppStore.show_toast('Marked as read', {
+              top_offset: toast_top_offset,
+            });
+          }
+        }
+        return;
+      }
+
+      if (menu_action_id !== 'toggle_bookmark') {
+        return;
+      }
+
+      if (entry?.is_bookmarked) {
+        const did_unbookmark = Feed.unbookmark_entry(resolved_entry_id);
+
+        if (did_unbookmark) {
+          AppStore.show_toast('Bookmark removed', {
+            top_offset: toast_top_offset,
+          });
+        }
+      } else {
+        const did_bookmark = Feed.bookmark_entry(resolved_entry_id);
+
+        if (did_bookmark) {
+          AppStore.show_toast('Bookmarked', {
+            top_offset: toast_top_offset,
+          });
+        }
+      }
+    },
+    [toast_top_offset],
   );
 
   const handle_profile_menu_action = React.useCallback(
@@ -576,6 +717,7 @@ function FeedScreen({ navigation, isDark = false }) {
             list_ref,
             is_generating_recap,
             on_entry_press: handle_entry_press,
+            on_entry_menu_action: handle_entry_menu_action,
             on_open_recap: handle_recap_press,
             search_query,
             recap_error_message,
@@ -694,6 +836,7 @@ function render_content({
   list_ref,
   is_generating_recap,
   on_entry_press,
+  on_entry_menu_action,
   on_open_recap,
   search_query,
   recap_error_message,
@@ -841,6 +984,7 @@ function render_content({
           return (
             <FeedTimelineRow
               entry={item}
+              onMenuAction={on_entry_menu_action}
               onPress={on_entry_press}
               scaled_text_styles={scaled_text_styles}
               theme={theme}
@@ -957,7 +1101,13 @@ function FeedFooterControlsRow({
   );
 }
 
-function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
+function FeedTimelineRow({
+  entry,
+  onMenuAction,
+  onPress,
+  scaled_text_styles,
+  theme,
+}) {
   const source_label = entry.source || 'Feed';
   const post_title = resolve_entry_title(entry);
   const display_title = resolve_entry_display_title(entry, source_label);
@@ -969,104 +1119,141 @@ function FeedTimelineRow({ entry, onPress, scaled_text_styles, theme }) {
   const timestamp = format_entry_timestamp(entry.published_at);
   const is_bookmarked = Boolean(entry?.is_bookmarked);
   const row_opacity = entry.is_read ? READ_ROW_OPACITY : 1;
+  const menu_actions = React.useMemo(() => {
+    return get_entry_menu_actions({
+      entry,
+      theme,
+    });
+  }, [entry, theme]);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => onPress?.(entry.id)}
-      style={({ pressed }) => {
-        return [
-          styles.rowCard,
-          {
-            backgroundColor: theme.colors.paper,
-            borderColor: theme.colors.line,
-            opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
-          },
-        ];
+    <MenuView
+      accessibilityLabel={`More options for ${display_title}`}
+      actions={menu_actions}
+      onPressAction={({ nativeEvent }) => {
+        onMenuAction?.(entry, nativeEvent.event);
       }}
+      shouldOpenOnLongPress
+      themeVariant={theme.isDark ? 'dark' : 'light'}
     >
-      <View style={styles.rowContentWrap}>
-        <FeedSourceAvatar
-          avatar_url={entry.avatar_url}
-          scaled_text_styles={scaled_text_styles}
-          source={source_label}
-          theme={theme}
-        />
-        <View style={styles.rowContent}>
-          <Text
-            numberOfLines={2}
-            style={[
-              styles.rowTitle,
-              scaled_text_styles.rowTitle,
-              { color: theme.colors.ink },
-            ]}
-          >
-            {display_title}
-          </Text>
-          {summary ? (
+      <Pressable
+        accessibilityRole="button"
+        delayLongPress={200}
+        onPress={() => onPress?.(entry.id)}
+        style={({ pressed }) => {
+          return [
+            styles.rowCard,
+            {
+              backgroundColor: theme.colors.paper,
+              borderColor: theme.colors.line,
+              opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
+            },
+          ];
+        }}
+      >
+        <View style={styles.rowContentWrap}>
+          <FeedSourceAvatar
+            avatar_url={entry.avatar_url}
+            scaled_text_styles={scaled_text_styles}
+            source={source_label}
+            theme={theme}
+          />
+          <View style={styles.rowContent}>
             <Text
-              numberOfLines={3}
+              numberOfLines={2}
               style={[
-                styles.rowSummary,
-                scaled_text_styles.rowSummary,
-                { color: theme.colors.inkSoft },
+                styles.rowTitle,
+                scaled_text_styles.rowTitle,
+                { color: theme.colors.ink },
               ]}
             >
-              {summary}
+              {display_title}
             </Text>
-          ) : null}
-          {secondary_source_label ? (
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.rowSourceLabel,
-                scaled_text_styles.rowSourceLabel,
-                { color: theme.colors.inkSoft },
-              ]}
-            >
-              {secondary_source_label}
-            </Text>
-          ) : null}
-          {timestamp || is_bookmarked ? (
-            <View style={styles.rowFooter}>
-              {timestamp ? (
-                <Text
-                  style={[
-                    styles.timestamp,
-                    scaled_text_styles.timestamp,
-                    { color: theme.colors.inkSoft },
-                  ]}
-                >
-                  {timestamp}
-                </Text>
-              ) : (
-                <View />
-              )}
-              {is_bookmarked ? (
-                <View style={styles.bookmarkIndicator}>
-                  <MaterialIcons
-                    color={theme.colors.inkSoft}
-                    name="star"
-                    size={16}
-                  />
+            {summary ? (
+              <Text
+                numberOfLines={3}
+                style={[
+                  styles.rowSummary,
+                  scaled_text_styles.rowSummary,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
+                {summary}
+              </Text>
+            ) : null}
+            {secondary_source_label ? (
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.rowSourceLabel,
+                  scaled_text_styles.rowSourceLabel,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
+                {secondary_source_label}
+              </Text>
+            ) : null}
+            {timestamp || is_bookmarked ? (
+              <View style={styles.rowFooter}>
+                {timestamp ? (
                   <Text
                     style={[
                       styles.timestamp,
                       scaled_text_styles.timestamp,
-                      styles.bookmarkLabel,
                       { color: theme.colors.inkSoft },
                     ]}
                   >
-                    Bookmarked
+                    {timestamp}
                   </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
+                ) : (
+                  <View />
+                )}
+                {is_bookmarked ? (
+                  <View style={styles.bookmarkIndicator}>
+                    <MaterialIcons
+                      color={theme.colors.inkSoft}
+                      name="star"
+                      size={16}
+                    />
+                    <Text
+                      style={[
+                        styles.timestamp,
+                        scaled_text_styles.timestamp,
+                        styles.bookmarkLabel,
+                        { color: theme.colors.inkSoft },
+                      ]}
+                    >
+                      Bookmarked
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
         </View>
-      </View>
-    </Pressable>
+      </Pressable>
+    </MenuView>
   );
+}
+
+function normalize_http_url(value = '') {
+  const normalized_value = `${value || ''}`.trim();
+
+  if (!normalized_value) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(normalized_value)) {
+    return normalized_value;
+  }
+
+  try {
+    const parsed_url = new URL(normalized_value, 'https://');
+
+    return parsed_url.toString();
+  } catch (error) {
+    return '';
+  }
 }
 
 function FeedRecapSummaryCard({
