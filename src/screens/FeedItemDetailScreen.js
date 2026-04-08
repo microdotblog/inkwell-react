@@ -28,6 +28,9 @@ import Animated, {
   FadeInDown,
   FadeOutUp,
   LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -901,6 +904,94 @@ function ReaderPaneTabs({
 }) {
   const reply_label = get_reply_count_label(reply_count);
   const highlight_label = get_highlight_count_label(highlight_count);
+  const pane_options = React.useMemo(() => {
+    const options = [
+      {
+        key: 'post',
+        label: 'Post',
+        on_press: onPressPostPane,
+      },
+    ];
+
+    if (reply_count > 0) {
+      options.push({
+        key: 'replies',
+        label: reply_label,
+        on_press: onPressRepliesPane,
+      });
+    }
+
+    if (highlight_count > 0) {
+      options.push({
+        key: 'highlights',
+        label: highlight_label,
+        on_press: onPressHighlightsPane,
+      });
+    }
+
+    return options;
+  }, [
+    highlight_count,
+    highlight_label,
+    onPressHighlightsPane,
+    onPressPostPane,
+    onPressRepliesPane,
+    reply_count,
+    reply_label,
+  ]);
+  const [pane_frames, set_pane_frames] = React.useState({});
+  const active_pane_offset = useSharedValue(0);
+  const active_pane_width = useSharedValue(0);
+
+  const update_pane_frame = React.useCallback((pane_key, layout) => {
+    set_pane_frames((current_frames) => {
+      const previous_frame = current_frames[pane_key];
+
+      if (
+        previous_frame &&
+        previous_frame.x === layout.x &&
+        previous_frame.width === layout.width
+      ) {
+        return current_frames;
+      }
+
+      return {
+        ...current_frames,
+        [pane_key]: {
+          width: layout.width,
+          x: layout.x,
+        },
+      };
+    });
+  }, []);
+
+  React.useEffect(() => {
+    const active_frame = pane_frames[active_pane];
+
+    active_pane_offset.value = withTiming(active_frame?.x || 0, {
+      duration: 220,
+    });
+    active_pane_width.value = withTiming(active_frame?.width || 0, {
+      duration: 220,
+    });
+  }, [
+    active_pane,
+    active_pane_offset,
+    active_pane_width,
+    pane_frames,
+  ]);
+
+  const active_pane_style = useAnimatedStyle(() => {
+    return {
+      opacity: active_pane_width.value > 0 ? 1 : 0,
+      transform: [
+        {
+          translateX: active_pane_offset.value,
+        },
+      ],
+      width: active_pane_width.value,
+    };
+  }, []);
 
   return (
     <View style={styles.readerPaneTabsWrap}>
@@ -914,31 +1005,37 @@ function ReaderPaneTabs({
           },
         ]}
       >
-        <ReaderPaneButton
-          is_active={active_pane === 'post'}
-          label="Post"
-          onPress={onPressPostPane}
-          scaled_text_styles={scaled_text_styles}
-          theme={theme}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.readerPaneActivePill,
+            {
+              backgroundColor: theme.colors.paper,
+              borderColor: theme.colors.line,
+            },
+            active_pane_style,
+          ]}
         />
-        {reply_count > 0 ? (
+        {pane_options.map((option) => {
+          const is_active = option.key === active_pane;
+
+          return (
           <ReaderPaneButton
-            is_active={active_pane === 'replies'}
-            label={reply_label}
-            onPress={onPressRepliesPane}
+            is_active={is_active}
+            key={option.key}
+            label={option.label}
+            onLayout={(event) => {
+              update_pane_frame(
+                option.key,
+                event.nativeEvent.layout,
+              );
+            }}
+            onPress={option.on_press}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
           />
-        ) : null}
-        {highlight_count > 0 ? (
-          <ReaderPaneButton
-            is_active={active_pane === 'highlights'}
-            label={highlight_label}
-            onPress={onPressHighlightsPane}
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-          />
-        ) : null}
+          );
+        })}
       </View>
     </View>
   );
@@ -947,6 +1044,7 @@ function ReaderPaneTabs({
 function ReaderPaneButton({
   is_active = false,
   label = '',
+  onLayout,
   onPress,
   scaled_text_styles,
   theme,
@@ -955,15 +1053,14 @@ function ReaderPaneButton({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: is_active }}
+      onLayout={onLayout}
       onPress={onPress}
       style={({ pressed }) => {
         return [
           styles.readerPaneButton,
           {
-            backgroundColor: is_active
-              ? theme.colors.paper
-              : 'transparent',
-            borderColor: is_active ? theme.colors.line : 'transparent',
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
             opacity: pressed ? 0.84 : 1,
           },
         ];
@@ -2550,6 +2647,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
   },
   readerPaneTabs: {
+    position: 'relative',
     borderRadius: READER_PANE_CONTROL_RADIUS,
     borderWidth: 1,
     elevation: 2,
@@ -2563,6 +2661,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 14,
   },
+  readerPaneActivePill: {
+    position: 'absolute',
+    top: READER_PANE_CONTROL_INSET,
+    bottom: READER_PANE_CONTROL_INSET,
+    left: 0,
+    borderRadius: READER_PANE_BUTTON_RADIUS,
+    borderWidth: 1,
+  },
   readerPaneButton: {
     alignItems: 'center',
     borderRadius: READER_PANE_BUTTON_RADIUS,
@@ -2571,6 +2677,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: READER_PANE_BUTTON_HEIGHT,
     paddingHorizontal: 12,
+    position: 'relative',
+    zIndex: 1,
   },
   readerPaneButtonLabel: {
     fontSize: 13,
