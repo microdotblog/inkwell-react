@@ -1127,29 +1127,29 @@ function FeedTimelineRow({
   }, [entry, theme]);
 
   return (
-    <MenuView
-      accessibilityLabel={`More options for ${display_title}`}
-      actions={menu_actions}
-      onPressAction={({ nativeEvent }) => {
-        onMenuAction?.(entry, nativeEvent.event);
+    <Pressable
+      accessibilityRole="button"
+      onLongPress={() => {}}
+      onPress={() => onPress?.(entry.id)}
+      style={({ pressed }) => {
+        return [
+          styles.rowCard,
+          {
+            backgroundColor: theme.colors.paper,
+            borderColor: theme.colors.line,
+            opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
+          },
+        ];
       }}
-      shouldOpenOnLongPress
-      themeVariant={theme.isDark ? 'dark' : 'light'}
     >
-      <Pressable
-        accessibilityRole="button"
-        delayLongPress={200}
-        onPress={() => onPress?.(entry.id)}
-        style={({ pressed }) => {
-          return [
-            styles.rowCard,
-            {
-              backgroundColor: theme.colors.paper,
-              borderColor: theme.colors.line,
-              opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
-            },
-          ];
+      <MenuView
+        accessibilityLabel={`More options for ${display_title}`}
+        actions={menu_actions}
+        onPressAction={({ nativeEvent }) => {
+          onMenuAction?.(entry, nativeEvent.event);
         }}
+        shouldOpenOnLongPress
+        themeVariant={theme.isDark ? 'dark' : 'light'}
       >
         <View style={styles.rowContentWrap}>
           <FeedSourceAvatar
@@ -1231,8 +1231,8 @@ function FeedTimelineRow({
             ) : null}
           </View>
         </View>
-      </Pressable>
-    </MenuView>
+      </MenuView>
+    </Pressable>
   );
 }
 
