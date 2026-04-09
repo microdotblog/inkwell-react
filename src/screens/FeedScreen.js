@@ -784,6 +784,7 @@ function FeedScreen({ navigation, isDark = false }) {
               style={[
                 styles.searchFooter,
                 {
+                  backgroundColor: resolve_search_footer_backdrop_color(theme),
                   paddingBottom: footer_bottom_inset,
                   paddingTop: FOOTER_TOP_PADDING,
                 },
@@ -1816,6 +1817,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   searchFooter: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
   },
   footerBackdrop: {
@@ -2107,6 +2110,10 @@ export default observer(FeedScreen);
 
 function resolve_footer_backdrop_color(theme) {
   return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.78 : 0.84);
+}
+
+function resolve_search_footer_backdrop_color(theme) {
+  return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.88 : 0.92);
 }
 
 function resolve_top_status_scrim_color(theme, platform = Platform.OS) {
