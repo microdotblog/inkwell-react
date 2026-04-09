@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   PanResponder,
   Platform,
   Pressable,
@@ -65,6 +66,10 @@ const READER_WEBVIEW_CONTENT_MAX_WIDTH = 600;
 const READER_WEBVIEW_MIN_HEIGHT = 1;
 const READER_HIGHLIGHT_LIGHT_BACKGROUND = "#FFF9D6";
 const READER_HIGHLIGHT_DARK_BACKGROUND = "#D98C3A";
+const READER_IMAGE_MODAL_BACKGROUND = "rgba(5, 7, 12, 0.96)";
+const READER_IMAGE_MODAL_CLOSE_BUTTON_SIZE = 40;
+const READER_IMAGE_MODAL_VIEWPORT_PADDING = 20;
+const READER_IMAGE_MODAL_MAXIMUM_SCALE = 8;
 const READER_AVATAR_SIZE = 42;
 const READER_AVATAR_TRANSITION_MS = 180;
 const READER_TITLE_FONT_SIZE = 34;
@@ -236,6 +241,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     React.useState(false);
   const [is_text_size_tray_visible, set_is_text_size_tray_visible] =
     React.useState(false);
+  const [reader_image_viewer, set_reader_image_viewer] = React.useState(null);
   const [reader_webview_reload_key, set_reader_webview_reload_key] =
     React.useState(0);
   const is_ios_header_title_visible_ref = React.useRef(false);
@@ -257,6 +263,8 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const header_title_font_size = 17;
   const reply_count = replies.length;
   const highlight_count = entry_highlights.length;
+  const reader_image_url = `${reader_image_viewer?.image_url || ""}`.trim();
+  const is_reader_image_viewer_visible = Boolean(reader_image_url);
   const active_reader_highlight = React.useMemo(() => {
     return resolve_entry_highlight_by_identifier(
       entry_highlights,
@@ -379,6 +387,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   React.useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
       set_is_text_size_tray_visible(false);
+      set_reader_image_viewer(null);
     });
 
     return unsubscribe;
@@ -389,6 +398,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       set_is_text_size_tray_visible(false);
     }
   }, [detail_mode, entry, resolved_entry_id]);
+
+  React.useEffect(() => {
+    set_reader_image_viewer(null);
+  }, [detail_mode, recap?.requested_at, resolved_entry_id]);
 
   React.useEffect(() => {
     if (
@@ -604,6 +617,29 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
   const handle_text_size_tray_dismiss = React.useCallback(() => {
     set_is_text_size_tray_visible(false);
+  }, []);
+
+  const handle_reader_image_press = React.useCallback((payload = {}) => {
+    const image_url = normalize_http_url(
+      payload?.image_url || payload?.image_src,
+    );
+
+    if (!image_url) {
+      return;
+    }
+
+    reader_post_ref.current?.clearSelection?.();
+    set_has_reader_selection(false);
+    set_active_reader_highlight_id("");
+    set_is_text_size_tray_visible(false);
+    set_reader_image_viewer({
+      image_alt: `${payload?.image_alt || ""}`.trim(),
+      image_url,
+    });
+  }, []);
+
+  const handle_reader_image_viewer_dismiss = React.useCallback(() => {
+    set_reader_image_viewer(null);
   }, []);
 
   const handle_reader_selection_change = React.useCallback(
@@ -906,6 +942,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             onCopyHighlight={handle_copy_highlight}
             onDeleteHighlight={handle_delete_highlight}
             onReaderActiveHighlightChange={handle_reader_active_highlight_change}
+            onReaderImagePress={handle_reader_image_press}
             onPressHighlightsPane={handle_highlights_pane_press}
             onPressPostPane={handle_post_pane_press}
             onPressRepliesPane={handle_replies_pane_press}
@@ -1011,6 +1048,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           visible={is_text_size_tray_visible}
         />
       ) : null}
+
+      <ReaderImageViewerModal
+        image_alt={reader_image_viewer?.image_alt}
+        image_url={reader_image_url}
+        onRequestClose={handle_reader_image_viewer_dismiss}
+        safe_area_top={insets.top}
+        theme={theme}
+        visible={is_reader_image_viewer_visible}
+      />
     </View>
   );
 }
@@ -1026,6 +1072,7 @@ function EntryReaderView({
   onCopyHighlight,
   onDeleteHighlight,
   onReaderActiveHighlightChange,
+  onReaderImagePress,
   onPressHighlightsPane,
   onPressPostPane,
   onPressRepliesPane,
@@ -1183,6 +1230,7 @@ function EntryReaderView({
             highlight_payload={reader_highlights}
             html={reader_html}
             onActiveHighlightChange={onReaderActiveHighlightChange}
+            onImagePress={onReaderImagePress}
             onSelectionChange={onReaderSelectionChange}
             reload_key={reader_webview_reload_key}
             ref={reader_post_ref}
@@ -1909,12 +1957,153 @@ function ReaderHighlightAction({
   );
 }
 
+function ReaderImageViewerModal({
+  image_alt = "",
+  image_url = "",
+  onRequestClose,
+  safe_area_top = 0,
+  theme,
+  visible = false,
+}) {
+  const normalized_image_url = `${image_url || ""}`.trim();
+  const [is_loading, set_is_loading] = React.useState(false);
+  const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!visible || !normalized_image_url) {
+      set_is_loading(false);
+      set_did_fail_to_load(false);
+      return;
+    }
+
+    set_is_loading(true);
+    set_did_fail_to_load(false);
+  }, [normalized_image_url, visible]);
+
+  const viewer_source = React.useMemo(() => {
+    if (!normalized_image_url) {
+      return null;
+    }
+
+    return {
+      baseUrl: normalized_image_url,
+      html: create_reader_image_viewer_document_html({
+        image_alt,
+        image_url: normalized_image_url,
+      }),
+    };
+  }, [image_alt, normalized_image_url]);
+
+  const handle_load_end = React.useCallback(() => {
+    set_is_loading(false);
+  }, []);
+
+  const handle_error = React.useCallback(() => {
+    set_is_loading(false);
+    set_did_fail_to_load(true);
+  }, []);
+
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onRequestClose}
+      presentationStyle="fullScreen"
+      statusBarTranslucent
+      transparent
+      visible={visible}
+    >
+      <View
+        style={[
+          styles.readerImageViewerOverlay,
+          {
+            backgroundColor: READER_IMAGE_MODAL_BACKGROUND,
+          },
+        ]}
+      >
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.readerImageViewerHeader,
+            {
+              paddingTop: safe_area_top + 8,
+            },
+          ]}
+        >
+          <Pressable
+            accessibilityLabel="Close image viewer"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={onRequestClose}
+            style={({ pressed }) => {
+              return [
+                styles.readerImageViewerCloseButton,
+                {
+                  backgroundColor: with_color_opacity(
+                    theme?.colors?.canvas || "#ffffff",
+                    theme?.isDark ? 0.18 : 0.82,
+                  ),
+                  borderColor: with_color_opacity(
+                    theme?.colors?.line || "#d2d2d7",
+                    theme?.isDark ? 0.34 : 0.76,
+                  ),
+                  opacity: pressed ? 0.82 : 1,
+                },
+              ];
+            }}
+          >
+            <MaterialIcons
+              color={theme?.colors?.ink || "#1d1d1f"}
+              name="close"
+              size={20}
+            />
+          </Pressable>
+        </View>
+
+        {viewer_source ? (
+          <WebView
+            androidLayerType="hardware"
+            bounces={false}
+            key={`reader-image-viewer-${normalized_image_url}`}
+            onError={handle_error}
+            onLoadEnd={handle_load_end}
+            originWhitelist={["*"]}
+            overScrollMode="never"
+            scalesPageToFit
+            scrollEnabled
+            setBuiltInZoomControls
+            setDisplayZoomControls={false}
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+            source={viewer_source}
+            style={styles.readerImageViewerWebView}
+          />
+        ) : null}
+
+        {is_loading ? (
+          <View pointerEvents="none" style={styles.readerImageViewerLoading}>
+            <ActivityIndicator color="#ffffff" size="small" />
+          </View>
+        ) : null}
+
+        {did_fail_to_load ? (
+          <View pointerEvents="none" style={styles.readerImageViewerError}>
+            <Text style={styles.readerImageViewerErrorTitle}>
+              We couldn&apos;t load this image.
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </Modal>
+  );
+}
+
 const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
   {
     base_url = "",
     highlight_payload = [],
     html = "",
     onActiveHighlightChange,
+    onImagePress,
     onSelectionChange,
     reload_key = 0,
     theme,
@@ -2116,12 +2305,17 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
 
         if (payload?.type === "link") {
           open_external_url(payload?.href);
+          return;
+        }
+
+        if (payload?.type === "image") {
+          onImagePress?.(payload);
         }
       } catch (error) {
         // Ignore malformed bridge events from the embedded document.
       }
     },
-    [onActiveHighlightChange, onSelectionChange],
+    [onActiveHighlightChange, onImagePress, onSelectionChange],
   );
 
   const handle_load_end = React.useCallback(() => {
@@ -3525,6 +3719,48 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     zIndex: 4,
   },
+  readerImageViewerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  readerImageViewerHeader: {
+    left: 0,
+    paddingHorizontal: READER_HORIZONTAL_PADDING,
+    position: "absolute",
+    right: 0,
+    top: 0,
+    zIndex: 2,
+  },
+  readerImageViewerCloseButton: {
+    alignItems: "center",
+    alignSelf: "flex-end",
+    borderRadius: READER_IMAGE_MODAL_CLOSE_BUTTON_SIZE / 2,
+    borderWidth: 1,
+    height: READER_IMAGE_MODAL_CLOSE_BUTTON_SIZE,
+    justifyContent: "center",
+    width: READER_IMAGE_MODAL_CLOSE_BUTTON_SIZE,
+  },
+  readerImageViewerWebView: {
+    backgroundColor: "transparent",
+    flex: 1,
+  },
+  readerImageViewerLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  readerImageViewerError: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  readerImageViewerErrorTitle: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 22,
+    textAlign: "center",
+  },
   readerHighlightActionWrap: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
@@ -3883,6 +4119,56 @@ function create_reader_post_document_html({
   <script>
     ${create_reader_post_bridge_script()}
   </script>
+</body>
+</html>`;
+}
+
+function create_reader_image_viewer_document_html({
+  image_alt = "",
+  image_url = "",
+}) {
+  const safe_image_url = escape_html_attribute(image_url);
+  const safe_image_alt = escape_html_attribute(image_alt || "Reader image");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=${READER_IMAGE_MODAL_MAXIMUM_SCALE}, user-scalable=yes, viewport-fit=cover"
+  >
+  <style>
+    html, body {
+      background: #05070c;
+      height: 100%;
+      margin: 0;
+      overflow: auto;
+      padding: 0;
+      width: 100%;
+    }
+
+    body {
+      align-items: center;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: center;
+      padding: ${READER_IMAGE_MODAL_VIEWPORT_PADDING}px;
+    }
+
+    img {
+      display: block;
+      height: auto;
+      margin: 0 auto;
+      max-height: calc(100vh - ${READER_IMAGE_MODAL_VIEWPORT_PADDING * 2}px);
+      max-width: calc(100vw - ${READER_IMAGE_MODAL_VIEWPORT_PADDING * 2}px);
+      object-fit: contain;
+      width: auto;
+    }
+  </style>
+</head>
+<body>
+  <img alt="${safe_image_alt}" src="${safe_image_url}">
 </body>
 </html>`;
 }
@@ -4290,6 +4576,30 @@ function create_reader_post_bridge_script() {
       }
     }
 
+    function imageLikeURL(rawValue) {
+      var value = absoluteURL(rawValue);
+
+      if (!value) {
+        return '';
+      }
+
+      try {
+        var parsedURL = new URL(value);
+
+        if (
+          /\.(apng|avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i.test(
+            parsedURL.pathname || ''
+          )
+        ) {
+          return value;
+        }
+      } catch (error) {
+        return '';
+      }
+
+      return '';
+    }
+
     function hasContentSelection() {
       var selection = window.getSelection();
       if (
@@ -4405,6 +4715,34 @@ function create_reader_post_bridge_script() {
         image.addEventListener('error', postHeight);
       });
     }
+
+    document.addEventListener('click', function(event) {
+      if (!event.target || !event.target.closest) {
+        return;
+      }
+
+      var image = event.target.closest('img');
+      if (!image) {
+        return;
+      }
+
+      var imageSrc = absoluteURL(image.currentSrc || image.src);
+      if (!imageSrc) {
+        return;
+      }
+
+      var imageLink = image.closest('a[href]');
+      var anchorHref = imageLink ? absoluteURL(imageLink.getAttribute('href')) : '';
+      var imageURL = imageLikeURL(anchorHref) || imageSrc;
+
+      event.preventDefault();
+      event.stopPropagation();
+      postBridgeMessage('image', {
+        image_alt: String(image.getAttribute('alt') || '').trim(),
+        image_src: imageSrc,
+        image_url: imageURL,
+      });
+    }, true);
 
     document.addEventListener('click', function(event) {
       if (!event.target || !event.target.closest) {
