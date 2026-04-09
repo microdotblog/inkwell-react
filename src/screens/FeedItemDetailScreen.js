@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -1462,6 +1463,34 @@ function ReaderTextSizeTray({
   visible = false,
 }) {
   const visibility_progress = useSharedValue(visible ? 1 : 0);
+  const swipe_close_responder = React.useMemo(() => {
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture_state) => {
+        if (!visible) {
+          return false;
+        }
+
+        const horizontal_distance = Math.abs(gesture_state.dx);
+        const vertical_distance = Math.abs(gesture_state.dy);
+
+        return (
+          gesture_state.dy > 8 &&
+          vertical_distance > horizontal_distance &&
+          vertical_distance > 10
+        );
+      },
+      onPanResponderRelease: (_event, gesture_state) => {
+        if (gesture_state.dy > 56 || gesture_state.vy > 0.9) {
+          onDismiss?.();
+        }
+      },
+      onPanResponderTerminate: (_event, gesture_state) => {
+        if (gesture_state.dy > 56 || gesture_state.vy > 0.9) {
+          onDismiss?.();
+        }
+      },
+    });
+  }, [onDismiss, visible]);
 
   React.useEffect(() => {
     visibility_progress.value = withTiming(visible ? 1 : 0, {
@@ -1528,31 +1557,36 @@ function ReaderTextSizeTray({
           ]}
         >
           <View
-            style={[
-              styles.readerTextSizeTrayHandle,
-              {
-                backgroundColor: theme.colors.line,
-              },
-            ]}
-          />
+            {...swipe_close_responder.panHandlers}
+            style={styles.readerTextSizeSwipeArea}
+          >
+            <View
+              style={[
+                styles.readerTextSizeTrayHandle,
+                {
+                  backgroundColor: theme.colors.line,
+                },
+              ]}
+            />
 
-          <View style={styles.readerTextSizeTrayHeader}>
-            <Text
-              style={[
-                styles.readerTextSizeTrayTitle,
-                { color: theme.colors.ink },
-              ]}
-            >
-              Text size
-            </Text>
-            <Text
-              style={[
-                styles.readerTextSizeTrayValue,
-                { color: theme.colors.accentStrong },
-              ]}
-            >
-              {formatTextScaleLabel(text_scale)}
-            </Text>
+            <View style={styles.readerTextSizeTrayHeader}>
+              <Text
+                style={[
+                  styles.readerTextSizeTrayTitle,
+                  { color: theme.colors.ink },
+                ]}
+              >
+                Text size
+              </Text>
+              <Text
+                style={[
+                  styles.readerTextSizeTrayValue,
+                  { color: theme.colors.accentStrong },
+                ]}
+              >
+                {formatTextScaleLabel(text_scale)}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.readerTextSizeSliderWrap}>
@@ -3179,6 +3213,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: READER_TEXT_SIZE_TRAY_SHADOW_RADIUS,
     elevation: 6,
+  },
+  readerTextSizeSwipeArea: {
+    paddingBottom: 4,
   },
   readerTextSizeTrayHandle: {
     alignSelf: "center",
