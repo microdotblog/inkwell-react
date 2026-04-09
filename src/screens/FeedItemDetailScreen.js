@@ -2357,6 +2357,8 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
     <View style={styles.readerPostWebViewFrame}>
       <WebView
         androidLayerType="hardware"
+        allowsFullscreenVideo
+        allowsInlineMediaPlayback
         automaticallyAdjustContentInsets={false}
         bounces={false}
         containerStyle={styles.readerPostWebViewContainer}
@@ -4059,6 +4061,12 @@ function create_reader_post_document_html({
       max-width: 100%;
     }
 
+    video {
+      background: #000;
+      display: block;
+      width: 100%;
+    }
+
     figure {
       margin-left: 0;
       margin-right: 0;
@@ -4920,11 +4928,11 @@ function sanitize_reader_html(markup = "", options = {}) {
 
   const stripped_markup = trimmed_markup
     .replace(
-      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1>/gi,
+      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|audio|link|meta|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1>/gi,
       "",
     )
     .replace(
-      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta|base)\b[^>]*\/?>/gi,
+      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|audio|link|meta|base)\b[^>]*\/?>/gi,
       "",
     )
     .replace(/<!--[\s\S]*?-->/g, "");
@@ -4944,12 +4952,16 @@ function sanitize_reader_html(markup = "", options = {}) {
           base_url,
         },
       );
+      const media_attributes =
+        normalized_tag_name === "video"
+          ? append_missing_video_attributes(normalized_attributes)
+          : normalized_attributes;
 
       if (self_closing_marker === "/") {
-        return `<${normalized_tag_name}${normalized_attributes} />`;
+        return `<${normalized_tag_name}${media_attributes} />`;
       }
 
-      return `<${normalized_tag_name}${normalized_attributes}>`;
+      return `<${normalized_tag_name}${media_attributes}>`;
     },
   );
 }
@@ -5874,6 +5886,21 @@ function sanitize_reader_html_attributes(raw_attributes = "", options = {}) {
   }
 
   return ` ${sanitized_attributes.join(" ")}`;
+}
+
+function append_missing_video_attributes(attributes = "") {
+  const normalized_attributes = `${attributes || ""}`;
+  let next_attributes = normalized_attributes;
+
+  if (!/\bplaysinline\b/i.test(next_attributes)) {
+    next_attributes = `${next_attributes} playsinline`;
+  }
+
+  if (!/\bwebkit-playsinline\b/i.test(next_attributes)) {
+    next_attributes = `${next_attributes} webkit-playsinline`;
+  }
+
+  return next_attributes;
 }
 
 function normalize_http_url(raw_url = "", options = {}) {
