@@ -354,6 +354,52 @@ const Highlights = types
       });
     },
 
+    entry_highlight_entries(post_id = '') {
+      const normalized_post_id = normalize_string(post_id);
+
+      if (!normalized_post_id) {
+        return [];
+      }
+
+      return self.items
+        .filter((item) => {
+          return normalize_string(item?.post_id) === normalized_post_id;
+        })
+        .map((item) => {
+          return getSnapshot(item);
+        });
+    },
+
+    entry_highlight_ranges(post_id = '') {
+      return self.entry_highlight_entries(post_id)
+        .map((highlight) => {
+          return resolve_highlight_range(highlight);
+        })
+        .filter(Boolean);
+    },
+
+    entry_highlight_snapshot_by_identifier(post_id = '', identifier = '') {
+      const normalized_post_id = normalize_string(post_id);
+      const normalized_identifier = normalize_string(identifier);
+
+      if (!normalized_post_id || !normalized_identifier) {
+        return null;
+      }
+
+      const highlight = self.items.find((item) => {
+        return (
+          normalize_string(item?.post_id) === normalized_post_id &&
+          highlight_matches_identifier(item, normalized_identifier)
+        );
+      });
+
+      if (!highlight) {
+        return null;
+      }
+
+      return getSnapshot(highlight);
+    },
+
     highlights_count() {
       return self.items.length;
     },
@@ -587,6 +633,38 @@ function matches_highlight_query(highlight = null, query = '') {
   );
 }
 
+function resolve_highlight_range(highlight = null) {
+  const start_offset = parse_highlight_offset(highlight?.start_offset);
+  const end_offset = parse_highlight_offset(highlight?.end_offset);
+
+  if (start_offset == null || end_offset == null || end_offset <= start_offset) {
+    return null;
+  }
+
+  return {
+    end_offset,
+    highlight_id: resolve_highlight_identifier(highlight),
+    start_offset,
+  };
+}
+
+function resolve_highlight_identifier(highlight = null) {
+  return normalize_string(highlight?.highlight_id || highlight?.id);
+}
+
+function highlight_matches_identifier(highlight = null, identifier = '') {
+  const normalized_identifier = normalize_string(identifier);
+
+  if (!normalized_identifier) {
+    return false;
+  }
+
+  return (
+    normalize_string(highlight?.id) === normalized_identifier ||
+    normalize_string(highlight?.highlight_id) === normalized_identifier
+  );
+}
+
 function normalize_search_query(value = '') {
   return normalize_search_target(value);
 }
@@ -604,10 +682,10 @@ function normalize_web_url(raw_url = '') {
 
   try {
     return new URL(trimmed_url).toString();
-  } catch (error) {
+  } catch {
     try {
       return new URL(`https://${trimmed_url}`).toString();
-    } catch (fallback_error) {
+    } catch {
       return '';
     }
   }
