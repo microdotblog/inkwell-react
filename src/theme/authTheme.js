@@ -479,16 +479,22 @@ const accentPalettes = {
 
 export const ACCENT_PALETTE_OPTIONS = Object.freeze([
   {
-    id: 'blue',
-    label: accentPalettes.blue.label,
-    light_swatch: accentPalettes.blue.light.swatch,
-    dark_swatch: accentPalettes.blue.dark.swatch,
-  },
-  {
     id: 'purple',
     label: accentPalettes.purple.label,
     light_swatch: accentPalettes.purple.light.swatch,
     dark_swatch: accentPalettes.purple.dark.swatch,
+  },
+  {
+    id: 'orange',
+    label: accentPalettes.orange.label,
+    light_swatch: accentPalettes.orange.light.swatch,
+    dark_swatch: accentPalettes.orange.dark.swatch,
+  },
+  {
+    id: 'blue',
+    label: accentPalettes.blue.label,
+    light_swatch: accentPalettes.blue.light.swatch,
+    dark_swatch: accentPalettes.blue.dark.swatch,
   },
   {
     id: 'teal',
@@ -501,12 +507,6 @@ export const ACCENT_PALETTE_OPTIONS = Object.freeze([
     label: accentPalettes.rose.label,
     light_swatch: accentPalettes.rose.light.swatch,
     dark_swatch: accentPalettes.rose.dark.swatch,
-  },
-  {
-    id: 'orange',
-    label: accentPalettes.orange.label,
-    light_swatch: accentPalettes.orange.light.swatch,
-    dark_swatch: accentPalettes.orange.dark.swatch,
   },
   {
     id: 'slate',
