@@ -229,6 +229,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const [deleting_highlight_id, set_deleting_highlight_id] = React.useState("");
   const [is_loading_replies, set_is_loading_replies] = React.useState(false);
   const [replies, set_replies] = React.useState([]);
+  const [has_reader_selection, set_has_reader_selection] = React.useState(false);
+  const [is_creating_highlight, set_is_creating_highlight] =
+    React.useState(false);
   const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
     React.useState(false);
   const [is_text_size_tray_visible, set_is_text_size_tray_visible] =
@@ -237,6 +240,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     React.useState(0);
   const is_ios_header_title_visible_ref = React.useRef(false);
   const replies_request_token_ref = React.useRef(0);
+  const reader_post_ref = React.useRef(null);
   const header_title = detail_mode === "recap" ? "Reading Recap" : source_label;
   const has_entry_menu =
     detail_mode === "entry" && Boolean(entry) && Boolean(resolved_entry_id);
@@ -255,6 +259,13 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const highlight_count = entry_highlights.length;
   const should_show_entry_pane_tabs =
     detail_mode === "entry" && (reply_count > 0 || highlight_count > 0);
+  const should_show_highlight_action =
+    detail_mode === "entry" &&
+    Boolean(entry) &&
+    active_pane === "post" &&
+    has_entry_body &&
+    !is_text_size_tray_visible &&
+    (has_reader_selection || is_creating_highlight);
   const entry_menu_actions = React.useMemo(() => {
     return get_entry_menu_actions({
       entry,
@@ -367,6 +378,18 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       set_is_text_size_tray_visible(false);
     }
   }, [detail_mode, entry, resolved_entry_id]);
+
+  React.useEffect(() => {
+    if (
+      detail_mode !== "entry" ||
+      !entry ||
+      active_pane !== "post" ||
+      !has_entry_body
+    ) {
+      set_has_reader_selection(false);
+      set_is_creating_highlight(false);
+    }
+  }, [active_pane, detail_mode, entry, has_entry_body, resolved_entry_id]);
 
   React.useEffect(() => {
     replies_request_token_ref.current += 1;
@@ -545,6 +568,78 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const handle_text_size_tray_dismiss = React.useCallback(() => {
     set_is_text_size_tray_visible(false);
   }, []);
+
+  const handle_reader_selection_change = React.useCallback(
+    (next_has_selection = false) => {
+      set_has_reader_selection(Boolean(next_has_selection));
+    },
+    [],
+  );
+
+  const handle_create_highlight = React.useCallback(async () => {
+    if (
+      is_creating_highlight ||
+      !entry ||
+      !resolved_entry_id ||
+      !reader_post_ref.current
+    ) {
+      return;
+    }
+
+    const selection_payload =
+      await reader_post_ref.current.requestSelectionPayload?.();
+    const selection_text = `${selection_payload?.selection_text || ""}`;
+    const trimmed_selection_text = selection_text.trim();
+    const normalized_post_title = normalize_reader_text(entry?.title);
+
+    await reader_post_ref.current.clearSelection?.();
+    set_has_reader_selection(false);
+
+    if (!trimmed_selection_text) {
+      return;
+    }
+
+    set_is_creating_highlight(true);
+
+    try {
+      const result = await Highlights.create_highlight({
+        end_offset: selection_payload?.end_offset,
+        post_has_title:
+          Boolean(normalized_post_title) &&
+          normalized_post_title.toLowerCase() !== "untitled",
+        post_id: resolved_entry_id,
+        post_published_at: entry?.published_at,
+        post_source: source_label,
+        post_title: entry?.title,
+        post_url: original_url,
+        start_offset: selection_payload?.start_offset,
+        text: selection_text,
+      });
+
+      if (!result?.ok) {
+        AppStore.show_toast(
+          result?.error_message || "We could not save that highlight.",
+          {
+            top_offset: toast_top_offset,
+          },
+        );
+        return;
+      }
+
+      AppStore.show_toast("Highlight saved", {
+        top_offset: toast_top_offset,
+      });
+    } finally {
+      set_is_creating_highlight(false);
+    }
+  }, [
+    entry,
+    is_creating_highlight,
+    original_url,
+    resolved_entry_id,
+    source_label,
+    toast_top_offset,
+  ]);
 
   const handle_reader_text_scale_change = React.useCallback(
     (next_slider_index = 0) => {
@@ -759,11 +854,13 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             onPressHighlightsPane={handle_highlights_pane_press}
             onPressPostPane={handle_post_pane_press}
             onPressRepliesPane={handle_replies_pane_press}
+            onReaderSelectionChange={handle_reader_selection_change}
             original_url={original_url}
             reader_base_url={reader_base_url}
             replies={replies}
             reader_html={sanitized_reader_html}
             reader_highlights={reader_highlights}
+            reader_post_ref={reader_post_ref}
             reader_webview_reload_key={reader_webview_reload_key}
             reader_title={reader_title}
             reply_count={reply_count}
@@ -825,6 +922,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         ) : null}
       </ScrollView>
 
+      {should_show_highlight_action ? (
+        <ReaderHighlightAction
+          is_loading={is_creating_highlight}
+          onPress={handle_create_highlight}
+          safe_area_bottom={insets.bottom}
+          theme={theme}
+        />
+      ) : null}
+
       {detail_mode === "entry" && entry ? (
         <ReaderTextSizeTray
           onDismiss={handle_text_size_tray_dismiss}
@@ -854,11 +960,13 @@ function EntryReaderView({
   onPressHighlightsPane,
   onPressPostPane,
   onPressRepliesPane,
+  onReaderSelectionChange,
   original_url = "",
   reader_base_url = "",
   replies = [],
   reader_html = "",
   reader_highlights = [],
+  reader_post_ref,
   reader_webview_reload_key = 0,
   reader_title = "",
   reply_count = 0,
@@ -1005,7 +1113,9 @@ function EntryReaderView({
             base_url={reader_base_url}
             highlight_payload={reader_highlights}
             html={reader_html}
+            onSelectionChange={onReaderSelectionChange}
             reload_key={reader_webview_reload_key}
+            ref={reader_post_ref}
             theme={theme}
             text_scale={reader_text_scale}
             width={width}
@@ -1656,17 +1766,74 @@ function ReaderTextSizeTray({
   );
 }
 
-function ReaderPostWebView({
-  base_url = "",
-  highlight_payload = [],
-  html = "",
-  onSelectionChange,
-  reload_key = 0,
+function ReaderHighlightAction({
+  is_loading = false,
+  onPress,
+  safe_area_bottom = 0,
   theme,
-  text_scale = 1,
-  width = 0,
 }) {
+  const label = is_loading ? "Saving..." : "Highlight";
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={[
+        styles.readerHighlightActionWrap,
+        {
+          paddingBottom: safe_area_bottom + 18,
+        },
+      ]}
+    >
+      <Pressable
+        accessibilityLabel={is_loading ? "Saving highlight" : "Create highlight"}
+        accessibilityRole="button"
+        disabled={is_loading}
+        onPress={onPress}
+        style={({ pressed }) => {
+          return [
+            styles.readerHighlightActionButton,
+            {
+              backgroundColor: theme.colors.canvas,
+              borderColor: theme.colors.line,
+              opacity: is_loading ? 0.78 : pressed ? 0.86 : 1,
+              shadowColor: theme.colors.shadow,
+            },
+          ];
+        }}
+      >
+        <Text
+          style={[
+            styles.readerHighlightActionLabel,
+            {
+              color: is_loading
+                ? theme.colors.inkSoft
+                : theme.colors.accentStrong,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
+  {
+    base_url = "",
+    highlight_payload = [],
+    html = "",
+    onSelectionChange,
+    reload_key = 0,
+    theme,
+    text_scale = 1,
+    width = 0,
+  },
+  forwarded_ref,
+) {
   const webview_ref = React.useRef(null);
+  const pending_selection_request_ref = React.useRef(null);
+  const selection_request_id_ref = React.useRef(0);
   const [content_height, set_content_height] = React.useState(
     READER_WEBVIEW_MIN_HEIGHT,
   );
@@ -1756,6 +1923,59 @@ function ReaderPostWebView({
     apply_text_scale();
   }, [apply_text_scale]);
 
+  React.useEffect(() => {
+    return () => {
+      if (pending_selection_request_ref.current?.resolve) {
+        pending_selection_request_ref.current.resolve(null);
+      }
+
+      pending_selection_request_ref.current = null;
+    };
+  }, []);
+
+  React.useImperativeHandle(
+    forwarded_ref,
+    () => ({
+      clearSelection() {
+        if (!webview_ref.current || !did_finish_load) {
+          return Promise.resolve();
+        }
+
+        webview_ref.current.injectJavaScript(
+          "window.inkwellDetail?.clearSelection(); true;",
+        );
+        return Promise.resolve();
+      },
+
+      requestSelectionPayload() {
+        if (!webview_ref.current || !did_finish_load) {
+          return Promise.resolve(null);
+        }
+
+        if (pending_selection_request_ref.current?.resolve) {
+          pending_selection_request_ref.current.resolve(null);
+        }
+
+        selection_request_id_ref.current += 1;
+        const request_id = `selection-${selection_request_id_ref.current}`;
+
+        return new Promise((resolve) => {
+          pending_selection_request_ref.current = {
+            request_id,
+            resolve,
+          };
+
+          webview_ref.current.injectJavaScript(
+            `window.inkwellDetail?.requestSelectionPayload(${JSON.stringify(
+              request_id,
+            )}); true;`,
+          );
+        });
+      },
+    }),
+    [did_finish_load],
+  );
+
   const handle_message = React.useCallback(
     (event) => {
       const raw_data = `${event?.nativeEvent?.data || ""}`.trim();
@@ -1778,6 +1998,21 @@ function ReaderPostWebView({
 
         if (payload?.type === "selection") {
           onSelectionChange?.(Boolean(payload?.has_selection));
+          return;
+        }
+
+        if (payload?.type === "selection_payload") {
+          const request_id = `${payload?.request_id || ""}`;
+          const pending_request = pending_selection_request_ref.current;
+
+          if (
+            pending_request &&
+            pending_request.request_id &&
+            pending_request.request_id === request_id
+          ) {
+            pending_selection_request_ref.current = null;
+            pending_request.resolve(payload?.value || null);
+          }
           return;
         }
 
@@ -1853,7 +2088,7 @@ function ReaderPostWebView({
       />
     </View>
   );
-}
+});
 
 function ReaderHtml({
   classes_styles,
@@ -3192,6 +3427,35 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     zIndex: 4,
   },
+  readerHighlightActionWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingHorizontal: READER_HORIZONTAL_PADDING,
+    zIndex: 3,
+  },
+  readerHighlightActionButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 48,
+    minWidth: 124,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  readerHighlightActionLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 20,
+  },
   readerTextSizeBackdrop: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -4033,6 +4297,12 @@ function create_reader_post_bridge_script() {
       applyTextScale: applyTextScale,
       clearSelection: clearSelection,
       getSelectionPayload: getSelectionPayload,
+      requestSelectionPayload: function(requestId) {
+        postBridgeMessage('selection_payload', {
+          request_id: String(requestId || ''),
+          value: getSelectionPayload(),
+        });
+      },
       restoreHighlights: function(payload) {
         restoreHighlights(Array.isArray(payload) ? payload : []);
       },

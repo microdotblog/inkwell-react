@@ -292,6 +292,81 @@ export async function fetch_micro_blog_highlights({ token = '' } = {}) {
   });
 }
 
+export async function create_micro_blog_highlight({
+  token = '',
+  post_id = '',
+  text = '',
+  start_offset = null,
+  end_offset = null,
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_post_id = `${post_id || ''}`.trim();
+  const raw_text = `${text || ''}`;
+  const trimmed_text = raw_text.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error(
+      'A Micro.blog token is required to create highlights.',
+    );
+  }
+
+  if (!trimmed_post_id) {
+    throw create_request_error('A post id is required to create a highlight.');
+  }
+
+  if (!trimmed_text) {
+    throw create_request_error(
+      'Highlighted text is required to create a highlight.',
+    );
+  }
+
+  const url = new URL(
+    `/feeds/${encodeURIComponent(trimmed_post_id)}/highlights`,
+    `${MICRO_BLOG_FEEDS_BASE_URL}/`,
+  );
+  const headers = new Headers({
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const body = new URLSearchParams({
+    text: raw_text || trimmed_text,
+  });
+
+  if (start_offset != null) {
+    body.set('start', String(start_offset));
+  }
+
+  if (end_offset != null) {
+    body.set('end', String(end_offset));
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: body.toString(),
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Micro.blog highlight create request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function delete_micro_blog_highlight({
   token = '',
   post_id = '',

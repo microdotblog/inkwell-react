@@ -1,6 +1,7 @@
 import { flow, getSnapshot, types } from 'mobx-state-tree';
 
 import {
+  create_micro_blog_highlight,
   delete_micro_blog_highlight,
   fetch_micro_blog_highlights,
 } from '../api/MicroBlogFeeds';
@@ -48,6 +49,26 @@ const Highlights = types
       self.error_message = null;
     },
 
+    insert_highlight_entry_locally(item = null) {
+      const normalized_item = normalize_local_highlight_entry(item);
+
+      if (!normalized_item) {
+        return false;
+      }
+
+      const next_items = self.items.map((entry) => {
+        return getSnapshot(entry);
+      });
+
+      next_items.push(normalized_item);
+      next_items.sort(compare_highlight_entries_by_created_at);
+
+      self.items.replace(next_items);
+      self.has_loaded = true;
+      self.error_message = null;
+      return true;
+    },
+
     remove_highlight_entry_locally(highlight_id = '') {
       const normalized_highlight_id = normalize_string(highlight_id);
 
@@ -64,6 +85,26 @@ const Highlights = types
       }
 
       self.items.replace(remaining_items);
+      return true;
+    },
+
+    assign_remote_highlight_id(highlight_id = '', remote_highlight_id = '') {
+      const normalized_highlight_id = normalize_string(highlight_id);
+      const normalized_remote_highlight_id = normalize_string(remote_highlight_id);
+
+      if (!normalized_highlight_id || !normalized_remote_highlight_id) {
+        return false;
+      }
+
+      const highlight_entry = self.items.find((item) => {
+        return item.id === normalized_highlight_id;
+      });
+
+      if (!highlight_entry) {
+        return false;
+      }
+
+      highlight_entry.highlight_id = normalized_remote_highlight_id;
       return true;
     },
 
@@ -85,6 +126,111 @@ const Highlights = types
 
     refresh: flow(function* () {
       return yield self.fetch_highlights();
+    }),
+
+    create_highlight: flow(function* ({
+      end_offset = null,
+      post_has_title = false,
+      post_id = '',
+      post_published_at = '',
+      post_source = '',
+      post_title = '',
+      post_url = '',
+      start_offset = null,
+      text = '',
+    } = {}) {
+      const normalized_post_id = normalize_string(post_id);
+      const normalized_text = normalize_string(text);
+
+      if (!normalized_post_id || !normalized_text) {
+        return {
+          error_message: 'We could not save that highlight.',
+          ok: false,
+        };
+      }
+
+      const local_highlight_id = `hl-${Date.now()}`;
+      const created_at = new Date().toISOString();
+      const local_highlight = {
+        id: local_highlight_id,
+        highlight_id: '',
+        post_id: normalized_post_id,
+        post_url: normalize_web_url(post_url),
+        post_title: normalize_string(post_title),
+        post_source: normalize_string(post_source),
+        post_has_title: post_has_title === true,
+        text: normalized_text,
+        created_at,
+        post_published_at: normalize_string(post_published_at) || created_at,
+        start_offset: parse_highlight_offset(start_offset),
+        end_offset: parse_highlight_offset(end_offset),
+      };
+
+      if (
+        local_highlight.start_offset != null &&
+        local_highlight.end_offset != null &&
+        local_highlight.end_offset <= local_highlight.start_offset
+      ) {
+        local_highlight.end_offset = null;
+        local_highlight.start_offset = null;
+      }
+
+      const did_insert_local_highlight =
+        self.insert_highlight_entry_locally(local_highlight);
+
+      if (!did_insert_local_highlight) {
+        return {
+          error_message: 'We could not save that highlight.',
+          ok: false,
+        };
+      }
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          self.remove_highlight_entry_locally(local_highlight_id);
+          return {
+            error_message: 'Your Micro.blog session expired. Please sign in again.',
+            ok: false,
+          };
+        }
+
+        const payload = yield create_micro_blog_highlight({
+          token: user_token,
+          post_id: normalized_post_id,
+          text,
+          start_offset: local_highlight.start_offset,
+          end_offset: local_highlight.end_offset,
+        });
+        const remote_highlight_id = normalize_string(payload?.id);
+
+        if (!remote_highlight_id) {
+          self.remove_highlight_entry_locally(local_highlight_id);
+          return {
+            error_message: 'We could not save that highlight.',
+            ok: false,
+          };
+        }
+
+        self.assign_remote_highlight_id(local_highlight_id, remote_highlight_id);
+
+        return {
+          ok: true,
+        };
+      } catch (error) {
+        self.remove_highlight_entry_locally(local_highlight_id);
+
+        return {
+          error_message:
+            error?.status === 401 || error?.status === 403
+              ? 'Your Micro.blog session expired. Please sign in again.'
+              : 'We could not save that highlight.',
+          ok: false,
+        };
+      }
     }),
 
     delete_highlight: flow(function* (highlight_id = '') {
@@ -292,6 +438,43 @@ function normalize_highlight_entry(item = null) {
     post_published_at: created_at,
     post_has_title:
       Boolean(post_title) && post_title.toLowerCase() !== 'untitled',
+    text,
+    created_at,
+    start_offset,
+    end_offset,
+  };
+}
+
+function normalize_local_highlight_entry(item = null) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+
+  const id = normalize_string(item?.id);
+  const post_id = normalize_string(item?.post_id);
+  const text = normalize_string(item?.text);
+
+  if (!id || !post_id || !text) {
+    return null;
+  }
+
+  const start_offset = parse_highlight_offset(item?.start_offset);
+  const end_offset = parse_highlight_offset(item?.end_offset);
+  const created_at = normalize_string(item?.created_at) || new Date().toISOString();
+  const post_title = normalize_string(item?.post_title);
+
+  return {
+    id,
+    highlight_id: normalize_string(item?.highlight_id),
+    post_id,
+    post_url: normalize_web_url(item?.post_url),
+    post_title,
+    post_source: normalize_string(item?.post_source),
+    post_published_at: normalize_string(item?.post_published_at) || created_at,
+    post_has_title:
+      item?.post_has_title === true &&
+      Boolean(post_title) &&
+      post_title.toLowerCase() !== 'untitled',
     text,
     created_at,
     start_offset,
