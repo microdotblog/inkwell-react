@@ -149,7 +149,7 @@ const Auth = types
         yield Tokens.clear_pending_oauth_state();
 
         if (auth_result?.type === 'cancel' || auth_result?.type === 'dismiss') {
-          self.set_error('Micro.blog sign in was cancelled.');
+          self.clear_error();
         } else {
           self.set_error('Micro.blog sign in did not complete. Please try again.');
         }
