@@ -1853,20 +1853,20 @@ function ReaderHighlightAction({
     : label || "Reader action";
   const background_color = is_destructive
     ? theme.isDark
-      ? "rgba(188, 84, 110, 0.14)"
-      : "rgba(166, 47, 73, 0.05)"
+      ? "rgba(72, 24, 37, 0.92)"
+      : "rgba(255, 246, 249, 0.96)"
     : theme.colors.canvas;
   const border_color = is_destructive
     ? theme.isDark
-      ? "rgba(255, 160, 182, 0.34)"
-      : "rgba(166, 47, 73, 0.18)"
+      ? "rgba(255, 178, 197, 0.42)"
+      : "rgba(166, 47, 73, 0.28)"
     : theme.colors.line;
   const label_color = is_loading
     ? theme.colors.inkSoft
     : is_destructive
       ? theme.isDark
-        ? "#ffb5c6"
-        : "#942c49"
+        ? "#ffd5df"
+        : "#8f2341"
       : theme.colors.accentStrong;
 
   return (
