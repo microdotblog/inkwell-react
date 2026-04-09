@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,21 +10,22 @@ import {
   Text,
   View,
   useWindowDimensions,
-} from 'react-native';
-import { MenuView } from '@react-native-menu/menu';
-import { useHeaderHeight } from '@react-navigation/elements';
-import { MaterialIcons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
-import { Image } from 'expo-image';
-import { observer } from 'mobx-react';
+} from "react-native";
+import Slider from "@react-native-community/slider";
+import { MenuView } from "@react-native-menu/menu";
+import { useHeaderHeight } from "@react-navigation/elements";
+import { MaterialIcons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { Image } from "expo-image";
+import { observer } from "mobx-react";
 import RenderHtml, {
   HTMLContentModel,
   TChildrenRenderer,
   HTMLElementModel,
   defaultHTMLElementModels,
   useTNodeChildrenProps,
-} from 'react-native-render-html';
-import { WebView } from 'react-native-webview';
+} from "react-native-render-html";
+import { WebView } from "react-native-webview";
 import Animated, {
   FadeInDown,
   FadeOutUp,
@@ -32,34 +33,41 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-} from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import AuthBackground from '../components/auth/AuthBackground';
-import HighlightItem from '../components/highlights/HighlightItem';
-import { fetch_micro_blog_conversation_replies } from '../api/MicroBlogFeeds';
-import AppStore from '../stores/App';
-import Bookmarks from '../stores/Bookmarks';
-import Feed from '../stores/Feed';
-import Highlights from '../stores/Highlights';
-import Tokens from '../stores/Tokens';
-import { getAuthTheme } from '../theme/authTheme';
+import AuthBackground from "../components/auth/AuthBackground";
+import HighlightItem from "../components/highlights/HighlightItem";
+import { fetch_micro_blog_conversation_replies } from "../api/MicroBlogFeeds";
+import AppStore from "../stores/App";
+import Bookmarks from "../stores/Bookmarks";
+import Feed from "../stores/Feed";
+import Highlights from "../stores/Highlights";
+import Tokens from "../stores/Tokens";
+import { getAuthTheme } from "../theme/authTheme";
 import {
+  DEFAULT_TEXT_SCALE,
   createScaledTextStyles,
+  formatTextScaleLabel,
+  getTextScaleForSliderIndex,
+  getTextScaleSliderIndex,
+  MAX_TEXT_SCALE,
+  MIN_TEXT_SCALE,
   scaleTextMetric,
-} from '../theme/textScale';
+  TEXT_SCALE_PRESET_COUNT,
+} from "../theme/textScale";
 
 const READER_HORIZONTAL_PADDING = 20;
 const READER_BOTTOM_PADDING = 32;
 const READER_COLUMN_MAX_WIDTH = 760;
 const READER_WEBVIEW_CONTENT_MAX_WIDTH = 600;
 const READER_WEBVIEW_MIN_HEIGHT = 1;
-const READER_HIGHLIGHT_LIGHT_BACKGROUND = '#FFF9D6';
-const READER_HIGHLIGHT_DARK_BACKGROUND = '#D98C3A';
+const READER_HIGHLIGHT_LIGHT_BACKGROUND = "#FFF9D6";
+const READER_HIGHLIGHT_DARK_BACKGROUND = "#D98C3A";
 const READER_AVATAR_SIZE = 42;
 const READER_AVATAR_TRANSITION_MS = 180;
-const READER_TITLE_FONT_SIZE = 44;
-const READER_TITLE_LINE_HEIGHT = 50;
+const READER_TITLE_FONT_SIZE = 34;
+const READER_TITLE_LINE_HEIGHT = 40;
 const READER_TITLE_TOP_MARGIN = 18;
 const READER_PARAGRAPH_SPACING = 18;
 const IOS_HEADER_TITLE_REVEAL_OFFSET = 12;
@@ -68,6 +76,10 @@ const RECAP_SETTINGS_LAYOUT_TRANSITION = LinearTransition.duration(180);
 const RECAP_SETTINGS_ROW_ENTERING = FadeInDown.duration(180);
 const RECAP_SETTINGS_ROW_EXITING = FadeOutUp.duration(140);
 const REPLY_AVATAR_SIZE = 30;
+const READER_TEXT_SIZE_TRAY_RADIUS = 22;
+const READER_TEXT_SIZE_TRAY_SHADOW_RADIUS = 18;
+const READER_TEXT_SIZE_TRAY_SHADOW_HEIGHT = 12;
+const READER_TEXT_SIZE_TRAY_BOTTOM_GAP = 2;
 const READER_PANE_CONTROL_INSET = 3;
 const READER_PANE_CONTROL_HEIGHT = 40;
 const READER_PANE_CONTROL_RADIUS = READER_PANE_CONTROL_HEIGHT / 2;
@@ -76,87 +88,90 @@ const READER_PANE_BUTTON_HEIGHT =
 const READER_PANE_BUTTON_RADIUS = READER_PANE_BUTTON_HEIGHT / 2;
 const READER_REPLY_CONTENT_WIDTH_OFFSET = 64;
 const RECAP_EMAIL_DAYS = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
 ];
 const READER_IGNORED_DOM_TAGS = [
-  'script',
-  'style',
-  'iframe',
-  'embed',
-  'object',
-  'form',
-  'input',
-  'button',
-  'select',
-  'textarea',
-  'video',
-  'audio',
-  'source',
-  'link',
-  'meta',
+  "script",
+  "style",
+  "iframe",
+  "embed",
+  "object",
+  "form",
+  "input",
+  "button",
+  "select",
+  "textarea",
+  "video",
+  "audio",
+  "source",
+  "link",
+  "meta",
 ];
 const READER_HTML_MODELS = {
   img: defaultHTMLElementModels.img.extend({
     contentModel: HTMLContentModel.mixed,
   }),
-  'recap-card': HTMLElementModel.fromCustomModel({
-    tagName: 'recap-card',
+  "recap-card": HTMLElementModel.fromCustomModel({
+    tagName: "recap-card",
     contentModel: HTMLContentModel.block,
   }),
-  'recap-header-group': HTMLElementModel.fromCustomModel({
-    tagName: 'recap-header-group',
+  "recap-header-group": HTMLElementModel.fromCustomModel({
+    tagName: "recap-header-group",
     contentModel: HTMLContentModel.block,
   }),
-  'recap-header': HTMLElementModel.fromCustomModel({
-    tagName: 'recap-header',
+  "recap-header": HTMLElementModel.fromCustomModel({
+    tagName: "recap-header",
     contentModel: HTMLContentModel.mixed,
   }),
-  'recap-topics': HTMLElementModel.fromCustomModel({
-    tagName: 'recap-topics',
+  "recap-topics": HTMLElementModel.fromCustomModel({
+    tagName: "recap-topics",
     contentModel: HTMLContentModel.block,
   }),
-  'recap-photo-strip': HTMLElementModel.fromCustomModel({
-    tagName: 'recap-photo-strip',
+  "recap-photo-strip": HTMLElementModel.fromCustomModel({
+    tagName: "recap-photo-strip",
     contentModel: HTMLContentModel.block,
   }),
-  'recap-quote': HTMLElementModel.fromCustomModel({
-    tagName: 'recap-quote',
+  "recap-quote": HTMLElementModel.fromCustomModel({
+    tagName: "recap-quote",
     contentModel: HTMLContentModel.block,
   }),
 };
 const TEXT_STYLE_NAMES = [
-  'sourceLabel',
-  'hostLabel',
-  'feedDetailSeparator',
-  'dateLabel',
-  'title',
-  'recapBody',
-  'readerPaneButtonLabel',
-  'replyAuthor',
-  'replyDate',
-  'recapSettingsTitle',
-  'recapSettingsBody',
-  'recapDayChipLabel',
-  'recapBookmarkError',
-  'recapHeaderTitle',
-  'recapFaviconInitial',
-  'recapTopicLabel',
-  'recapPhotoTileFallbackLabel',
-  'recapQuoteButtonLabel',
-  'unavailableTitle',
-  'unavailableBody',
-  'openOriginalLabel',
+  "sourceLabel",
+  "hostLabel",
+  "feedDetailSeparator",
+  "dateLabel",
+  "title",
+  "recapBody",
+  "readerPaneButtonLabel",
+  "replyAuthor",
+  "replyDate",
+  "recapSettingsTitle",
+  "recapSettingsBody",
+  "recapDayChipLabel",
+  "recapBookmarkError",
+  "recapHeaderTitle",
+  "recapFaviconInitial",
+  "recapTopicLabel",
+  "recapPhotoTileFallbackLabel",
+  "recapQuoteButtonLabel",
+  "unavailableTitle",
+  "unavailableBody",
+  "openOriginalLabel",
 ];
 
 function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const reader_text_scale = AppStore.reader_text_scale;
+  const reader_text_scale_slider_index = React.useMemo(() => {
+    return getTextScaleSliderIndex(reader_text_scale);
+  }, [reader_text_scale]);
   const theme = getAuthTheme(isDark, accent_palette_id);
   const scaled_text_styles = React.useMemo(() => {
     return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
@@ -166,23 +181,22 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const { width } = useWindowDimensions();
   const detail_mode = resolve_detail_mode(route?.params?.mode);
   const entry_source = resolve_entry_source(route?.params?.entry_source);
-  const entry_id = `${route?.params?.entry_id || ''}`.trim();
+  const entry_id = `${route?.params?.entry_id || ""}`.trim();
   const entry =
-    detail_mode === 'entry'
-      ? entry_source === 'bookmark'
+    detail_mode === "entry"
+      ? entry_source === "bookmark"
         ? Bookmarks.bookmark_entry_snapshot(entry_id)
-        : entry_source === 'subscription_feed'
+        : entry_source === "subscription_feed"
           ? Feed.subscription_feed_entry_snapshot(entry_id)
           : Feed.timeline_entry_snapshot(entry_id)
       : null;
-  const recap =
-    detail_mode === 'recap' ? Feed.active_recap_snapshot() : null;
-  const source_label = `${entry?.source || 'Feed'}`.trim() || 'Feed';
+  const recap = detail_mode === "recap" ? Feed.active_recap_snapshot() : null;
+  const source_label = `${entry?.source || "Feed"}`.trim() || "Feed";
   const reader_title = resolve_reader_title(entry);
   const formatted_date = format_reader_date(entry?.published_at);
   const source_url = normalize_http_url(entry?.source_url);
   const original_url = normalize_http_url(entry?.url);
-  const resolved_entry_id = `${entry?.id || entry_id || ''}`.trim();
+  const resolved_entry_id = `${entry?.id || entry_id || ""}`.trim();
   const reader_base_url = original_url || source_url;
   const source_host = resolve_host_label(source_url || original_url);
   const should_show_reader_title = Boolean(reader_title);
@@ -197,46 +211,49 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     })
     .filter(Boolean);
   const recap_entry_count = recap?.entry_ids?.length || 0;
-  const recap_html = `${recap?.html || ''}`.trim();
+  const recap_html = `${recap?.html || ""}`.trim();
   const decorated_recap_html = decorate_recap_html(recap_html);
   const sanitized_recap_html = sanitize_reader_html(decorated_recap_html);
   const has_entry_body = Boolean(sanitized_reader_html);
   const has_recap_body = Boolean(sanitized_recap_html);
-  const is_loading_recap_email_settings =
-    Feed.is_loading_recap_email_settings;
-  const is_saving_recap_email_settings =
-    Feed.is_saving_recap_email_settings;
+  const is_loading_recap_email_settings = Feed.is_loading_recap_email_settings;
+  const is_saving_recap_email_settings = Feed.is_saving_recap_email_settings;
   const recap_email_day = Feed.recap_email_day;
   const is_recap_email_enabled = Feed.is_recap_email_enabled();
   const recap_bookmark_error_message = Feed.recap_bookmark_error_message;
   const recap_bookmarked_quote_urls = Feed.recap_bookmarked_quote_urls.slice();
   const bookmarking_recap_quote_url =
-    `${Feed.bookmarking_recap_quote_url || ''}`.trim();
-  const [active_pane, set_active_pane] = React.useState('post');
-  const [deleting_highlight_id, set_deleting_highlight_id] = React.useState('');
+    `${Feed.bookmarking_recap_quote_url || ""}`.trim();
+  const [active_pane, set_active_pane] = React.useState("post");
+  const [deleting_highlight_id, set_deleting_highlight_id] = React.useState("");
   const [is_loading_replies, set_is_loading_replies] = React.useState(false);
   const [replies, set_replies] = React.useState([]);
   const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
     React.useState(false);
+  const [is_text_size_tray_visible, set_is_text_size_tray_visible] =
+    React.useState(false);
+  const [reader_webview_reload_key, set_reader_webview_reload_key] =
+    React.useState(0);
   const is_ios_header_title_visible_ref = React.useRef(false);
   const replies_request_token_ref = React.useRef(0);
-  const header_title =
-    detail_mode === 'recap' ? 'Reading Recap' : source_label;
+  const header_title = detail_mode === "recap" ? "Reading Recap" : source_label;
   const has_entry_menu =
-    detail_mode === 'entry' && Boolean(entry) && Boolean(resolved_entry_id);
+    detail_mode === "entry" && Boolean(entry) && Boolean(resolved_entry_id);
   const is_entry_bookmarked =
-    entry_source === 'bookmark' ? Boolean(entry) : Boolean(entry?.is_bookmarked);
+    entry_source === "bookmark"
+      ? Boolean(entry)
+      : Boolean(entry?.is_bookmarked);
   const toast_top_offset = header_height + 10;
-  const content_top_padding =
-    header_height + (Platform.OS === 'ios' ? 0 : 12);
-  const header_background_color =
-    resolve_translucent_header_background_color(theme, Platform.OS);
+  const content_top_padding = header_height + (Platform.OS === "ios" ? 0 : 12);
+  const header_background_color = resolve_translucent_header_background_color(
+    theme,
+    Platform.OS,
+  );
   const header_title_font_size = 17;
   const reply_count = replies.length;
   const highlight_count = entry_highlights.length;
   const should_show_entry_pane_tabs =
-    detail_mode === 'entry' &&
-    (reply_count > 0 || highlight_count > 0);
+    detail_mode === "entry" && (reply_count > 0 || highlight_count > 0);
   const entry_menu_actions = React.useMemo(() => {
     return get_entry_menu_actions({
       entry,
@@ -250,23 +267,13 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     const bookmarked_quote_url_set = new Set(recap_bookmarked_quote_urls);
 
     return {
-      'recap-card': (props) => {
-        return (
-          <RecapCardRenderer
-            {...props}
-            theme={theme}
-          />
-        );
+      "recap-card": (props) => {
+        return <RecapCardRenderer {...props} theme={theme} />;
       },
-      'recap-header-group': (props) => {
-        return (
-          <RecapHeaderGroupRenderer
-            {...props}
-            theme={theme}
-          />
-        );
+      "recap-header-group": (props) => {
+        return <RecapHeaderGroupRenderer {...props} theme={theme} />;
       },
-      'recap-header': (props) => {
+      "recap-header": (props) => {
         return (
           <RecapHeaderRenderer
             {...props}
@@ -275,7 +282,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           />
         );
       },
-      'recap-topics': (props) => {
+      "recap-topics": (props) => {
         return (
           <RecapTopicsRenderer
             {...props}
@@ -284,7 +291,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           />
         );
       },
-      'recap-photo-strip': (props) => {
+      "recap-photo-strip": (props) => {
         return (
           <RecapPhotoStripRenderer
             {...props}
@@ -293,7 +300,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           />
         );
       },
-      'recap-quote': (props) => {
+      "recap-quote": (props) => {
         return (
           <RecapQuoteRenderer
             {...props}
@@ -310,7 +317,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     };
   }, [
     bookmarking_recap_quote_url,
-    recap_bookmarked_quote_urls.join('|'),
+    recap_bookmarked_quote_urls.join("|"),
     scaled_text_styles,
     theme,
   ]);
@@ -319,7 +326,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   }, [theme]);
 
   const handle_scroll = React.useCallback((event) => {
-    if (Platform.OS !== 'ios') {
+    if (Platform.OS !== "ios") {
       return;
     }
 
@@ -335,26 +342,40 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   }, []);
 
   React.useEffect(() => {
-    if (detail_mode === 'recap' && recap) {
+    if (detail_mode === "recap" && recap) {
       Feed.load_recap_email_settings();
     }
   }, [detail_mode, recap?.requested_at]);
 
   React.useEffect(() => {
-    if (detail_mode === 'entry') {
+    if (detail_mode === "entry") {
       Highlights.load();
     }
   }, [detail_mode]);
 
   React.useEffect(() => {
+    const unsubscribe = navigation.addListener("blur", () => {
+      set_is_text_size_tray_visible(false);
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  React.useEffect(() => {
+    if (detail_mode !== "entry" || !entry) {
+      set_is_text_size_tray_visible(false);
+    }
+  }, [detail_mode, entry, resolved_entry_id]);
+
+  React.useEffect(() => {
     replies_request_token_ref.current += 1;
     const request_token = replies_request_token_ref.current;
 
-    set_active_pane('post');
+    set_active_pane("post");
     set_replies([]);
     set_is_loading_replies(false);
 
-    if (detail_mode !== 'entry' || !original_url) {
+    if (detail_mode !== "entry" || !original_url) {
       return;
     }
 
@@ -375,29 +396,20 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           post_url: original_url,
         });
 
-        if (
-          did_cancel ||
-          replies_request_token_ref.current !== request_token
-        ) {
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
           return;
         }
 
         set_replies(normalize_conversation_replies(payload?.items));
       } catch (error) {
-        if (
-          did_cancel ||
-          replies_request_token_ref.current !== request_token
-        ) {
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
           return;
         }
 
-        console.warn('Failed to load conversation replies', error);
+        console.warn("Failed to load conversation replies", error);
         set_replies([]);
       } finally {
-        if (
-          did_cancel ||
-          replies_request_token_ref.current !== request_token
-        ) {
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
           return;
         }
 
@@ -413,15 +425,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   }, [detail_mode, entry_id, original_url]);
 
   React.useEffect(() => {
-    if (active_pane === 'replies' && reply_count === 0) {
-      set_active_pane('post');
-    } else if (active_pane === 'highlights' && highlight_count === 0) {
-      set_active_pane('post');
+    if (active_pane === "replies" && reply_count === 0) {
+      set_active_pane("post");
+    } else if (active_pane === "highlights" && highlight_count === 0) {
+      set_active_pane("post");
     }
   }, [active_pane, highlight_count, reply_count]);
 
   const handle_post_pane_press = React.useCallback(() => {
-    set_active_pane('post');
+    set_active_pane("post");
   }, []);
 
   const handle_replies_pane_press = React.useCallback(() => {
@@ -429,7 +441,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       return;
     }
 
-    set_active_pane('replies');
+    set_active_pane("replies");
   }, [reply_count]);
 
   const handle_highlights_pane_press = React.useCallback(() => {
@@ -437,74 +449,80 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       return;
     }
 
-    set_active_pane('highlights');
+    set_active_pane("highlights");
   }, [highlight_count]);
 
-  const handle_copy_highlight = React.useCallback(async (entry = null) => {
-    const normalized_text = `${entry?.text || ''}`.trim();
+  const handle_copy_highlight = React.useCallback(
+    async (entry = null) => {
+      const normalized_text = `${entry?.text || ""}`.trim();
 
-    if (!normalized_text) {
-      return;
-    }
+      if (!normalized_text) {
+        return;
+      }
 
-    try {
-      await Clipboard.setStringAsync(normalized_text);
-      AppStore.show_toast('Highlight copied', {
-        top_offset: toast_top_offset,
-      });
-    } catch (error) {
-      console.warn('Failed to copy highlight', error);
-    }
-  }, [toast_top_offset]);
+      try {
+        await Clipboard.setStringAsync(normalized_text);
+        AppStore.show_toast("Highlight copied", {
+          top_offset: toast_top_offset,
+        });
+      } catch (error) {
+        console.warn("Failed to copy highlight", error);
+      }
+    },
+    [toast_top_offset],
+  );
 
-  const handle_delete_highlight = React.useCallback((entry = null) => {
-    const normalized_highlight_id = `${entry?.id || ''}`.trim();
+  const handle_delete_highlight = React.useCallback(
+    (entry = null) => {
+      const normalized_highlight_id = `${entry?.id || ""}`.trim();
 
-    if (!normalized_highlight_id || deleting_highlight_id) {
-      return;
-    }
+      if (!normalized_highlight_id || deleting_highlight_id) {
+        return;
+      }
 
-    Alert.alert(
-      'Delete highlight?',
-      'This removes the saved passage from your highlights.',
-      [
-        {
-          style: 'cancel',
-          text: 'Cancel',
-        },
-        {
-          style: 'destructive',
-          text: 'Delete',
-          onPress: async () => {
-            set_deleting_highlight_id(normalized_highlight_id);
-
-            try {
-              const result = await Highlights.delete_highlight(
-                normalized_highlight_id,
-              );
-
-              if (!result?.ok) {
-                AppStore.show_toast(
-                  result?.error_message ||
-                    'We could not delete that highlight.',
-                  {
-                    top_offset: toast_top_offset,
-                  },
-                );
-                return;
-              }
-
-              AppStore.show_toast('Highlight deleted', {
-                top_offset: toast_top_offset,
-              });
-            } finally {
-              set_deleting_highlight_id('');
-            }
+      Alert.alert(
+        "Delete highlight?",
+        "This removes the saved passage from your highlights.",
+        [
+          {
+            style: "cancel",
+            text: "Cancel",
           },
-        },
-      ],
-    );
-  }, [deleting_highlight_id, toast_top_offset]);
+          {
+            style: "destructive",
+            text: "Delete",
+            onPress: async () => {
+              set_deleting_highlight_id(normalized_highlight_id);
+
+              try {
+                const result = await Highlights.delete_highlight(
+                  normalized_highlight_id,
+                );
+
+                if (!result?.ok) {
+                  AppStore.show_toast(
+                    result?.error_message ||
+                      "We could not delete that highlight.",
+                    {
+                      top_offset: toast_top_offset,
+                    },
+                  );
+                  return;
+                }
+
+                AppStore.show_toast("Highlight deleted", {
+                  top_offset: toast_top_offset,
+                });
+              } finally {
+                set_deleting_highlight_id("");
+              }
+            },
+          },
+        ],
+      );
+    },
+    [deleting_highlight_id, toast_top_offset],
+  );
 
   const handle_copy_link = React.useCallback(async () => {
     if (!original_url) {
@@ -513,34 +531,64 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
     try {
       await Clipboard.setStringAsync(original_url);
-      AppStore.show_toast('Link copied', {
+      AppStore.show_toast("Link copied", {
         top_offset: toast_top_offset,
       });
       return true;
     } catch (error) {
-      console.warn('Failed to copy link', error);
+      console.warn("Failed to copy link", error);
       return false;
     }
   }, [original_url, toast_top_offset]);
 
+  const handle_text_size_tray_dismiss = React.useCallback(() => {
+    set_is_text_size_tray_visible(false);
+  }, []);
+
+  const handle_reader_text_scale_change = React.useCallback(
+    (next_slider_index = 0) => {
+      AppStore.apply_reader_text_scale(
+        getTextScaleForSliderIndex(next_slider_index),
+      );
+    },
+    [],
+  );
+
+  const handle_reader_text_scale_commit = React.useCallback(
+    (next_slider_index = 0) => {
+      AppStore.set_reader_text_scale(
+        getTextScaleForSliderIndex(next_slider_index),
+      );
+      set_reader_webview_reload_key((current_key) => current_key + 1);
+    },
+    [],
+  );
+
   const handle_entry_menu_action = React.useCallback(
-    async (menu_action_id = '') => {
+    async (menu_action_id = "") => {
       if (!has_entry_menu) {
         return;
       }
 
-      if (menu_action_id === 'copy_link') {
+      if (menu_action_id === "text_size") {
+        set_is_text_size_tray_visible(true);
+        return;
+      }
+
+      set_is_text_size_tray_visible(false);
+
+      if (menu_action_id === "copy_link") {
         await handle_copy_link();
         return;
       }
 
-      if (menu_action_id === 'open_web') {
+      if (menu_action_id === "open_web") {
         await open_external_url(original_url);
         return;
       }
 
-      if (menu_action_id === 'toggle_read') {
-        if (entry_source === 'bookmark') {
+      if (menu_action_id === "toggle_read") {
+        if (entry_source === "bookmark") {
           return;
         }
 
@@ -548,7 +596,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           const did_mark_unread = Feed.mark_entry_unread(resolved_entry_id);
 
           if (did_mark_unread) {
-            AppStore.show_toast('Marked as unread', {
+            AppStore.show_toast("Marked as unread", {
               top_offset: toast_top_offset,
             });
           }
@@ -556,7 +604,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           const did_mark_read = Feed.mark_entry_read(resolved_entry_id);
 
           if (did_mark_read) {
-            AppStore.show_toast('Marked as read', {
+            AppStore.show_toast("Marked as read", {
               top_offset: toast_top_offset,
             });
           }
@@ -564,22 +612,25 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         return;
       }
 
-      if (menu_action_id !== 'toggle_bookmark') {
+      if (menu_action_id !== "toggle_bookmark") {
         return;
       }
 
-      if (entry_source === 'bookmark') {
+      if (entry_source === "bookmark") {
         const did_delete = await Bookmarks.delete_bookmark(resolved_entry_id);
 
         if (did_delete) {
-          AppStore.show_toast('Bookmark removed', {
+          AppStore.show_toast("Bookmark removed", {
             top_offset: toast_top_offset,
           });
 
-          if (typeof navigation.canGoBack === 'function' && navigation.canGoBack()) {
+          if (
+            typeof navigation.canGoBack === "function" &&
+            navigation.canGoBack()
+          ) {
             navigation.goBack();
           } else {
-            navigation.navigate('Bookmarks');
+            navigation.navigate("Bookmarks");
           }
         }
         return;
@@ -589,7 +640,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         const did_unbookmark = Feed.unbookmark_entry(resolved_entry_id);
 
         if (did_unbookmark) {
-          AppStore.show_toast('Bookmark removed', {
+          AppStore.show_toast("Bookmark removed", {
             top_offset: toast_top_offset,
           });
         }
@@ -597,7 +648,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         const did_bookmark = Feed.bookmark_entry(resolved_entry_id);
 
         if (did_bookmark) {
-          AppStore.show_toast('Bookmarked', {
+          AppStore.show_toast("Bookmarked", {
             top_offset: toast_top_offset,
           });
         }
@@ -618,7 +669,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
-      headerBackButtonDisplayMode: 'minimal',
+      headerBackButtonDisplayMode: "minimal",
       headerBackground: () => (
         <View
           pointerEvents="none"
@@ -631,7 +682,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         />
       ),
       headerStyle: {
-        backgroundColor: 'transparent',
+        backgroundColor: "transparent",
       },
       headerTransparent: true,
       headerRight: has_entry_menu
@@ -649,13 +700,13 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       headerTitleStyle: {
         color: theme.colors.ink,
         fontSize: header_title_font_size,
-        fontWeight: '600',
+        fontWeight: "600",
       },
       title:
-        Platform.OS === 'ios'
+        Platform.OS === "ios"
           ? is_ios_header_title_visible
             ? header_title
-            : ''
+            : ""
           : header_title,
     });
   }, [
@@ -675,7 +726,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground
-        intensity={detail_mode === 'recap' || entry ? 0.1 : 1}
+        intensity={detail_mode === "recap" || entry ? 0.1 : 1}
         theme={theme}
       />
       <ScrollView
@@ -694,7 +745,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
-        {detail_mode === 'entry' && entry ? (
+        {detail_mode === "entry" && entry ? (
           <EntryReaderView
             active_pane={active_pane}
             entry={entry}
@@ -712,6 +763,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             replies={replies}
             reader_html={sanitized_reader_html}
             reader_highlights={reader_highlights}
+            reader_webview_reload_key={reader_webview_reload_key}
             reader_title={reader_title}
             reply_count={reply_count}
             should_show_pane_tabs={should_show_entry_pane_tabs}
@@ -727,7 +779,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           />
         ) : null}
 
-        {detail_mode === 'recap' && recap ? (
+        {detail_mode === "recap" && recap ? (
           <RecapReaderView
             has_renderable_body={has_recap_body}
             is_loading_recap_email_settings={is_loading_recap_email_settings}
@@ -745,24 +797,24 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           />
         ) : null}
 
-        {detail_mode === 'entry' && !entry ? (
+        {detail_mode === "entry" && !entry ? (
           <UnavailableScreen
             body={
-              entry_source === 'bookmark'
+              entry_source === "bookmark"
                 ? "It may have been removed from your bookmarks, or the list refreshed before the reader finished opening it."
                 : "It may have scrolled out of the current timeline, or the feed refreshed before the reader finished opening it."
             }
             scaled_text_styles={scaled_text_styles}
             theme={theme}
             title={
-              entry_source === 'bookmark'
+              entry_source === "bookmark"
                 ? "This bookmark isn't available right now."
                 : "This post isn't available right now."
             }
           />
         ) : null}
 
-        {detail_mode === 'recap' && !recap ? (
+        {detail_mode === "recap" && !recap ? (
           <UnavailableScreen
             body="Build a Reading Recap from the Fading segment first, then open it here."
             scaled_text_styles={scaled_text_styles}
@@ -771,13 +823,26 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           />
         ) : null}
       </ScrollView>
+
+      {detail_mode === "entry" && entry ? (
+        <ReaderTextSizeTray
+          onDismiss={handle_text_size_tray_dismiss}
+          onSlidingComplete={handle_reader_text_scale_commit}
+          onValueChange={handle_reader_text_scale_change}
+          safe_area_bottom={insets.bottom}
+          slider_index={reader_text_scale_slider_index}
+          text_scale={reader_text_scale}
+          theme={theme}
+          visible={is_text_size_tray_visible}
+        />
+      ) : null}
     </View>
   );
 }
 
 function EntryReaderView({
-  active_pane = 'post',
-  deleting_highlight_id = '',
+  active_pane = "post",
+  deleting_highlight_id = "",
   entry,
   entry_highlights = [],
   formatted_date,
@@ -788,23 +853,33 @@ function EntryReaderView({
   onPressHighlightsPane,
   onPressPostPane,
   onPressRepliesPane,
-  original_url = '',
-  reader_base_url = '',
+  original_url = "",
+  reader_base_url = "",
   replies = [],
-  reader_html = '',
+  reader_html = "",
   reader_highlights = [],
-  reader_title = '',
+  reader_webview_reload_key = 0,
+  reader_title = "",
   reply_count = 0,
   should_show_pane_tabs = false,
   should_show_reader_title = false,
-  source_host = '',
-  source_label = '',
-  source_url = '',
+  source_host = "",
+  source_label = "",
+  source_url = "",
   scaled_text_styles,
   theme,
   reader_text_scale = 1,
   width = 0,
 }) {
+  const title_font_size = scaleTextMetric(
+    READER_TITLE_FONT_SIZE,
+    reader_text_scale,
+  );
+  const title_line_height = scaleTextMetric(
+    READER_TITLE_LINE_HEIGHT,
+    reader_text_scale,
+  );
+
   return (
     <View style={styles.readerColumn}>
       <View
@@ -827,7 +902,9 @@ function EntryReaderView({
               <MetaLink
                 color={theme.colors.ink}
                 label={source_label}
-                onPress={source_url ? () => open_external_url(source_url) : null}
+                onPress={
+                  source_url ? () => open_external_url(source_url) : null
+                }
                 style={[styles.sourceLabel, scaled_text_styles.sourceLabel]}
               />
             </View>
@@ -860,7 +937,9 @@ function EntryReaderView({
                     color={theme.colors.inkSoft}
                     label={formatted_date}
                     onPress={
-                      original_url ? () => open_external_url(original_url) : null
+                      original_url
+                        ? () => open_external_url(original_url)
+                        : null
                     }
                     style={[styles.dateLabel, scaled_text_styles.dateLabel]}
                   />
@@ -875,8 +954,9 @@ function EntryReaderView({
             <Text
               style={[
                 styles.title,
-                scaled_text_styles.title,
                 { color: theme.colors.ink },
+                title_font_size ? { fontSize: title_font_size } : null,
+                title_line_height ? { lineHeight: title_line_height } : null,
               ]}
             >
               {reader_title}
@@ -904,14 +984,14 @@ function EntryReaderView({
           should_show_pane_tabs ? styles.bodySectionWithPaneTabs : null,
         ]}
       >
-        {active_pane === 'replies' ? (
+        {active_pane === "replies" ? (
           <RepliesListView
             replies={replies}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
             width={width}
           />
-        ) : active_pane === 'highlights' ? (
+        ) : active_pane === "highlights" ? (
           <HighlightsListView
             deleting_highlight_id={deleting_highlight_id}
             highlights={entry_highlights}
@@ -924,6 +1004,7 @@ function EntryReaderView({
             base_url={reader_base_url}
             highlight_payload={reader_highlights}
             html={reader_html}
+            reload_key={reader_webview_reload_key}
             theme={theme}
             text_scale={reader_text_scale}
             width={width}
@@ -944,7 +1025,7 @@ function EntryReaderView({
 }
 
 function ReaderPaneTabs({
-  active_pane = 'post',
+  active_pane = "post",
   highlight_count = 0,
   onPressHighlightsPane,
   onPressPostPane,
@@ -958,15 +1039,15 @@ function ReaderPaneTabs({
   const pane_options = React.useMemo(() => {
     const options = [
       {
-        key: 'post',
-        label: 'Post',
+        key: "post",
+        label: "Post",
         on_press: onPressPostPane,
       },
     ];
 
     if (reply_count > 0) {
       options.push({
-        key: 'replies',
+        key: "replies",
         label: reply_label,
         on_press: onPressRepliesPane,
       });
@@ -974,7 +1055,7 @@ function ReaderPaneTabs({
 
     if (highlight_count > 0) {
       options.push({
-        key: 'highlights',
+        key: "highlights",
         label: highlight_label,
         on_press: onPressHighlightsPane,
       });
@@ -1025,12 +1106,7 @@ function ReaderPaneTabs({
     active_pane_width.value = withTiming(active_frame?.width || 0, {
       duration: 220,
     });
-  }, [
-    active_pane,
-    active_pane_offset,
-    active_pane_width,
-    pane_frames,
-  ]);
+  }, [active_pane, active_pane_offset, active_pane_width, pane_frames]);
 
   const active_pane_style = useAnimatedStyle(() => {
     return {
@@ -1071,20 +1147,17 @@ function ReaderPaneTabs({
           const is_active = option.key === active_pane;
 
           return (
-          <ReaderPaneButton
-            is_active={is_active}
-            key={option.key}
-            label={option.label}
-            onLayout={(event) => {
-              update_pane_frame(
-                option.key,
-                event.nativeEvent.layout,
-              );
-            }}
-            onPress={option.on_press}
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-          />
+            <ReaderPaneButton
+              is_active={is_active}
+              key={option.key}
+              label={option.label}
+              onLayout={(event) => {
+                update_pane_frame(option.key, event.nativeEvent.layout);
+              }}
+              onPress={option.on_press}
+              scaled_text_styles={scaled_text_styles}
+              theme={theme}
+            />
           );
         })}
       </View>
@@ -1094,7 +1167,7 @@ function ReaderPaneTabs({
 
 function ReaderPaneButton({
   is_active = false,
-  label = '',
+  label = "",
   onLayout,
   onPress,
   scaled_text_styles,
@@ -1110,8 +1183,8 @@ function ReaderPaneButton({
         return [
           styles.readerPaneButton,
           {
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
+            backgroundColor: "transparent",
+            borderColor: "transparent",
             opacity: pressed ? 0.84 : 1,
           },
         ];
@@ -1122,9 +1195,7 @@ function ReaderPaneButton({
           styles.readerPaneButtonLabel,
           scaled_text_styles.readerPaneButtonLabel,
           {
-            color: is_active
-              ? theme.colors.ink
-              : theme.colors.inkSoft,
+            color: is_active ? theme.colors.ink : theme.colors.inkSoft,
           },
         ]}
       >
@@ -1158,7 +1229,7 @@ function RepliesListView({
 }
 
 function HighlightsListView({
-  deleting_highlight_id = '',
+  deleting_highlight_id = "",
   highlights = [],
   onCopyHighlight,
   onDeleteHighlight,
@@ -1183,12 +1254,7 @@ function HighlightsListView({
   );
 }
 
-function ReplyRow({
-  reply,
-  scaled_text_styles,
-  theme,
-  width = 0,
-}) {
+function ReplyRow({ reply, scaled_text_styles, theme, width = 0 }) {
   const author_name = get_reply_author_name(reply);
   const author_url = normalize_http_url(reply?.author?.url);
   const formatted_date = format_reply_date(reply?.date_published);
@@ -1210,11 +1276,7 @@ function ReplyRow({
           style={[styles.replyAuthor, scaled_text_styles.replyAuthor]}
         />
         {reply_html ? (
-          <ReplyHtml
-            html={reply_html}
-            theme={theme}
-            width={width}
-          />
+          <ReplyHtml html={reply_html} theme={theme} width={width} />
         ) : null}
         {formatted_date ? (
           <Text
@@ -1232,11 +1294,7 @@ function ReplyRow({
   );
 }
 
-function ReplyHtml({
-  html = '',
-  theme,
-  width = 0,
-}) {
+function ReplyHtml({ html = "", theme, width = 0 }) {
   const reply_font_size = 15;
   const reply_line_height = 23;
 
@@ -1249,7 +1307,9 @@ function ReplyHtml({
       }}
       contentWidth={Math.max(
         Math.min(
-          width - READER_HORIZONTAL_PADDING * 2 - READER_REPLY_CONTENT_WIDTH_OFFSET,
+          width -
+            READER_HORIZONTAL_PADDING * 2 -
+            READER_REPLY_CONTENT_WIDTH_OFFSET,
           READER_COLUMN_MAX_WIDTH,
         ),
         0,
@@ -1271,7 +1331,7 @@ function ReplyHtml({
       tagsStyles={{
         a: {
           color: theme.colors.accentStrong,
-          textDecorationLine: 'none',
+          textDecorationLine: "none",
         },
         blockquote: {
           borderLeftColor: theme.colors.line,
@@ -1302,10 +1362,10 @@ function RecapReaderView({
   is_loading_recap_email_settings = false,
   is_recap_email_enabled = false,
   is_saving_recap_email_settings = false,
-  recap_bookmark_error_message = '',
-  recap_email_day = '',
+  recap_bookmark_error_message = "",
+  recap_email_day = "",
   recap_entry_count = 0,
-  recap_html = '',
+  recap_html = "",
   recap_dom_visitors,
   recap_renderers,
   scaled_text_styles,
@@ -1391,11 +1451,183 @@ function RecapReaderView({
   );
 }
 
+function ReaderTextSizeTray({
+  onDismiss,
+  onSlidingComplete,
+  onValueChange,
+  safe_area_bottom = 0,
+  slider_index = 0,
+  text_scale = DEFAULT_TEXT_SCALE,
+  theme,
+  visible = false,
+}) {
+  const visibility_progress = useSharedValue(visible ? 1 : 0);
+
+  React.useEffect(() => {
+    visibility_progress.value = withTiming(visible ? 1 : 0, {
+      duration: visible ? 220 : 180,
+    });
+  }, [visibility_progress, visible]);
+
+  const backdrop_style = useAnimatedStyle(() => {
+    return {
+      opacity: visibility_progress.value,
+    };
+  }, [visibility_progress]);
+
+  const tray_style = useAnimatedStyle(() => {
+    return {
+      opacity: visibility_progress.value,
+      transform: [
+        {
+          translateY: (1 - visibility_progress.value) * 48,
+        },
+      ],
+    };
+  }, [visibility_progress]);
+
+  return (
+    <View
+      pointerEvents={visible ? "auto" : "none"}
+      style={styles.readerTextSizeOverlay}
+    >
+      <Pressable
+        accessibilityLabel="Close text size controls"
+        accessibilityRole="button"
+        onPress={onDismiss}
+        style={StyleSheet.absoluteFill}
+      >
+        <Animated.View
+          style={[
+            styles.readerTextSizeBackdrop,
+            backdrop_style,
+            {
+              backgroundColor: resolve_reader_text_size_backdrop_color(theme),
+            },
+          ]}
+        />
+      </Pressable>
+
+      <Animated.View
+        style={[
+          styles.readerTextSizeTrayWrap,
+          tray_style,
+          {
+            paddingBottom: safe_area_bottom + READER_TEXT_SIZE_TRAY_BOTTOM_GAP,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.readerTextSizeTray,
+            {
+              backgroundColor: theme.colors.canvas,
+              borderColor: theme.colors.line,
+              shadowColor: theme.colors.shadow,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.readerTextSizeTrayHandle,
+              {
+                backgroundColor: theme.colors.line,
+              },
+            ]}
+          />
+
+          <View style={styles.readerTextSizeTrayHeader}>
+            <Text
+              style={[
+                styles.readerTextSizeTrayTitle,
+                { color: theme.colors.ink },
+              ]}
+            >
+              Text size
+            </Text>
+            <Text
+              style={[
+                styles.readerTextSizeTrayValue,
+                { color: theme.colors.accentStrong },
+              ]}
+            >
+              {formatTextScaleLabel(text_scale)}
+            </Text>
+          </View>
+
+          <View style={styles.readerTextSizeSliderWrap}>
+            <Slider
+              maximumTrackTintColor={theme.colors.line}
+              maximumValue={TEXT_SCALE_PRESET_COUNT - 1}
+              minimumTrackTintColor={theme.colors.accent}
+              minimumValue={0}
+              onSlidingComplete={onSlidingComplete}
+              onValueChange={onValueChange}
+              step={1}
+              thumbTintColor={theme.colors.accentStrong}
+              value={slider_index}
+            />
+            <View style={styles.readerTextSizeSliderMarkersRow}>
+              <Text
+                style={[
+                  styles.readerTextSizeSliderMarkerLabel,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
+                {formatTextScaleLabel(MIN_TEXT_SCALE)}
+              </Text>
+              <Text
+                style={[
+                  styles.readerTextSizeSliderMarkerLabel,
+                  { color: theme.colors.accentStrong },
+                ]}
+              >
+                {formatTextScaleLabel(DEFAULT_TEXT_SCALE)}
+              </Text>
+              <Text
+                style={[
+                  styles.readerTextSizeSliderMarkerLabel,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
+                {formatTextScaleLabel(MAX_TEXT_SCALE)}
+              </Text>
+            </View>
+            <View style={styles.readerTextSizeSliderStepDotsRow}>
+              {Array.from({ length: TEXT_SCALE_PRESET_COUNT }).map(
+                (_, index) => {
+                  const is_active = index === slider_index;
+
+                  return (
+                    <View
+                      key={`reader-text-scale-step-${index}`}
+                      style={[
+                        styles.readerTextSizeSliderStepDot,
+                        {
+                          backgroundColor: is_active
+                            ? theme.colors.accentStrong
+                            : theme.colors.line,
+                          opacity: is_active ? 1 : 0.72,
+                        },
+                      ]}
+                    />
+                  );
+                },
+              )}
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
 function ReaderPostWebView({
-  base_url = '',
+  base_url = "",
   highlight_payload = [],
-  html = '',
+  html = "",
   onSelectionChange,
+  reload_key = 0,
   theme,
   text_scale = 1,
   width = 0,
@@ -1409,29 +1641,35 @@ function ReaderPostWebView({
     Math.min(width - READER_HORIZONTAL_PADDING * 2, READER_COLUMN_MAX_WIDTH),
     0,
   );
-  const body_font_size = scaleTextMetric(18, text_scale) ?? 18;
-  const body_line_height = scaleTextMetric(29, text_scale) ?? 29;
   const resolved_base_url = React.useMemo(() => {
-    return normalize_http_url(base_url) || 'https://example.com/';
+    return normalize_http_url(base_url) || "https://example.com/";
   }, [base_url]);
+  const text_metrics = React.useMemo(() => {
+    return resolve_reader_text_metrics(text_scale);
+  }, [text_scale]);
+
   const document_html = React.useMemo(() => {
     return create_reader_post_document_html({
       base_url: resolved_base_url,
+      caption_font_size: text_metrics.caption_font_size,
+      caption_line_height: text_metrics.caption_line_height,
       content_max_width: Math.max(
         Math.min(content_width, READER_WEBVIEW_CONTENT_MAX_WIDTH),
         0,
       ),
+      content_font_size: text_metrics.content_font_size,
+      content_line_height: text_metrics.content_line_height,
       html,
       theme,
-      body_font_size,
-      body_line_height,
     });
   }, [
-    body_font_size,
-    body_line_height,
+    text_metrics.caption_font_size,
+    text_metrics.caption_line_height,
     content_width,
     html,
     resolved_base_url,
+    text_metrics.content_font_size,
+    text_metrics.content_line_height,
     theme.colors.accentStrong,
     theme.colors.badge,
     theme.colors.canvas,
@@ -1459,6 +1697,18 @@ function ReaderPostWebView({
     );
   }, [did_finish_load, highlight_payload]);
 
+  const apply_text_scale = React.useCallback(() => {
+    if (!webview_ref.current || !did_finish_load) {
+      return;
+    }
+
+    webview_ref.current.injectJavaScript(
+      `window.inkwellDetail?.applyTextScale(${JSON.stringify(
+        text_metrics,
+      )}); true;`,
+    );
+  }, [did_finish_load, text_metrics]);
+
   React.useEffect(() => {
     set_content_height(READER_WEBVIEW_MIN_HEIGHT);
     set_did_finish_load(false);
@@ -1468,9 +1718,13 @@ function ReaderPostWebView({
     apply_highlights();
   }, [apply_highlights]);
 
+  React.useEffect(() => {
+    apply_text_scale();
+  }, [apply_text_scale]);
+
   const handle_message = React.useCallback(
     (event) => {
-      const raw_data = `${event?.nativeEvent?.data || ''}`.trim();
+      const raw_data = `${event?.nativeEvent?.data || ""}`.trim();
 
       if (!raw_data) {
         return;
@@ -1479,7 +1733,7 @@ function ReaderPostWebView({
       try {
         const payload = JSON.parse(raw_data);
 
-        if (payload?.type === 'height') {
+        if (payload?.type === "height") {
           const next_height = Number(payload?.value);
 
           if (Number.isFinite(next_height)) {
@@ -1488,12 +1742,12 @@ function ReaderPostWebView({
           return;
         }
 
-        if (payload?.type === 'selection') {
+        if (payload?.type === "selection") {
           onSelectionChange?.(Boolean(payload?.has_selection));
           return;
         }
 
-        if (payload?.type === 'link') {
+        if (payload?.type === "link") {
           open_external_url(payload?.href);
         }
       } catch (error) {
@@ -1507,33 +1761,36 @@ function ReaderPostWebView({
     set_did_finish_load(true);
   }, []);
 
-  const handle_should_start = React.useCallback((request) => {
-    const request_url = `${request?.url || ''}`.trim();
-    const navigation_type = `${request?.navigationType || ''}`
-      .trim()
-      .toLowerCase();
+  const handle_should_start = React.useCallback(
+    (request) => {
+      const request_url = `${request?.url || ""}`.trim();
+      const navigation_type = `${request?.navigationType || ""}`
+        .trim()
+        .toLowerCase();
 
-    if (
-      !request_url ||
-      request_url.startsWith('about:') ||
-      request_url.startsWith('data:text/html') ||
-      request_url === resolved_base_url ||
-      (navigation_type && navigation_type !== 'click')
-    ) {
-      return true;
-    }
+      if (
+        !request_url ||
+        request_url.startsWith("about:") ||
+        request_url.startsWith("data:text/html") ||
+        request_url === resolved_base_url ||
+        (navigation_type && navigation_type !== "click")
+      ) {
+        return true;
+      }
 
-    const normalized_url = normalize_http_url(request_url, {
-      base_url,
-    });
+      const normalized_url = normalize_http_url(request_url, {
+        base_url,
+      });
 
-    if (!normalized_url) {
+      if (!normalized_url) {
+        return false;
+      }
+
+      open_external_url(normalized_url);
       return false;
-    }
-
-    open_external_url(normalized_url);
-    return false;
-  }, [base_url, resolved_base_url]);
+    },
+    [base_url, resolved_base_url],
+  );
 
   return (
     <View style={styles.readerPostWebViewFrame}>
@@ -1543,10 +1800,11 @@ function ReaderPostWebView({
         bounces={false}
         containerStyle={styles.readerPostWebViewContainer}
         javaScriptEnabled
+        key={`reader-post-webview-${reload_key}-${text_scale}`}
         onLoadEnd={handle_load_end}
         onMessage={handle_message}
         onShouldStartLoadWithRequest={handle_should_start}
-        originWhitelist={['*']}
+        originWhitelist={["*"]}
         ref={webview_ref}
         scrollEnabled={false}
         setSupportMultipleWindows={false}
@@ -1567,7 +1825,7 @@ function ReaderHtml({
   classes_styles,
   custom_element_models = READER_HTML_MODELS,
   dom_visitors,
-  html = '',
+  html = "",
   renderers,
   theme,
   width = 0,
@@ -1589,7 +1847,10 @@ function ReaderHtml({
         ...classes_styles,
       }}
       contentWidth={Math.max(
-        Math.min(width - READER_HORIZONTAL_PADDING * 2, READER_COLUMN_MAX_WIDTH),
+        Math.min(
+          width - READER_HORIZONTAL_PADDING * 2,
+          READER_COLUMN_MAX_WIDTH,
+        ),
         0,
       )}
       customHTMLElementModels={custom_element_models}
@@ -1612,7 +1873,7 @@ function ReaderHtml({
       tagsStyles={{
         a: {
           color: theme.colors.accentStrong,
-          textDecorationLine: 'none',
+          textDecorationLine: "none",
         },
         blockquote: {
           borderLeftColor: theme.colors.line,
@@ -1628,19 +1889,19 @@ function ReaderHtml({
         },
         h1: {
           color: theme.colors.ink,
-          fontFamily: 'Newsreader_600SemiBold',
+          fontFamily: "Newsreader_600SemiBold",
           fontSize: 30,
           lineHeight: 36,
         },
         h2: {
           color: theme.colors.ink,
-          fontFamily: 'Newsreader_600SemiBold',
+          fontFamily: "Newsreader_600SemiBold",
           fontSize: 26,
           lineHeight: 32,
         },
         h3: {
           color: theme.colors.ink,
-          fontFamily: 'Newsreader_600SemiBold',
+          fontFamily: "Newsreader_600SemiBold",
           fontSize: 22,
           lineHeight: 28,
         },
@@ -1729,8 +1990,11 @@ function RecapHeaderRenderer({ scaled_text_styles, theme, ...props }) {
 
 function RecapTopicsRenderer({ scaled_text_styles, ...props }) {
   const topic_labels = extract_recap_topic_labels(props.tnode);
-  const recap_card = find_tnode_ancestor_by_tag(props.tnode, 'recap-card');
-  const recap_colors = resolve_recap_colors(recap_card?.attributes, props.theme);
+  const recap_card = find_tnode_ancestor_by_tag(props.tnode, "recap-card");
+  const recap_colors = resolve_recap_colors(
+    recap_card?.attributes,
+    props.theme,
+  );
 
   if (topic_labels.length === 0) {
     const tchildren_props = useTNodeChildrenProps(props);
@@ -1751,7 +2015,8 @@ function RecapTopicsRenderer({ scaled_text_styles, ...props }) {
                 styles.recapTopicPill,
                 {
                   backgroundColor:
-                    recap_colors.topics_background_color || props.theme.colors.badge,
+                    recap_colors.topics_background_color ||
+                    props.theme.colors.badge,
                   borderColor:
                     recap_colors.topics_border_color || props.theme.colors.line,
                 },
@@ -1806,14 +2071,14 @@ function RecapPhotoStripRenderer({ scaled_text_styles, ...props }) {
 }
 
 function RecapPhotoTile({
-  href = '',
-  image_alt = '',
-  image_url = '',
+  href = "",
+  image_alt = "",
+  image_url = "",
   scaled_text_styles,
   theme,
 }) {
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
-  const accessibility_label = image_alt || 'Recap image';
+  const accessibility_label = image_alt || "Recap image";
   const is_link = Boolean(href);
   const tile_content = did_fail_to_load ? (
     <View
@@ -1882,7 +2147,7 @@ function RecapPhotoTile({
 
 function RecapQuoteRenderer({
   bookmarked_quote_url_set,
-  bookmarking_quote_url = '',
+  bookmarking_quote_url = "",
   onBookmarkPress,
   scaled_text_styles,
   theme,
@@ -1890,18 +2155,17 @@ function RecapQuoteRenderer({
 }) {
   const tchildren_props = useTNodeChildrenProps(props);
   const bookmark_url = normalize_http_url(
-    props?.tnode?.attributes?.['data-bookmark-url'],
+    props?.tnode?.attributes?.["data-bookmark-url"],
   );
   const is_bookmarked = bookmark_url
     ? bookmarked_quote_url_set.has(bookmark_url)
     : false;
-  const is_loading =
-    bookmark_url && bookmark_url === bookmarking_quote_url;
+  const is_loading = bookmark_url && bookmark_url === bookmarking_quote_url;
   const label = is_bookmarked
-    ? 'Bookmarked'
+    ? "Bookmarked"
     : is_loading
-      ? 'Saving...'
-      : 'Bookmark';
+      ? "Saving..."
+      : "Bookmark";
 
   return (
     <View style={styles.recapQuoteRow}>
@@ -1919,7 +2183,8 @@ function RecapQuoteRenderer({
               {
                 backgroundColor: theme.colors.badge,
                 borderColor: theme.colors.line,
-                opacity: is_bookmarked || is_loading ? 0.72 : pressed ? 0.84 : 1,
+                opacity:
+                  is_bookmarked || is_loading ? 0.72 : pressed ? 0.84 : 1,
               },
             ];
           }}
@@ -1944,12 +2209,12 @@ function RecapQuoteRenderer({
 }
 
 function RecapFavicon({
-  icon_url = '',
+  icon_url = "",
   scaled_text_styles,
-  source = '',
+  source = "",
   theme,
 }) {
-  const trimmed_icon_url = `${icon_url || ''}`.trim();
+  const trimmed_icon_url = `${icon_url || ""}`.trim();
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const [is_image_loaded, set_is_image_loaded] = React.useState(false);
   const should_show_image = trimmed_icon_url && !did_fail_to_load;
@@ -2006,19 +2271,18 @@ function RecapEmailSettingsCard({
   is_saving = false,
   onSelectDay,
   scaled_text_styles,
-  selected_day = '',
+  selected_day = "",
   theme,
 }) {
   const [is_expanded, set_is_expanded] = React.useState(false);
   const is_busy = is_loading || is_saving;
-  const is_showing_loading_summary =
-    is_loading && !is_saving && !selected_day;
+  const is_showing_loading_summary = is_loading && !is_saving && !selected_day;
   const summary_label = is_showing_loading_summary
-    ? 'Loading...'
+    ? "Loading..."
     : is_enabled
       ? get_recap_day_summary_label(selected_day)
-      : 'Off';
-  const summary_selection_kind = is_enabled ? 'accent' : 'neutral';
+      : "Off";
+  const summary_selection_kind = is_enabled ? "accent" : "neutral";
   const helper_copy = get_recap_email_settings_copy({
     is_enabled,
     is_expanded,
@@ -2026,12 +2290,12 @@ function RecapEmailSettingsCard({
     selected_day,
   });
 
-  async function handle_day_selection(next_dayofweek = '') {
-    if (typeof onSelectDay !== 'function' || is_busy) {
+  async function handle_day_selection(next_dayofweek = "") {
+    if (typeof onSelectDay !== "function" || is_busy) {
       return;
     }
 
-    if (`${next_dayofweek || ''}`.trim() === `${selected_day || ''}`.trim()) {
+    if (`${next_dayofweek || ""}`.trim() === `${selected_day || ""}`.trim()) {
       set_is_expanded(false);
       return;
     }
@@ -2100,10 +2364,7 @@ function RecapEmailSettingsCard({
           </Text>
         </View>
         {is_loading || is_saving ? (
-          <ActivityIndicator
-            color={theme.colors.accentStrong}
-            size="small"
-          />
+          <ActivityIndicator color={theme.colors.accentStrong} size="small" />
         ) : null}
       </View>
 
@@ -2133,7 +2394,7 @@ function RecapEmailSettingsCard({
             disabled={is_busy}
             is_selected={!selected_day}
             label="Off"
-            onPress={() => handle_day_selection('')}
+            onPress={() => handle_day_selection("")}
             scaled_text_styles={scaled_text_styles}
             selection_kind="destructive"
             theme={theme}
@@ -2146,23 +2407,20 @@ function RecapEmailSettingsCard({
 
 function RecapDayChip({
   disabled = false,
-  icon_name = '',
+  icon_name = "",
   is_compact = false,
   is_selected = false,
-  label = '',
+  label = "",
   onPress,
   scaled_text_styles,
-  selection_kind = 'accent',
+  selection_kind = "accent",
   theme,
 }) {
-  const uses_accent_selection =
-    is_selected && selection_kind === 'accent';
-  const uses_neutral_selection =
-    is_selected && selection_kind === 'neutral';
+  const uses_accent_selection = is_selected && selection_kind === "accent";
+  const uses_neutral_selection = is_selected && selection_kind === "neutral";
   const uses_destructive_selection =
-    is_selected && selection_kind === 'destructive';
-  const uses_destructive_treatment =
-    selection_kind === 'destructive';
+    is_selected && selection_kind === "destructive";
+  const uses_destructive_treatment = selection_kind === "destructive";
   let background_color = theme.colors.paper;
   let border_color = theme.colors.line;
   let label_color = theme.colors.inkSoft;
@@ -2177,20 +2435,20 @@ function RecapDayChip({
     label_color = theme.colors.ink;
   } else if (uses_destructive_selection) {
     background_color = theme.isDark
-      ? 'rgba(188, 84, 110, 0.28)'
-      : 'rgba(166, 47, 73, 0.12)';
+      ? "rgba(188, 84, 110, 0.28)"
+      : "rgba(166, 47, 73, 0.12)";
     border_color = theme.isDark
-      ? 'rgba(255, 160, 182, 0.4)'
-      : 'rgba(166, 47, 73, 0.3)';
-    label_color = theme.isDark ? '#ffb5c6' : '#942c49';
+      ? "rgba(255, 160, 182, 0.4)"
+      : "rgba(166, 47, 73, 0.3)";
+    label_color = theme.isDark ? "#ffb5c6" : "#942c49";
   } else if (uses_destructive_treatment) {
     background_color = theme.isDark
-      ? 'rgba(188, 84, 110, 0.12)'
-      : 'rgba(166, 47, 73, 0.05)';
+      ? "rgba(188, 84, 110, 0.12)"
+      : "rgba(166, 47, 73, 0.05)";
     border_color = theme.isDark
-      ? 'rgba(255, 160, 182, 0.22)'
-      : 'rgba(166, 47, 73, 0.18)';
-    label_color = theme.isDark ? '#f2a6ba' : '#a63b58';
+      ? "rgba(255, 160, 182, 0.22)"
+      : "rgba(166, 47, 73, 0.18)";
+    label_color = theme.isDark ? "#f2a6ba" : "#a63b58";
   }
 
   return (
@@ -2235,9 +2493,9 @@ function RecapDayChip({
 
 function get_entry_menu_actions({
   entry = null,
-  entry_source = 'feed',
+  entry_source = "feed",
   is_bookmarked = false,
-  original_url = '',
+  original_url = "",
   theme,
 }) {
   if (!entry) {
@@ -2246,28 +2504,26 @@ function get_entry_menu_actions({
 
   const icon_color = theme?.colors?.ink;
   const bookmark_title =
-    entry_source === 'bookmark' || is_bookmarked
-      ? 'Unbookmark'
-      : 'Bookmark';
-  const read_title = entry?.is_read ? 'Mark as Unread' : 'Mark as Read';
+    entry_source === "bookmark" || is_bookmarked ? "Unbookmark" : "Bookmark";
+  const read_title = entry?.is_read ? "Mark as Unread" : "Mark as Read";
   const actions = [];
 
   if (original_url) {
     actions.push({
-      id: 'copy_link',
+      id: "copy_link",
       image: Platform.select({
-        ios: 'link',
+        ios: "link",
       }),
       imageColor: icon_color,
-      title: 'Copy Link',
+      title: "Copy Link",
     });
   }
 
-  if (entry_source !== 'bookmark') {
+  if (entry_source !== "bookmark") {
     actions.push({
-      id: 'toggle_read',
+      id: "toggle_read",
       image: Platform.select({
-        ios: entry?.is_read ? 'button.programmable' : 'circle',
+        ios: entry?.is_read ? "button.programmable" : "circle",
       }),
       imageColor: icon_color,
       title: read_title,
@@ -2276,27 +2532,36 @@ function get_entry_menu_actions({
 
   actions.push({
     attributes:
-      bookmark_title === 'Unbookmark' && entry_source === 'bookmark'
+      bookmark_title === "Unbookmark" && entry_source === "bookmark"
         ? {
             destructive: true,
           }
         : undefined,
-    id: 'toggle_bookmark',
+    id: "toggle_bookmark",
     image: Platform.select({
-      ios: bookmark_title === 'Unbookmark' ? 'bookmark.slash' : 'bookmark',
+      ios: bookmark_title === "Unbookmark" ? "bookmark.slash" : "bookmark",
     }),
     imageColor: icon_color,
     title: bookmark_title,
   });
 
+  actions.push({
+    id: "text_size",
+    image: Platform.select({
+      ios: "textformat.size",
+    }),
+    imageColor: icon_color,
+    title: "Text size",
+  });
+
   if (original_url) {
     actions.push({
-      id: 'open_web',
+      id: "open_web",
       image: Platform.select({
-        ios: 'safari',
+        ios: "safari",
       }),
       imageColor: icon_color,
-      title: 'Open on Web',
+      title: "Open on Web",
     });
   }
 
@@ -2321,12 +2586,9 @@ function HeaderEntryMenuButton({
         onMenuAction?.(nativeEvent.event);
       }}
       shouldOpenOnLongPress={false}
-      themeVariant={is_dark ? 'dark' : 'light'}
+      themeVariant={is_dark ? "dark" : "light"}
     >
-      <View
-        accessibilityRole="button"
-        style={styles.headerMenuButton}
-      >
+      <View accessibilityRole="button" style={styles.headerMenuButton}>
         <MaterialIcons
           color={theme.colors.accentStrong}
           name="more-horiz"
@@ -2346,11 +2608,7 @@ function MetaLink({ color, label, onPress, style }) {
     return <Text style={[style, { color }]}>{label}</Text>;
   } else {
     return (
-      <Pressable
-        accessibilityRole="link"
-        hitSlop={6}
-        onPress={onPress}
-      >
+      <Pressable accessibilityRole="link" hitSlop={6} onPress={onPress}>
         <Text style={[style, { color }]}>{label}</Text>
       </Pressable>
     );
@@ -2358,10 +2616,10 @@ function MetaLink({ color, label, onPress, style }) {
 }
 
 function UnavailableScreen({
-  body = '',
+  body = "",
   scaled_text_styles,
   theme,
-  title = '',
+  title = "",
 }) {
   return (
     <View style={styles.unavailableScreen}>
@@ -2390,12 +2648,12 @@ function UnavailableScreen({
 }
 
 function UnavailableBodyCard({
-  body = '',
+  body = "",
   can_open_original = false,
   on_open_original,
   scaled_text_styles,
   theme,
-  title = '',
+  title = "",
 }) {
   return (
     <View
@@ -2456,12 +2714,12 @@ function UnavailableBodyCard({
 }
 
 function FeedDetailAvatar({
-  avatar_url = '',
-  source = '',
+  avatar_url = "",
+  source = "",
   size = READER_AVATAR_SIZE,
   theme,
 }) {
-  const trimmed_avatar_url = `${avatar_url || ''}`.trim();
+  const trimmed_avatar_url = `${avatar_url || ""}`.trim();
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const [is_image_loaded, set_is_image_loaded] = React.useState(false);
   const initial = get_source_avatar_initial(source);
@@ -2522,7 +2780,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    alignItems: 'center',
+    alignItems: "center",
     flexGrow: 1,
   },
   headerBackdrop: {
@@ -2530,16 +2788,16 @@ const styles = StyleSheet.create({
   },
   readerColumn: {
     maxWidth: READER_COLUMN_MAX_WIDTH,
-    width: '100%',
+    width: "100%",
   },
   masthead: {
     borderBottomWidth: 1,
     paddingBottom: 24,
-    paddingTop: Platform.OS === 'ios' ? 0 : 10,
+    paddingTop: Platform.OS === "ios" ? 0 : 10,
   },
   feedHeaderRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     gap: 14,
   },
   feedMeta: {
@@ -2547,18 +2805,18 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   feedTitleRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
   },
   sourceLabel: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 24,
   },
   feedDetailsRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   hostLabel: {
@@ -2574,7 +2832,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   title: {
-    fontFamily: 'Newsreader_600SemiBold',
+    fontFamily: "Newsreader_600SemiBold",
     fontSize: READER_TITLE_FONT_SIZE,
     lineHeight: READER_TITLE_LINE_HEIGHT,
   },
@@ -2591,17 +2849,17 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
   bodySection: {
-    paddingTop: Platform.OS === 'ios' ? 20 : 24,
+    paddingTop: Platform.OS === "ios" ? 20 : 24,
   },
   readerPostWebViewFrame: {
-    width: '100%',
+    width: "100%",
   },
   readerPostWebViewContainer: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   readerPostWebView: {
-    backgroundColor: 'transparent',
-    width: '100%',
+    backgroundColor: "transparent",
+    width: "100%",
   },
   bodySectionWithPaneTabs: {
     paddingTop: 18,
@@ -2610,11 +2868,11 @@ const styles = StyleSheet.create({
     paddingTop: 18,
   },
   readerPaneTabs: {
-    position: 'relative',
+    position: "relative",
     borderRadius: READER_PANE_CONTROL_RADIUS,
     borderWidth: 1,
     elevation: 2,
-    flexDirection: 'row',
+    flexDirection: "row",
     minHeight: READER_PANE_CONTROL_HEIGHT,
     padding: READER_PANE_CONTROL_INSET,
     shadowOffset: {
@@ -2625,7 +2883,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
   },
   readerPaneActivePill: {
-    position: 'absolute',
+    position: "absolute",
     top: READER_PANE_CONTROL_INSET,
     bottom: READER_PANE_CONTROL_INSET,
     left: 0,
@@ -2633,19 +2891,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   readerPaneButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: READER_PANE_BUTTON_RADIUS,
     borderWidth: 1,
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     minHeight: READER_PANE_BUTTON_HEIGHT,
     paddingHorizontal: 12,
-    position: 'relative',
+    position: "relative",
     zIndex: 1,
   },
   readerPaneButtonLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 16,
   },
   repliesList: {
@@ -2655,8 +2913,8 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   replyRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
+    alignItems: "flex-start",
+    flexDirection: "row",
     gap: 12,
   },
   replyBody: {
@@ -2666,7 +2924,7 @@ const styles = StyleSheet.create({
   },
   replyAuthor: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 20,
   },
   replyDate: {
@@ -2682,8 +2940,8 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   recapSettingsHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     gap: 12,
   },
   recapSettingsCopy: {
@@ -2691,13 +2949,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   recapSettingsTitleRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     gap: 10,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   recapSettingsTitle: {
-    fontFamily: 'Newsreader_600SemiBold',
+    fontFamily: "Newsreader_600SemiBold",
     fontSize: 24,
     lineHeight: 28,
   },
@@ -2706,17 +2964,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   recapDayWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   recapDayChip: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 999,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
-    justifyContent: 'center',
+    justifyContent: "center",
     minWidth: 54,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -2730,9 +2988,9 @@ const styles = StyleSheet.create({
   },
   recapDayChipLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   recapBookmarkError: {
     fontSize: 14,
@@ -2743,40 +3001,40 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     marginBottom: 22,
-    overflow: 'hidden',
+    overflow: "hidden",
     paddingHorizontal: 18,
     paddingVertical: 18,
   },
   recapHeaderGroup: {
-    alignItems: 'center',
+    alignItems: "center",
     columnGap: 10,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginBottom: 14,
     rowGap: 8,
   },
   recapHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     flexShrink: 1,
     gap: 10,
     minWidth: 0,
   },
   recapHeaderTitle: {
     flexShrink: 1,
-    fontFamily: 'Newsreader_600SemiBold',
+    fontFamily: "Newsreader_600SemiBold",
     fontSize: 28,
     lineHeight: 32,
   },
   recapFaviconFrame: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 999,
     borderWidth: 1,
-    justifyContent: 'center',
-    overflow: 'hidden',
+    justifyContent: "center",
+    overflow: "hidden",
   },
   recapFaviconInitial: {
-    fontFamily: 'Newsreader_700Bold',
+    fontFamily: "Newsreader_700Bold",
     fontSize: 13,
     lineHeight: 15,
   },
@@ -2784,31 +3042,31 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   recapTopics: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     flexShrink: 1,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
     gap: 6,
-    marginLeft: 'auto',
+    marginLeft: "auto",
   },
   recapTopicPill: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 999,
     borderWidth: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     minHeight: 34,
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
   recapTopicLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 16,
   },
   recapPhotoStrip: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: "flex-start",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     marginBottom: 20,
     marginTop: 2,
@@ -2816,49 +3074,49 @@ const styles = StyleSheet.create({
   recapPhotoTile: {
     borderRadius: 14,
     height: 96,
-    overflow: 'hidden',
+    overflow: "hidden",
     width: 96,
   },
   recapPhotoTileImage: {
-    height: '100%',
-    width: '100%',
+    height: "100%",
+    width: "100%",
   },
   recapPhotoTileFallback: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 14,
     borderWidth: 1,
-    height: '100%',
-    justifyContent: 'center',
+    height: "100%",
+    justifyContent: "center",
     paddingHorizontal: 10,
-    width: '100%',
+    width: "100%",
   },
   recapPhotoTileFallbackLabel: {
     fontSize: 11,
     lineHeight: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
   recapQuoteRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
+    alignItems: "flex-start",
+    flexDirection: "row",
     gap: 12,
-    justifyContent: 'space-between',
-    width: '100%',
+    justifyContent: "space-between",
+    width: "100%",
   },
   recapQuoteMain: {
     flex: 1,
     minWidth: 0,
   },
   recapQuoteButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 999,
     borderWidth: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     minHeight: 34,
     paddingHorizontal: 12,
   },
   recapQuoteButtonLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 16,
   },
   headerMenuButton: {
@@ -2873,13 +3131,13 @@ const styles = StyleSheet.create({
   unavailableScreen: {
     maxWidth: READER_COLUMN_MAX_WIDTH,
     paddingTop: 40,
-    width: '100%',
+    width: "100%",
   },
   unavailableCopy: {
     gap: 8,
   },
   unavailableTitle: {
-    fontFamily: 'Newsreader_600SemiBold',
+    fontFamily: "Newsreader_600SemiBold",
     fontSize: 24,
     lineHeight: 30,
   },
@@ -2888,25 +3146,99 @@ const styles = StyleSheet.create({
     lineHeight: 23,
   },
   openOriginalButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingVertical: 6,
   },
   openOriginalLabel: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
+  },
+  readerTextSizeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-end",
+    zIndex: 4,
+  },
+  readerTextSizeBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  readerTextSizeTrayWrap: {
+    paddingHorizontal: READER_HORIZONTAL_PADDING,
+  },
+  readerTextSizeTray: {
+    borderTopLeftRadius: READER_TEXT_SIZE_TRAY_RADIUS,
+    borderTopRightRadius: READER_TEXT_SIZE_TRAY_RADIUS,
+    borderWidth: 1,
+    overflow: "hidden",
+    paddingBottom: 18,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    shadowOffset: {
+      width: 0,
+      height: READER_TEXT_SIZE_TRAY_SHADOW_HEIGHT,
+    },
+    shadowOpacity: 0.14,
+    shadowRadius: READER_TEXT_SIZE_TRAY_SHADOW_RADIUS,
+    elevation: 6,
+  },
+  readerTextSizeTrayHandle: {
+    alignSelf: "center",
+    borderRadius: 999,
+    height: 5,
+    marginBottom: 16,
+    width: 42,
+  },
+  readerTextSizeTrayHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  readerTextSizeTrayTitle: {
+    fontFamily: "Newsreader_600SemiBold",
+    fontSize: 28,
+    lineHeight: 32,
+  },
+  readerTextSizeTrayValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 20,
+  },
+  readerTextSizeSliderWrap: {
+    marginTop: 10,
+  },
+  readerTextSizeSliderMarkersRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  readerTextSizeSliderMarkerLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  readerTextSizeSliderStepDotsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  readerTextSizeSliderStepDot: {
+    borderRadius: 3,
+    height: 6,
+    width: 6,
   },
   avatarFrame: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   avatarPlaceholder: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarInitial: {
-    fontFamily: 'Newsreader_700Bold',
+    fontFamily: "Newsreader_700Bold",
   },
   avatarImage: {
     ...StyleSheet.absoluteFillObject,
@@ -2919,28 +3251,29 @@ function resolve_translucent_header_background_color(
   theme,
   platform = Platform.OS,
 ) {
-  if (platform === 'ios') {
+  if (platform === "ios") {
     return with_color_opacity(
       theme?.colors?.canvas,
       theme?.isDark ? 0.18 : 0.14,
     );
   }
 
-  return with_color_opacity(
-    theme?.colors?.canvas,
-    theme?.isDark ? 0.78 : 0.84,
-  );
+  return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.78 : 0.84);
 }
 
-function with_color_opacity(color_value = '', opacity = 1) {
-  const normalized_color = `${color_value || ''}`.trim();
+function resolve_reader_text_size_backdrop_color(theme) {
+  return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.58 : 0.3);
+}
+
+function with_color_opacity(color_value = "", opacity = 1) {
+  const normalized_color = `${color_value || ""}`.trim();
   const normalized_opacity = Number.isFinite(opacity)
     ? Math.min(Math.max(opacity, 0), 1)
     : 1;
   const hex_match = normalized_color.match(/^#([0-9a-f]{6})$/i);
 
   if (!hex_match) {
-    return normalized_color || 'rgba(255, 255, 255, 0.84)';
+    return normalized_color || "rgba(255, 255, 255, 0.84)";
   }
 
   const hex = hex_match[1];
@@ -2952,38 +3285,54 @@ function with_color_opacity(color_value = '', opacity = 1) {
 }
 
 function create_reader_body_html(entry = null) {
-  const content = `${entry?.content || ''}`.trim();
+  const content = `${entry?.content || ""}`.trim();
 
   if (content) {
     return content;
   }
 
-  const summary = `${entry?.summary || ''}`.trim();
+  const summary = `${entry?.summary || ""}`.trim();
 
   if (summary) {
     return `<p>${escape_html(summary)}</p>`;
   }
 
-  return '';
+  return "";
+}
+
+function resolve_reader_text_metrics(text_scale = DEFAULT_TEXT_SCALE) {
+  const content_font_size = scaleTextMetric(18, text_scale) ?? 18;
+  const content_line_height = scaleTextMetric(29, text_scale) ?? 29;
+  const caption_font_size = Math.max(content_font_size - 2, 12);
+  const caption_line_height = Math.max(content_line_height - 4, 16);
+
+  return {
+    caption_font_size,
+    caption_line_height,
+    content_font_size,
+    content_line_height,
+  };
 }
 
 function create_reader_post_document_html({
-  base_url = '',
-  body_font_size = 18,
-  body_line_height = 29,
+  base_url = "",
+  caption_font_size = 16,
+  caption_line_height = 25,
   content_max_width = READER_WEBVIEW_CONTENT_MAX_WIDTH,
-  html = '',
+  content_font_size = 18,
+  content_line_height = 29,
+  html = "",
   theme,
 }) {
   const resolved_base_url =
-    normalize_http_url(base_url) || 'https://example.com/';
-  const page_background_color = 'transparent';
-  const text_color = theme?.colors?.ink || '#1d1d1f';
-  const link_color = theme?.colors?.accentStrong || '#0b57d0';
-  const quote_color = theme?.colors?.inkSoft || '#4d4d4f';
-  const quote_border_color = theme?.colors?.line || '#d2d2d7';
-  const pre_background_color = theme?.colors?.badge || '#f5f5f7';
-  const pre_border_color = theme?.colors?.line || '#d2d2d7';
+    normalize_http_url(base_url) || "https://example.com/";
+  const page_background_color = "transparent";
+  const text_color = theme?.colors?.ink || "#1d1d1f";
+  const link_color = theme?.colors?.accentStrong || "#0b57d0";
+  const quote_color = theme?.colors?.inkSoft || "#4d4d4f";
+  const quote_border_color = theme?.colors?.line || "#d2d2d7";
+  const pre_background_color = theme?.colors?.badge || "#f5f5f7";
+  const pre_border_color = theme?.colors?.line || "#d2d2d7";
   const highlight_background_color = theme?.isDark
     ? READER_HIGHLIGHT_DARK_BACKGROUND
     : READER_HIGHLIGHT_LIGHT_BACKGROUND;
@@ -3007,6 +3356,10 @@ function create_reader_post_document_html({
       --quote-border-color: ${quote_border_color};
       --pre-background-color: ${pre_background_color};
       --pre-border-color: ${pre_border_color};
+      --content-font-size: ${content_font_size}px;
+      --content-line-height: ${content_line_height}px;
+      --caption-font-size: ${caption_font_size}px;
+      --caption-line-height: ${caption_line_height}px;
     }
 
     html {
@@ -3032,8 +3385,8 @@ function create_reader_post_document_html({
 
     .post-content {
       color: var(--text-color);
-      font-size: ${body_font_size}px;
-      line-height: ${body_line_height}px;
+      font-size: var(--content-font-size);
+      line-height: var(--content-line-height);
       overflow-wrap: break-word;
       word-break: break-word;
     }
@@ -3052,8 +3405,8 @@ function create_reader_post_document_html({
     p, li, td, th, pre, blockquote {
       color: var(--text-color);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: ${body_font_size}px;
-      line-height: ${body_line_height}px;
+      font-size: var(--content-font-size);
+      line-height: var(--content-line-height);
     }
 
     p, ul, ol, blockquote, pre, table, figure {
@@ -3079,8 +3432,8 @@ function create_reader_post_document_html({
 
     figcaption {
       color: var(--quote-color);
-      font-size: ${Math.max(body_font_size - 2, 12)}px;
-      line-height: ${Math.max(body_line_height - 4, 16)}px;
+      font-size: var(--caption-font-size);
+      line-height: var(--caption-line-height);
       margin-top: 8px;
     }
 
@@ -3175,6 +3528,44 @@ function create_reader_post_bridge_script() {
 
     function contentElement() {
       return document.querySelector('.post-content');
+    }
+
+    function numericValue(value, fallbackValue) {
+      var parsedValue = Number(value);
+      if (!isFinite(parsedValue) || parsedValue <= 0) {
+        return Number(fallbackValue) || 0;
+      }
+
+      return parsedValue;
+    }
+
+    function currentScrollFraction() {
+      var currentMaxScrollTop = maxScrollTop();
+
+      if (currentMaxScrollTop <= 0) {
+        return 0;
+      }
+
+      return Math.max(0, Math.min(1, currentScrollTop() / currentMaxScrollTop));
+    }
+
+    function restoreScrollFraction(scrollFraction) {
+      var parsedScrollFraction = Number(scrollFraction);
+
+      if (!isFinite(parsedScrollFraction)) {
+        return;
+      }
+
+      var currentMaxScrollTop = maxScrollTop();
+
+      if (currentMaxScrollTop <= 0) {
+        return;
+      }
+
+      window.scrollTo({
+        top: currentMaxScrollTop * Math.max(0, Math.min(parsedScrollFraction, 1)),
+        behavior: 'auto',
+      });
     }
 
     function currentSelectionRange() {
@@ -3456,6 +3847,37 @@ function create_reader_post_bridge_script() {
       });
     }
 
+    function applyTextScale(payload) {
+      payload = payload || {};
+
+      var scrollFraction = currentScrollFraction();
+      var contentFontSize = numericValue(payload.content_font_size, 18);
+      var contentLineHeight = numericValue(payload.content_line_height, 29);
+      var captionFontSize = numericValue(payload.caption_font_size, 16);
+      var captionLineHeight = numericValue(payload.caption_line_height, 25);
+      var root = document.documentElement;
+      if (!root) {
+        return;
+      }
+
+      root.style.setProperty('--content-font-size', contentFontSize + 'px');
+      root.style.setProperty('--content-line-height', contentLineHeight + 'px');
+      root.style.setProperty('--caption-font-size', captionFontSize + 'px');
+      root.style.setProperty('--caption-line-height', captionLineHeight + 'px');
+      restoreScrollFraction(scrollFraction);
+      postHeight();
+
+      setTimeout(function() {
+        restoreScrollFraction(scrollFraction);
+        postHeight();
+      }, 0);
+
+      setTimeout(function() {
+        restoreScrollFraction(scrollFraction);
+        postHeight();
+      }, 80);
+    }
+
     function absoluteURL(rawValue) {
       var value = String(rawValue || '').trim();
       if (!value) {
@@ -3571,6 +3993,7 @@ function create_reader_post_bridge_script() {
     setTimeout(postHeight, 240);
 
     window.inkwellDetail = {
+      applyTextScale: applyTextScale,
       clearSelection: clearSelection,
       getSelectionPayload: getSelectionPayload,
       restoreHighlights: function(payload) {
@@ -3581,11 +4004,11 @@ function create_reader_post_bridge_script() {
   })();`;
 }
 
-function decorate_recap_html(markup = '') {
-  const trimmed_markup = `${markup || ''}`.trim();
+function decorate_recap_html(markup = "") {
+  const trimmed_markup = `${markup || ""}`.trim();
 
   if (!trimmed_markup) {
-    return '';
+    return "";
   }
 
   return trimmed_markup.replace(
@@ -3594,44 +4017,44 @@ function decorate_recap_html(markup = '') {
       const href_match =
         quote_markup.match(/\shref\s*=\s*(['"])(.*?)\1/i) ||
         quote_markup.match(/\shref\s*=\s*([^\s>"']+)/i);
-      const raw_url = href_match?.[2] || href_match?.[1] || '';
+      const raw_url = href_match?.[2] || href_match?.[1] || "";
       const bookmark_url = normalize_http_url(raw_url);
       const bookmark_attribute = bookmark_url
         ? ` data-bookmark-url="${escape_html_attribute(bookmark_url)}"`
-        : '';
+        : "";
 
       return `<recap-quote${bookmark_attribute}><p>${quote_markup}</p></recap-quote>`;
     },
   );
 }
 
-function sanitize_reader_html(markup = '', options = {}) {
-  const trimmed_markup = `${markup || ''}`.trim();
+function sanitize_reader_html(markup = "", options = {}) {
+  const trimmed_markup = `${markup || ""}`.trim();
   const base_url =
-    typeof options === 'string' ? options : options?.base_url || '';
+    typeof options === "string" ? options : options?.base_url || "";
 
   if (!trimmed_markup) {
-    return '';
+    return "";
   }
 
   const stripped_markup = trimmed_markup
     .replace(
       /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1>/gi,
-      '',
+      "",
     )
     .replace(
       /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|video|audio|source|link|meta|base)\b[^>]*\/?>/gi,
-      '',
+      "",
     )
-    .replace(/<!--[\s\S]*?-->/g, '');
+    .replace(/<!--[\s\S]*?-->/g, "");
 
   return stripped_markup.replace(
     /<([a-z0-9:-]+)(\s[^<>]*?)?(\/?)>/gi,
-    (match, tag_name, raw_attributes = '', self_closing_marker = '') => {
-      const normalized_tag_name = `${tag_name || ''}`.toLowerCase();
+    (match, tag_name, raw_attributes = "", self_closing_marker = "") => {
+      const normalized_tag_name = `${tag_name || ""}`.toLowerCase();
 
       if (!normalized_tag_name) {
-        return '';
+        return "";
       }
 
       const normalized_attributes = sanitize_reader_html_attributes(
@@ -3641,7 +4064,7 @@ function sanitize_reader_html(markup = '', options = {}) {
         },
       );
 
-      if (self_closing_marker === '/') {
+      if (self_closing_marker === "/") {
         return `<${normalized_tag_name}${normalized_attributes} />`;
       }
 
@@ -3650,60 +4073,60 @@ function sanitize_reader_html(markup = '', options = {}) {
   );
 }
 
-function resolve_detail_mode(raw_mode = '') {
-  const normalized_mode = `${raw_mode || ''}`.trim().toLowerCase();
+function resolve_detail_mode(raw_mode = "") {
+  const normalized_mode = `${raw_mode || ""}`.trim().toLowerCase();
 
-  if (normalized_mode === 'recap') {
-    return 'recap';
+  if (normalized_mode === "recap") {
+    return "recap";
   } else {
-    return 'entry';
+    return "entry";
   }
 }
 
-function resolve_entry_source(raw_source = '') {
-  const normalized_source = `${raw_source || ''}`.trim().toLowerCase();
+function resolve_entry_source(raw_source = "") {
+  const normalized_source = `${raw_source || ""}`.trim().toLowerCase();
 
-  if (normalized_source === 'bookmark') {
-    return 'bookmark';
+  if (normalized_source === "bookmark") {
+    return "bookmark";
   }
 
-  if (normalized_source === 'subscription_feed') {
-    return 'subscription_feed';
+  if (normalized_source === "subscription_feed") {
+    return "subscription_feed";
   } else {
-    return 'feed';
+    return "feed";
   }
 }
 
 function build_recap_classes_styles(theme) {
   return {
-    'recap-summary': {
+    "recap-summary": {
       color: theme.colors.inkSoft,
       fontSize: 15,
       lineHeight: 23,
       marginBottom: 18,
       marginTop: 0,
     },
-    'recap-topic': {
+    "recap-topic": {
       borderWidth: 1,
       borderRadius: 999,
       color: theme.colors.ink,
       fontSize: 11,
-      fontWeight: '700',
+      fontWeight: "700",
       lineHeight: 14,
-      overflow: 'hidden',
+      overflow: "hidden",
       paddingHorizontal: 8,
       paddingVertical: 4,
     },
-    'recap-photo-link': {
+    "recap-photo-link": {
       borderRadius: 14,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
-    'recap-photo-image': {
+    "recap-photo-image": {
       borderRadius: 14,
       height: 96,
       width: 96,
     },
-    'recap-blockquote': {
+    "recap-blockquote": {
       color: theme.colors.ink,
       marginBottom: 20,
       marginLeft: 0,
@@ -3713,28 +4136,28 @@ function build_recap_classes_styles(theme) {
       paddingRight: 16,
       paddingTop: 14,
     },
-    'recap-posts-label': {
+    "recap-posts-label": {
       color: theme.colors.ink,
-      fontFamily: 'Newsreader_600SemiBold',
+      fontFamily: "Newsreader_600SemiBold",
       fontSize: 18,
       lineHeight: 24,
       marginBottom: 10,
       marginTop: 4,
     },
-    'recap-post-list': {
+    "recap-post-list": {
       marginBottom: 0,
       marginTop: 0,
       paddingLeft: 18,
     },
-    'recap-post-item': {
+    "recap-post-item": {
       color: theme.colors.inkSoft,
       fontSize: 15,
       lineHeight: 22,
       marginBottom: 8,
     },
-    'recap-post-link': {
+    "recap-post-link": {
       color: theme.colors.accentStrong,
-      fontWeight: '600',
+      fontWeight: "600",
     },
   };
 }
@@ -3747,8 +4170,8 @@ function create_recap_dom_visitors(theme) {
       }
 
       if (is_recap_card_element(element)) {
-        rename_dom_element(element, 'recap-card');
-        append_dom_class(element, 'recap-card');
+        rename_dom_element(element, "recap-card");
+        append_dom_class(element, "recap-card");
       }
 
       const recap_element = is_recap_dom_node(element)
@@ -3759,44 +4182,47 @@ function create_recap_dom_visitors(theme) {
         return;
       }
 
-      if (has_dom_class_name(element, 'reading-header')) {
-        rename_dom_element(element, 'recap-header-group');
+      if (has_dom_class_name(element, "reading-header")) {
+        rename_dom_element(element, "recap-header-group");
       }
 
-      if (element.name === 'h2') {
-        rename_dom_element(element, 'recap-header');
+      if (element.name === "h2") {
+        rename_dom_element(element, "recap-header");
       }
 
-      if (has_dom_class_name(element, 'topics')) {
-        rename_dom_element(element, 'recap-topics');
-      }
-
-      if (element.name === 'p' && has_dom_class_name(element, 'reading-recap-photos')) {
-        rename_dom_element(element, 'recap-photo-strip');
+      if (has_dom_class_name(element, "topics")) {
+        rename_dom_element(element, "recap-topics");
       }
 
       if (
-        element.name === 'a' &&
-        element.parent?.name === 'recap-photo-strip'
+        element.name === "p" &&
+        has_dom_class_name(element, "reading-recap-photos")
       ) {
-        append_dom_class(element, 'recap-photo-link');
+        rename_dom_element(element, "recap-photo-strip");
       }
 
       if (
-        element.name === 'img' &&
-        element.parent?.name === 'a' &&
-        element.parent?.parent?.name === 'recap-photo-strip'
+        element.name === "a" &&
+        element.parent?.name === "recap-photo-strip"
       ) {
-        append_dom_class(element, 'recap-photo-image');
+        append_dom_class(element, "recap-photo-link");
       }
 
-      if (element.name === 'span' && element.parent?.name === 'recap-topics') {
+      if (
+        element.name === "img" &&
+        element.parent?.name === "a" &&
+        element.parent?.parent?.name === "recap-photo-strip"
+      ) {
+        append_dom_class(element, "recap-photo-image");
+      }
+
+      if (element.name === "span" && element.parent?.name === "recap-topics") {
         const recap_colors = resolve_recap_colors(
           recap_element?.attribs,
           theme,
         );
 
-        append_dom_class(element, 'recap-topic');
+        append_dom_class(element, "recap-topic");
 
         if (recap_colors.topics_background_color) {
           append_dom_style(
@@ -3814,20 +4240,20 @@ function create_recap_dom_visitors(theme) {
       }
 
       if (is_recap_summary_paragraph(element)) {
-        append_dom_class(element, 'recap-summary');
+        append_dom_class(element, "recap-summary");
       }
 
       if (is_recap_recent_posts_label(element)) {
-        append_dom_class(element, 'recap-posts-label');
+        append_dom_class(element, "recap-posts-label");
       }
 
-      if (element.name === 'blockquote') {
+      if (element.name === "blockquote") {
         const recap_colors = resolve_recap_colors(
           recap_element?.attribs,
           theme,
         );
 
-        append_dom_class(element, 'recap-blockquote');
+        append_dom_class(element, "recap-blockquote");
 
         if (recap_colors.blockquote_background_color) {
           append_dom_style(
@@ -3844,32 +4270,29 @@ function create_recap_dom_visitors(theme) {
         }
       }
 
-      if (
-        element.name === 'ul' &&
-        is_direct_child_of_recap_card(element)
-      ) {
-        append_dom_class(element, 'recap-post-list');
+      if (element.name === "ul" && is_direct_child_of_recap_card(element)) {
+        append_dom_class(element, "recap-post-list");
       }
 
       if (
-        element.name === 'li' &&
-        element.parent?.name === 'ul' &&
+        element.name === "li" &&
+        element.parent?.name === "ul" &&
         is_direct_child_of_recap_card(element.parent)
       ) {
-        append_dom_class(element, 'recap-post-item');
+        append_dom_class(element, "recap-post-item");
       }
 
-      if (element.name === 'a' && is_recap_post_link(element)) {
-        append_dom_class(element, 'recap-post-link');
+      if (element.name === "a" && is_recap_post_link(element)) {
+        append_dom_class(element, "recap-post-link");
       }
     },
   };
 }
 
 function resolve_recap_colors(attribs = {}, theme) {
-  const light_color = normalize_recap_color(attribs?.['data-color-light']);
+  const light_color = normalize_recap_color(attribs?.["data-color-light"]);
   const dark_color = normalize_recap_color(
-    attribs?.['data-color-dark'] || attribs?.['data-color-right'],
+    attribs?.["data-color-dark"] || attribs?.["data-color-right"],
   );
   const recap_base_color = theme.isDark
     ? dark_color || light_color
@@ -3878,33 +4301,27 @@ function resolve_recap_colors(attribs = {}, theme) {
   return {
     background_color: with_recap_color_opacity(
       recap_base_color,
-      theme.isDark ? 'd9' : 'a6',
+      theme.isDark ? "d9" : "a6",
     ),
     border_color: with_recap_color_opacity(
       recap_base_color,
-      theme.isDark ? 'ff' : 'bf',
+      theme.isDark ? "ff" : "bf",
     ),
     blockquote_background_color: with_recap_color_opacity(
       recap_base_color,
-      theme.isDark ? 'ee' : 'cc',
+      theme.isDark ? "ee" : "cc",
     ),
-    blockquote_border_color: with_recap_color_opacity(
-      recap_base_color,
-      'ff',
-    ),
+    blockquote_border_color: with_recap_color_opacity(recap_base_color, "ff"),
     topics_background_color: with_recap_color_opacity(
       recap_base_color,
-      theme.isDark ? 'ff' : 'f0',
+      theme.isDark ? "ff" : "f0",
     ),
-    topics_border_color: with_recap_color_opacity(
-      recap_base_color,
-      'ff',
-    ),
+    topics_border_color: with_recap_color_opacity(recap_base_color, "ff"),
   };
 }
 
-function has_dom_class_name(element, class_name = '') {
-  const class_names = `${element?.attribs?.class || ''}`
+function has_dom_class_name(element, class_name = "") {
+  const class_names = `${element?.attribs?.class || ""}`
     .split(/\s+/)
     .map((value) => value.trim())
     .filter(Boolean);
@@ -3918,10 +4335,11 @@ function is_recap_card_element(element) {
   }
 
   return Boolean(
-    has_dom_class_name(element, 'reading-recap') ||
-      normalize_recap_color(element.attribs?.['data-color-light']) ||
+    has_dom_class_name(element, "reading-recap") ||
+      normalize_recap_color(element.attribs?.["data-color-light"]) ||
       normalize_recap_color(
-        element.attribs?.['data-color-dark'] || element.attribs?.['data-color-right'],
+        element.attribs?.["data-color-dark"] ||
+          element.attribs?.["data-color-right"],
       ),
   );
 }
@@ -3931,7 +4349,10 @@ function is_recap_dom_node(element) {
     return false;
   }
 
-  return element.name === 'recap-card' || has_dom_class_name(element, 'reading-recap');
+  return (
+    element.name === "recap-card" ||
+    has_dom_class_name(element, "reading-recap")
+  );
 }
 
 function find_recap_dom_ancestor(element) {
@@ -3956,7 +4377,7 @@ function find_previous_dom_tag_sibling(element) {
   let current_element = element?.prev || null;
 
   while (current_element) {
-    if (current_element.type === 'tag') {
+    if (current_element.type === "tag") {
       return current_element;
     }
 
@@ -3967,12 +4388,12 @@ function find_previous_dom_tag_sibling(element) {
 }
 
 function is_recap_summary_paragraph(element) {
-  if (element?.name !== 'p' || !is_direct_child_of_recap_card(element)) {
+  if (element?.name !== "p" || !is_direct_child_of_recap_card(element)) {
     return false;
   }
 
   if (
-    has_dom_class_name(element, 'reading-recap-photos') ||
+    has_dom_class_name(element, "reading-recap-photos") ||
     is_recap_recent_posts_label(element)
   ) {
     return false;
@@ -3985,51 +4406,53 @@ function is_recap_summary_paragraph(element) {
   }
 
   return (
-    previous_tag_sibling.name === 'h2' ||
-    previous_tag_sibling.name === 'recap-header' ||
-    has_dom_class_name(previous_tag_sibling, 'reading-header') ||
-    previous_tag_sibling.name === 'recap-header-group'
+    previous_tag_sibling.name === "h2" ||
+    previous_tag_sibling.name === "recap-header" ||
+    has_dom_class_name(previous_tag_sibling, "reading-header") ||
+    previous_tag_sibling.name === "recap-header-group"
   );
 }
 
 function is_recap_recent_posts_label(element) {
-  if (element?.name !== 'p' || !is_direct_child_of_recap_card(element)) {
+  if (element?.name !== "p" || !is_direct_child_of_recap_card(element)) {
     return false;
   }
 
-  return normalize_dom_text_content(element).toLowerCase() === 'recent posts:';
+  return normalize_dom_text_content(element).toLowerCase() === "recent posts:";
 }
 
 function normalize_dom_text_content(element) {
-  return get_dom_text_content(element).replace(/\s+/g, ' ').trim();
+  return get_dom_text_content(element).replace(/\s+/g, " ").trim();
 }
 
 function get_dom_text_content(element) {
   if (!element) {
-    return '';
+    return "";
   }
 
-  if (element.type === 'text') {
-    return `${element.data || ''}`;
+  if (element.type === "text") {
+    return `${element.data || ""}`;
   }
 
   if (!Array.isArray(element.children)) {
-    return '';
+    return "";
   }
 
-  return element.children.map((child) => get_dom_text_content(child)).join('');
+  return element.children.map((child) => get_dom_text_content(child)).join("");
 }
 
 function is_recap_post_link(element) {
-  if (element?.name !== 'a' || element.parent?.name !== 'li') {
+  if (element?.name !== "a" || element.parent?.name !== "li") {
     return false;
   }
 
-  return element.parent?.parent?.name === 'ul' &&
-    is_direct_child_of_recap_card(element.parent.parent);
+  return (
+    element.parent?.parent?.name === "ul" &&
+    is_direct_child_of_recap_card(element.parent.parent)
+  );
 }
 
-function rename_dom_element(element, next_name = '') {
+function rename_dom_element(element, next_name = "") {
   if (!element || !next_name) {
     return;
   }
@@ -4037,8 +4460,8 @@ function rename_dom_element(element, next_name = '') {
   element.name = next_name;
 }
 
-function append_dom_class(element, class_name = '') {
-  const existing_class_name = `${element?.attribs?.class || ''}`.trim();
+function append_dom_class(element, class_name = "") {
+  const existing_class_name = `${element?.attribs?.class || ""}`.trim();
 
   if (!class_name || has_dom_class_name(element, class_name)) {
     return;
@@ -4051,18 +4474,18 @@ function append_dom_class(element, class_name = '') {
   }
 }
 
-function append_dom_style(element, next_style = '') {
-  const trimmed_next_style = `${next_style || ''}`.trim();
+function append_dom_style(element, next_style = "") {
+  const trimmed_next_style = `${next_style || ""}`.trim();
 
   if (!trimmed_next_style) {
     return;
   }
 
-  const existing_style = `${element?.attribs?.style || ''}`.trim();
+  const existing_style = `${element?.attribs?.style || ""}`.trim();
 
   if (!existing_style) {
     element.attribs.style = trimmed_next_style;
-  } else if (existing_style.endsWith(';')) {
+  } else if (existing_style.endsWith(";")) {
     element.attribs.style = `${existing_style} ${trimmed_next_style}`;
   } else {
     element.attribs.style = `${existing_style}; ${trimmed_next_style}`;
@@ -4071,14 +4494,16 @@ function append_dom_style(element, next_style = '') {
 
 function extract_tnode_text(tnode) {
   if (!tnode) {
-    return '';
+    return "";
   }
 
-  if (tnode.type === 'text') {
-    return `${tnode.data || ''}`;
+  if (tnode.type === "text") {
+    return `${tnode.data || ""}`;
   }
 
-  return (tnode.children || []).map((child) => extract_tnode_text(child)).join('');
+  return (tnode.children || [])
+    .map((child) => extract_tnode_text(child))
+    .join("");
 }
 
 function extract_recap_topic_labels(tnode) {
@@ -4112,7 +4537,7 @@ function extract_recap_photo_items(tnode) {
   const seen_keys = new Set();
 
   traverse_tnode_descendants(tnode, (child) => {
-    if (child?.tagName !== 'img') {
+    if (child?.tagName !== "img") {
       return;
     }
 
@@ -4122,10 +4547,10 @@ function extract_recap_photo_items(tnode) {
       return;
     }
 
-    const photo_link = find_tnode_ancestor_by_tag(child, 'a');
+    const photo_link = find_tnode_ancestor_by_tag(child, "a");
     const href = normalize_http_url(photo_link?.attributes?.href);
-    const image_alt = `${child?.attributes?.alt || ''}`.trim();
-    const key = `${href || image_url || 'recap-photo'}-${photo_items.length}`;
+    const image_alt = `${child?.attributes?.alt || ""}`.trim();
+    const key = `${href || image_url || "recap-photo"}-${photo_items.length}`;
 
     if (seen_keys.has(key)) {
       return;
@@ -4144,7 +4569,7 @@ function extract_recap_photo_items(tnode) {
   return photo_items;
 }
 
-function find_tnode_ancestor_by_tag(tnode, tag_name = '') {
+function find_tnode_ancestor_by_tag(tnode, tag_name = "") {
   let current_tnode = tnode?.parent || null;
 
   while (current_tnode) {
@@ -4160,10 +4585,10 @@ function find_tnode_ancestor_by_tag(tnode, tag_name = '') {
 
 function find_tnode_image_source(tnode) {
   if (!tnode) {
-    return '';
+    return "";
   }
 
-  if (tnode.tagName === 'img') {
+  if (tnode.tagName === "img") {
     return normalize_http_url(tnode.attributes?.src);
   }
 
@@ -4175,16 +4600,16 @@ function find_tnode_image_source(tnode) {
     }
   }
 
-  return '';
+  return "";
 }
 
 function find_tnode_image_alt(tnode) {
   if (!tnode) {
-    return '';
+    return "";
   }
 
-  if (tnode.tagName === 'img') {
-    return `${tnode.attributes?.alt || ''}`.trim();
+  if (tnode.tagName === "img") {
+    return `${tnode.attributes?.alt || ""}`.trim();
   }
 
   for (const child of tnode.children || []) {
@@ -4195,11 +4620,11 @@ function find_tnode_image_alt(tnode) {
     }
   }
 
-  return '';
+  return "";
 }
 
 function traverse_tnode_descendants(tnode, on_visit) {
-  if (!tnode || typeof on_visit !== 'function') {
+  if (!tnode || typeof on_visit !== "function") {
     return;
   }
 
@@ -4209,11 +4634,15 @@ function traverse_tnode_descendants(tnode, on_visit) {
   }
 }
 
-function normalize_recap_color(raw_color = '') {
-  const normalized_color = `${raw_color || ''}`.trim();
+function normalize_recap_color(raw_color = "") {
+  const normalized_color = `${raw_color || ""}`.trim();
 
-  if (!/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalized_color)) {
-    return '';
+  if (
+    !/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(
+      normalized_color,
+    )
+  ) {
+    return "";
   }
 
   const hex = normalized_color.slice(1);
@@ -4221,24 +4650,26 @@ function normalize_recap_color(raw_color = '') {
   if (hex.length === 3 || hex.length === 4) {
     return `#${[...hex]
       .map((character) => `${character}${character}`)
-      .join('')}`;
+      .join("")}`;
   } else {
     return `#${hex}`;
   }
 }
 
-function with_recap_color_opacity(color_value = '', opacity_hex = '80') {
+function with_recap_color_opacity(color_value = "", opacity_hex = "80") {
   const normalized_color = normalize_recap_color(color_value);
 
   if (!normalized_color) {
-    return '';
+    return "";
   }
 
   const base_color =
-    normalized_color.length === 9 ? normalized_color.slice(0, 7) : normalized_color;
-  const safe_opacity = /^[0-9a-f]{2}$/i.test(`${opacity_hex || ''}`)
+    normalized_color.length === 9
+      ? normalized_color.slice(0, 7)
+      : normalized_color;
+  const safe_opacity = /^[0-9a-f]{2}$/i.test(`${opacity_hex || ""}`)
     ? `${opacity_hex}`.toLowerCase()
-    : '80';
+    : "80";
 
   return `${base_color}${safe_opacity}`;
 }
@@ -4247,15 +4678,15 @@ function resolve_reader_title(entry = null) {
   const title = normalize_reader_text(entry?.title);
 
   if (title) {
-    if (title.toLowerCase() === 'untitled') {
-      return '';
+    if (title.toLowerCase() === "untitled") {
+      return "";
     }
 
     const summary = normalize_reader_text(entry?.summary);
 
     if (summary) {
       if (summary === title) {
-        return '';
+        return "";
       }
 
       const shared_prefix =
@@ -4263,37 +4694,37 @@ function resolve_reader_title(entry = null) {
       const prefix_length = Math.min(title.length, summary.length);
 
       if (shared_prefix && prefix_length >= 40) {
-        return '';
+        return "";
       }
     }
 
     return title;
   }
 
-  return '';
+  return "";
 }
 
-function normalize_reader_text(value = '') {
-  return `${value || ''}`.trim().replace(/\s+/g, ' ');
+function normalize_reader_text(value = "") {
+  return `${value || ""}`.trim().replace(/\s+/g, " ");
 }
 
-function format_reader_date(raw_date = '') {
-  const trimmed_date = `${raw_date || ''}`.trim();
+function format_reader_date(raw_date = "") {
+  const trimmed_date = `${raw_date || ""}`.trim();
 
   if (!trimmed_date) {
-    return '';
+    return "";
   }
 
   const date = new Date(trimmed_date);
 
   if (Number.isNaN(date.getTime())) {
-    return '';
+    return "";
   }
 
   return date.toLocaleDateString([], {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
+    day: "numeric",
+    month: "short",
+    year: "numeric",
   });
 }
 
@@ -4303,74 +4734,75 @@ function normalize_conversation_replies(items = []) {
   }
 
   return items.filter((item) => {
-    return item && typeof item === 'object';
+    return item && typeof item === "object";
   });
 }
 
 function get_reply_count_label(count = 0) {
   const normalized_count = Number.isFinite(count) ? Math.max(count, 0) : 0;
-  return `${normalized_count} repl${normalized_count === 1 ? 'y' : 'ies'}`;
+  return `${normalized_count} repl${normalized_count === 1 ? "y" : "ies"}`;
 }
 
 function get_highlight_count_label(count = 0) {
   const normalized_count = Number.isFinite(count) ? Math.max(count, 0) : 0;
-  return `${normalized_count} highlight${normalized_count === 1 ? '' : 's'}`;
+  return `${normalized_count} highlight${normalized_count === 1 ? "" : "s"}`;
 }
 
 function resolve_reply_key(reply = null, index = 0) {
-  const reply_id = `${reply?.id || ''}`.trim();
+  const reply_id = `${reply?.id || ""}`.trim();
 
   if (reply_id) {
     return reply_id;
   }
 
   const author_name = get_reply_author_name(reply);
-  const published_at = `${reply?.date_published || ''}`.trim();
-  const content_key =
-    `${reply?.content_text || reply?.content_html || ''}`.trim().slice(0, 40);
+  const published_at = `${reply?.date_published || ""}`.trim();
+  const content_key = `${reply?.content_text || reply?.content_html || ""}`
+    .trim()
+    .slice(0, 40);
 
   return `${author_name}-${published_at}-${content_key || index}`;
 }
 
 function get_reply_author_name(reply = null) {
-  const name = `${reply?.author?.name || ''}`.trim();
+  const name = `${reply?.author?.name || ""}`.trim();
 
   if (name) {
     return name;
   }
 
-  const username = `${reply?.author?._microblog?.username || ''}`.trim();
+  const username = `${reply?.author?._microblog?.username || ""}`.trim();
 
   if (username) {
     return username;
   }
 
-  return 'Unknown';
+  return "Unknown";
 }
 
-function format_reply_date(raw_date = '') {
-  const trimmed_date = `${raw_date || ''}`.trim();
+function format_reply_date(raw_date = "") {
+  const trimmed_date = `${raw_date || ""}`.trim();
 
   if (!trimmed_date) {
-    return '';
+    return "";
   }
 
   const date = new Date(trimmed_date);
 
   if (Number.isNaN(date.getTime())) {
-    return '';
+    return "";
   }
 
-  const date_text = date.toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'numeric',
-    year: 'numeric',
+  const date_text = date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
   });
   const time_text = date
-    .toLocaleTimeString('en-US', {
-      hour: 'numeric',
+    .toLocaleTimeString("en-US", {
+      hour: "numeric",
       hour12: true,
-      minute: '2-digit',
+      minute: "2-digit",
     })
     .toLowerCase();
 
@@ -4378,76 +4810,77 @@ function format_reply_date(raw_date = '') {
 }
 
 function resolve_reply_html(reply = null) {
-  const content_html = sanitize_reader_html(`${reply?.content_html || ''}`.trim());
+  const content_html = sanitize_reader_html(
+    `${reply?.content_html || ""}`.trim(),
+  );
 
   if (content_html) {
     return content_html;
   }
 
-  const content_text = `${reply?.content_text || ''}`.trim();
+  const content_text = `${reply?.content_text || ""}`.trim();
 
   if (!content_text) {
-    return '';
+    return "";
   }
 
-  const safe_text = escape_html(content_text).replace(/\r?\n/g, '<br>');
+  const safe_text = escape_html(content_text).replace(/\r?\n/g, "<br>");
 
   return `<p>${safe_text}</p>`;
 }
 
 function get_recap_summary_copy(count = 0) {
   const normalized_count = Number.isFinite(count) ? Math.max(count, 0) : 0;
-  const noun = normalized_count === 1 ? 'post' : 'posts';
+  const noun = normalized_count === 1 ? "post" : "posts";
 
   return `${normalized_count} older ${noun}, grouped into one recap.`;
 }
 
-function get_recap_day_chip_label(dayofweek = '') {
-  const trimmed_dayofweek = `${dayofweek || ''}`.trim();
+function get_recap_day_chip_label(dayofweek = "") {
+  const trimmed_dayofweek = `${dayofweek || ""}`.trim();
 
   if (!trimmed_dayofweek) {
-    return '';
+    return "";
   }
 
   return trimmed_dayofweek.slice(0, 3);
 }
 
-function get_recap_day_summary_label(dayofweek = '') {
-  return `${dayofweek || ''}`.trim();
+function get_recap_day_summary_label(dayofweek = "") {
+  return `${dayofweek || ""}`.trim();
 }
 
 function get_recap_email_settings_copy({
   is_enabled = false,
   is_expanded = false,
   is_showing_loading_summary = false,
-  selected_day = '',
+  selected_day = "",
 } = {}) {
   if (is_showing_loading_summary) {
-    return 'Loading your weekly email setting.';
+    return "Loading your weekly email setting.";
   }
 
   if (is_expanded) {
-    return 'Choose a day for Reading Recap, or turn weekly email off.';
+    return "Choose a day for Reading Recap, or turn weekly email off.";
   }
 
   if (is_enabled && selected_day) {
     return `Reading Recap is included in weekly email every ${selected_day}.`;
   }
 
-  return 'Reading Recap is not included in weekly email.';
+  return "Reading Recap is not included in weekly email.";
 }
 
-function resolve_entry_highlight_entries(entry_id = '') {
-  const normalized_entry_id = `${entry_id || ''}`.trim();
+function resolve_entry_highlight_entries(entry_id = "") {
+  const normalized_entry_id = `${entry_id || ""}`.trim();
 
   if (!normalized_entry_id) {
     return [];
   }
 
-  return Highlights.highlight_entries()
-    .filter((highlight) => {
-      return `${highlight?.post_id || ''}`.trim() === normalized_entry_id;
-    });
+  return Highlights.highlight_entries().filter((highlight) => {
+    return `${highlight?.post_id || ""}`.trim() === normalized_entry_id;
+  });
 }
 
 function resolve_entry_highlight_range(highlight = null) {
@@ -4467,40 +4900,40 @@ function resolve_entry_highlight_range(highlight = null) {
 
   return {
     end_offset: normalized_end_offset,
-    highlight_id: `${highlight?.highlight_id || highlight?.id || ''}`.trim(),
+    highlight_id: `${highlight?.highlight_id || highlight?.id || ""}`.trim(),
     start_offset: normalized_start_offset,
   };
 }
 
-function sanitize_reader_html_attributes(raw_attributes = '', options = {}) {
+function sanitize_reader_html_attributes(raw_attributes = "", options = {}) {
   const sanitized_attributes = [];
   const base_url =
-    typeof options === 'string' ? options : options?.base_url || '';
+    typeof options === "string" ? options : options?.base_url || "";
   const attribute_pattern =
     /([^\s"'<>\/=]+)(?:\s*=\s*(".*?"|'.*?'|[^\s"'=<>`]+))?/g;
   let attribute_match = attribute_pattern.exec(raw_attributes);
 
   while (attribute_match) {
-    const attribute_name = `${attribute_match[1] || ''}`.trim();
+    const attribute_name = `${attribute_match[1] || ""}`.trim();
     const normalized_attribute_name = attribute_name.toLowerCase();
     let attribute_value = attribute_match[2];
 
     if (
       normalized_attribute_name &&
-      !normalized_attribute_name.startsWith('on') &&
-      normalized_attribute_name !== 'target' &&
-      normalized_attribute_name !== 'rel' &&
-      normalized_attribute_name !== 'srcdoc' &&
-      normalized_attribute_name !== 'srcset'
+      !normalized_attribute_name.startsWith("on") &&
+      normalized_attribute_name !== "target" &&
+      normalized_attribute_name !== "rel" &&
+      normalized_attribute_name !== "srcdoc" &&
+      normalized_attribute_name !== "srcset"
     ) {
       if (attribute_value === undefined) {
         sanitized_attributes.push(attribute_name);
       } else {
-        attribute_value = attribute_value.replace(/^['"]|['"]$/g, '');
+        attribute_value = attribute_value.replace(/^['"]|['"]$/g, "");
 
         if (
-          normalized_attribute_name === 'href' ||
-          normalized_attribute_name === 'src'
+          normalized_attribute_name === "href" ||
+          normalized_attribute_name === "src"
         ) {
           const safe_url = normalize_http_url(attribute_value, {
             base_url,
@@ -4525,19 +4958,19 @@ function sanitize_reader_html_attributes(raw_attributes = '', options = {}) {
   }
 
   if (sanitized_attributes.length === 0) {
-    return '';
+    return "";
   }
 
-  return ` ${sanitized_attributes.join(' ')}`;
+  return ` ${sanitized_attributes.join(" ")}`;
 }
 
-function normalize_http_url(raw_url = '', options = {}) {
-  const trimmed_url = decode_html_entities(`${raw_url || ''}`).trim();
+function normalize_http_url(raw_url = "", options = {}) {
+  const trimmed_url = decode_html_entities(`${raw_url || ""}`).trim();
   const base_url =
-    typeof options === 'string' ? options : options?.base_url || '';
+    typeof options === "string" ? options : options?.base_url || "";
 
   if (!trimmed_url) {
-    return '';
+    return "";
   }
 
   try {
@@ -4545,31 +4978,31 @@ function normalize_http_url(raw_url = '', options = {}) {
       ? new URL(trimmed_url, base_url)
       : new URL(trimmed_url);
 
-    if (parsed_url.protocol === 'http:' || parsed_url.protocol === 'https:') {
+    if (parsed_url.protocol === "http:" || parsed_url.protocol === "https:") {
       return parsed_url.toString();
     }
   } catch (error) {
-    return '';
+    return "";
   }
 
-  return '';
+  return "";
 }
 
-function resolve_host_label(raw_url = '') {
+function resolve_host_label(raw_url = "") {
   const normalized_url = normalize_http_url(raw_url);
 
   if (!normalized_url) {
-    return '';
+    return "";
   }
 
   try {
-    return new URL(normalized_url).hostname.replace(/^www\./, '');
+    return new URL(normalized_url).hostname.replace(/^www\./, "");
   } catch (error) {
-    return '';
+    return "";
   }
 }
 
-async function open_external_url(raw_url = '') {
+async function open_external_url(raw_url = "") {
   const normalized_url = normalize_http_url(raw_url);
 
   if (!normalized_url) {
@@ -4583,55 +5016,55 @@ async function open_external_url(raw_url = '') {
   }
 }
 
-function get_source_avatar_initial(source = '') {
-  const trimmed_source = `${source || ''}`.trim();
+function get_source_avatar_initial(source = "") {
+  const trimmed_source = `${source || ""}`.trim();
   const initial = trimmed_source.charAt(0).toUpperCase();
 
   if (initial) {
     return initial;
   } else {
-    return 'F';
+    return "F";
   }
 }
 
-function escape_html(value = '') {
-  return `${value || ''}`
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function escape_html(value = "") {
+  return `${value || ""}`
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function escape_html_attribute(value = '') {
+function escape_html_attribute(value = "") {
   return escape_html(value);
 }
 
-function decode_html_entities(value = '') {
-  return `${value || ''}`.replace(
+function decode_html_entities(value = "") {
+  return `${value || ""}`.replace(
     /&(#x[0-9a-f]+|#\d+|amp|apos|gt|lt|nbsp|quot);/gi,
     (match, entity) => {
-      const normalized_entity = `${entity || ''}`.toLowerCase();
+      const normalized_entity = `${entity || ""}`.toLowerCase();
 
-      if (normalized_entity === 'amp') {
-        return '&';
-      } else if (normalized_entity === 'apos') {
+      if (normalized_entity === "amp") {
+        return "&";
+      } else if (normalized_entity === "apos") {
         return "'";
-      } else if (normalized_entity === 'gt') {
-        return '>';
-      } else if (normalized_entity === 'lt') {
-        return '<';
-      } else if (normalized_entity === 'nbsp') {
-        return ' ';
-      } else if (normalized_entity === 'quot') {
+      } else if (normalized_entity === "gt") {
+        return ">";
+      } else if (normalized_entity === "lt") {
+        return "<";
+      } else if (normalized_entity === "nbsp") {
+        return " ";
+      } else if (normalized_entity === "quot") {
         return '"';
-      } else if (normalized_entity.startsWith('#x')) {
+      } else if (normalized_entity.startsWith("#x")) {
         const code_point = Number.parseInt(normalized_entity.slice(2), 16);
 
         if (Number.isInteger(code_point)) {
           return String.fromCodePoint(code_point);
         }
-      } else if (normalized_entity.startsWith('#')) {
+      } else if (normalized_entity.startsWith("#")) {
         const code_point = Number.parseInt(normalized_entity.slice(1), 10);
 
         if (Number.isInteger(code_point)) {
