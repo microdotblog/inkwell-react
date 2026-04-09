@@ -75,6 +75,16 @@ function format_profile_handle(profile_url = '') {
   return `@${handle_candidate.replace(/^@+/g, '')}`;
 }
 
+function format_account_label(profile_name = '') {
+  const trimmed_profile_name = `${profile_name || ''}`.trim().replace(/^@+/g, '');
+
+  if (trimmed_profile_name) {
+    return `@${trimmed_profile_name}`;
+  }
+
+  return '@micro.blog';
+}
+
 function AccountScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const reader_text_scale = AppStore.reader_text_scale;
@@ -85,6 +95,7 @@ function AccountScreen({ isDark = false }) {
   const profile = Auth.current_profile();
   const profile_name = profile.name || 'Micro.blog account';
   const profile_handle = format_profile_handle(profile.url);
+  const account_label = format_account_label(profile_name);
   const profile_photo = profile.photo || '';
   const avatar_initial = profile_name.charAt(0).toUpperCase() || 'M';
   const is_busy = Auth.is_loading();
@@ -136,6 +147,7 @@ function AccountScreen({ isDark = false }) {
         avatar_initial={avatar_initial}
         is_busy={is_busy}
         is_dark={isDark}
+        account_label={account_label}
         profile_handle={profile_handle}
         profile_name={profile_name}
         profile_photo={profile_photo}
@@ -151,11 +163,10 @@ function AccountScreen({ isDark = false }) {
 
 function AccountScreenContent({
   accent_palette_id,
+  account_label = '',
   avatar_initial = '',
   is_busy = false,
   is_dark = false,
-  profile_handle = '',
-  profile_name = '',
   profile_photo = '',
   reader_text_scale = DEFAULT_TEXT_SCALE,
   reader_text_scale_slider_index = 0,
@@ -213,54 +224,6 @@ function AccountScreenContent({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.cardStack}>
-          <AuthCard style={styles.card} theme={theme}>
-            <View style={styles.profileRow}>
-              {profile_photo ? (
-                <Image source={{ uri: profile_photo }} style={styles.avatar} />
-              ) : (
-                <Animated.View style={[styles.avatarFallback, avatar_fallback_style]}>
-                  <Animated.Text
-                    style={[
-                      styles.avatarInitial,
-                      avatar_initial_style,
-                    ]}
-                  >
-                    {avatar_initial}
-                  </Animated.Text>
-                </Animated.View>
-              )}
-
-              <View style={styles.profileMeta}>
-                <Text
-                  style={[
-                    styles.signedInAs,
-                    { color: theme.colors.inkSoft },
-                  ]}
-                >
-                  Signed in as:
-                </Text>
-                <Text
-                  style={[
-                    styles.profileName,
-                    { color: theme.colors.ink },
-                  ]}
-                >
-                  {profile_name}
-                </Text>
-                {profile_handle ? (
-                  <Text
-                    style={[
-                      styles.profileHandle,
-                      { color: theme.colors.inkSoft },
-                    ]}
-                  >
-                    {profile_handle}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          </AuthCard>
-
           <AuthCard style={styles.card} theme={theme}>
             <View style={styles.preferenceStack}>
               <View style={styles.preferenceCopy}>
@@ -400,16 +363,54 @@ function AccountScreenContent({
             </View>
           </AuthCard>
 
-          <View style={styles.signOutContainer}>
-            <PrimaryButton
-              label="Sign out"
-              onPress={Auth.sign_out}
-              variant="ghost"
-              disabled={is_busy}
-              theme={theme}
-              textStyle={{ color: theme.colors.danger }}
-            />
-          </View>
+          <AuthCard style={styles.card} theme={theme}>
+            <View style={styles.accountCardStack}>
+              <View style={styles.profileRow}>
+                {profile_photo ? (
+                  <Image source={{ uri: profile_photo }} style={styles.avatar} />
+                ) : (
+                  <Animated.View style={[styles.avatarFallback, avatar_fallback_style]}>
+                    <Animated.Text
+                      style={[
+                        styles.avatarInitial,
+                        avatar_initial_style,
+                      ]}
+                    >
+                      {avatar_initial}
+                    </Animated.Text>
+                  </Animated.View>
+                )}
+
+                <View style={styles.profileMeta}>
+                  <Text
+                    style={[
+                      styles.signedInAsInline,
+                      { color: theme.colors.inkSoft },
+                    ]}
+                  >
+                    Signed in as{' '}
+                    <Text
+                      style={[
+                        styles.signedInUsername,
+                        { color: theme.colors.ink },
+                      ]}
+                    >
+                      {account_label}
+                    </Text>
+                  </Text>
+                </View>
+              </View>
+
+              <PrimaryButton
+                label="Sign out"
+                onPress={Auth.sign_out}
+                variant="ghost"
+                disabled={is_busy}
+                theme={theme}
+                textStyle={{ color: theme.colors.danger }}
+              />
+            </View>
+          </AuthCard>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -634,6 +635,9 @@ const styles = StyleSheet.create({
   cardStack: {
     gap: 14,
   },
+  accountCardStack: {
+    gap: 18,
+  },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -662,24 +666,14 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 2,
   },
-  signedInAs: {
+  signedInAsInline: {
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.2,
     lineHeight: 16,
   },
-  profileName: {
-    flexShrink: 1,
-    fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 22,
-    lineHeight: 26,
-  },
-  profileHandle: {
-    flexShrink: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    lineHeight: 20,
+  signedInUsername: {
+    fontWeight: '700',
   },
   preferenceStack: {
     gap: 16,
@@ -788,9 +782,6 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-  },
-  signOutContainer: {
-    marginTop: 8,
   },
   textScaleValue: {
     fontSize: 14,
