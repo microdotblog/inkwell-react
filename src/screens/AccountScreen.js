@@ -1,6 +1,8 @@
 import React from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
+import { Image as ExpoImage } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react';
@@ -32,6 +34,7 @@ import {
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const CONTENT_TOP_PADDING = 12;
+const AUTH_WAVE_BACKGROUND = require('../../assets/images/auth-wave-background.jpg');
 
 function format_profile_handle(profile_url = '') {
   const trimmed_profile_url = `${profile_url || ''}`.trim();
@@ -288,8 +291,8 @@ function AccountScreenContent({
                       key={option.id}
                       label={option.label}
                       onPress={() => AppStore.set_accent_palette(option.id)}
+                      palette_id={option.id}
                       previous_is_selected={option.id === transition_theme?.accent_palette_id}
-                      swatch_color={is_dark ? option.dark_swatch : option.light_swatch}
                       theme={theme}
                       transition_progress={transition_progress}
                       transition_theme={transition_theme}
@@ -418,12 +421,13 @@ function AccentPaletteChip({
   is_selected = false,
   label = '',
   onPress,
+  palette_id = '',
   previous_is_selected = false,
-  swatch_color = '',
   theme,
   transition_progress,
   transition_theme,
 }) {
+  const palette_theme = getAuthTheme(isDark, palette_id);
   const chip_style = useAnimatedStyle(() => {
     if (!transition_theme) {
       return {
@@ -496,15 +500,7 @@ function AccentPaletteChip({
       style={({ pressed }) => [styles.palettePressable, pressed ? styles.pressedPaletteChip : null]}
     >
       <Animated.View style={[styles.paletteChip, chip_style]}>
-        <View
-          style={[
-            styles.paletteSwatch,
-            {
-              backgroundColor: swatch_color,
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
-            },
-          ]}
-        />
+        <AccentPalettePreview isDark={isDark} palette_theme={palette_theme} />
         <Animated.Text
           style={[
             styles.paletteLabel,
@@ -518,6 +514,105 @@ function AccentPaletteChip({
         </Animated.View>
       </Animated.View>
     </Pressable>
+  );
+}
+
+function AccentPalettePreview({ isDark = false, palette_theme }) {
+  const preview_wave_opacity = Math.min(palette_theme.background.imageOpacity * 0.5, 0.42);
+
+  return (
+    <View
+      style={[
+        styles.paletteSwatch,
+        {
+          backgroundColor: palette_theme.colors.accentSoft,
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
+        },
+      ]}
+    >
+      <LinearGradient
+        colors={palette_theme.background.base}
+        end={{ x: 0.5, y: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        style={styles.paletteSwatchLayer}
+      />
+
+      <View
+        pointerEvents="none"
+        style={[
+          styles.paletteSwatchLayer,
+          styles.paletteSwatchWaveFrame,
+        ]}
+      >
+        <ExpoImage
+          contentFit="cover"
+          source={AUTH_WAVE_BACKGROUND}
+          style={[
+            styles.paletteSwatchWaveImage,
+            {
+              opacity: preview_wave_opacity,
+              transform: [{ scale: palette_theme.background.waveScale }],
+            },
+          ]}
+          transition={0}
+        />
+      </View>
+
+      <LinearGradient
+        colors={[
+          palette_theme.colors.accentStrong,
+          palette_theme.colors.accent,
+          palette_theme.colors.accentSoft,
+        ]}
+        end={{ x: 0.85, y: 0.9 }}
+        start={{ x: 0.1, y: 0.15 }}
+        style={[
+          styles.paletteSwatchLayer,
+          styles.paletteSwatchAccentLayer,
+        ]}
+      />
+
+      <LinearGradient
+        colors={palette_theme.background.tint}
+        end={{ x: 0.6, y: 1 }}
+        start={{ x: 0.4, y: 0 }}
+        style={[
+          styles.paletteSwatchLayer,
+          styles.paletteSwatchTintLayer,
+        ]}
+      />
+
+      <LinearGradient
+        colors={palette_theme.background.glow}
+        end={{ x: 0.5, y: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        style={[
+          styles.paletteSwatchLayer,
+          styles.paletteSwatchGlowLayer,
+        ]}
+      />
+
+      <LinearGradient
+        colors={[
+          'rgba(255, 255, 255, 0.18)',
+          'rgba(255, 255, 255, 0.06)',
+          'rgba(255, 255, 255, 0)',
+        ]}
+        end={{ x: 0.5, y: 1 }}
+        start={{ x: 0.3, y: 0 }}
+        style={[
+          styles.paletteSwatchLayer,
+          styles.paletteSwatchHighlightLayer,
+        ]}
+      />
+
+      <LinearGradient
+        colors={palette_theme.background.edge}
+        end={{ x: 0.5, y: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        style={styles.paletteSwatchLayer}
+      />
+    </View>
   );
 }
 
@@ -637,6 +732,32 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     borderWidth: 1,
     flexShrink: 0,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  paletteSwatchLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  paletteSwatchWaveFrame: {
+    top: -8,
+    right: -8,
+    bottom: -8,
+    left: -8,
+  },
+  paletteSwatchWaveImage: {
+    flex: 1,
+  },
+  paletteSwatchTintLayer: {
+    opacity: 0.44,
+  },
+  paletteSwatchAccentLayer: {
+    opacity: 0.72,
+  },
+  paletteSwatchGlowLayer: {
+    opacity: 0.38,
+  },
+  paletteSwatchHighlightLayer: {
+    opacity: 0.42,
   },
   paletteLabel: {
     flex: 1,
