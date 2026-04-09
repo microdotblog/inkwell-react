@@ -230,6 +230,8 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const [is_loading_replies, set_is_loading_replies] = React.useState(false);
   const [replies, set_replies] = React.useState([]);
   const [has_reader_selection, set_has_reader_selection] = React.useState(false);
+  const [active_reader_highlight_id, set_active_reader_highlight_id] =
+    React.useState("");
   const [is_creating_highlight, set_is_creating_highlight] =
     React.useState(false);
   const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
@@ -257,6 +259,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const header_title_font_size = 17;
   const reply_count = replies.length;
   const highlight_count = entry_highlights.length;
+  const active_reader_highlight = React.useMemo(() => {
+    return resolve_entry_highlight_by_identifier(
+      entry_highlights,
+      active_reader_highlight_id,
+    );
+  }, [active_reader_highlight_id, entry_highlights]);
+  const is_deleting_reader_highlight =
+    Boolean(active_reader_highlight) &&
+    deleting_highlight_id === active_reader_highlight.id;
   const should_show_entry_pane_tabs =
     detail_mode === "entry" && (reply_count > 0 || highlight_count > 0);
   const should_show_highlight_action =
@@ -265,7 +276,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     active_pane === "post" &&
     has_entry_body &&
     !is_text_size_tray_visible &&
-    (has_reader_selection || is_creating_highlight);
+    (Boolean(active_reader_highlight) ||
+      has_reader_selection ||
+      is_creating_highlight);
   const entry_menu_actions = React.useMemo(() => {
     return get_entry_menu_actions({
       entry,
@@ -387,9 +400,24 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       !has_entry_body
     ) {
       set_has_reader_selection(false);
+      set_active_reader_highlight_id("");
       set_is_creating_highlight(false);
     }
   }, [active_pane, detail_mode, entry, has_entry_body, resolved_entry_id]);
+
+  React.useEffect(() => {
+    if (
+      active_reader_highlight_id &&
+      !active_reader_highlight &&
+      !is_deleting_reader_highlight
+    ) {
+      set_active_reader_highlight_id("");
+    }
+  }, [
+    active_reader_highlight,
+    active_reader_highlight_id,
+    is_deleting_reader_highlight,
+  ]);
 
   React.useEffect(() => {
     replies_request_token_ref.current += 1;
@@ -499,6 +527,8 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const handle_delete_highlight = React.useCallback(
     (entry = null) => {
       const normalized_highlight_id = `${entry?.id || ""}`.trim();
+      const active_highlight_identifier =
+        active_reader_highlight_id || normalized_highlight_id;
 
       if (!normalized_highlight_id || deleting_highlight_id) {
         return;
@@ -537,6 +567,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
                 AppStore.show_toast("Highlight deleted", {
                   top_offset: toast_top_offset,
                 });
+                set_reader_webview_reload_key((current_key) => current_key + 1);
+                if (
+                  highlight_matches_identifier(
+                    entry,
+                    active_highlight_identifier,
+                  )
+                ) {
+                  set_active_reader_highlight_id("");
+                }
               } finally {
                 set_deleting_highlight_id("");
               }
@@ -545,7 +584,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         ],
       );
     },
-    [deleting_highlight_id, toast_top_offset],
+    [active_reader_highlight_id, deleting_highlight_id, toast_top_offset],
   );
 
   const handle_copy_link = React.useCallback(async () => {
@@ -576,6 +615,14 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     [],
   );
 
+  const handle_reader_active_highlight_change = React.useCallback(
+    (next_highlight_id = "") => {
+      const normalized_highlight_id = `${next_highlight_id || ""}`.trim();
+      set_active_reader_highlight_id(normalized_highlight_id);
+    },
+    [],
+  );
+
   const handle_create_highlight = React.useCallback(async () => {
     if (
       is_creating_highlight ||
@@ -591,9 +638,6 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     const selection_text = `${selection_payload?.selection_text || ""}`;
     const trimmed_selection_text = selection_text.trim();
     const normalized_post_title = normalize_reader_text(entry?.title);
-
-    await reader_post_ref.current.clearSelection?.();
-    set_has_reader_selection(false);
 
     if (!trimmed_selection_text) {
       return;
@@ -639,6 +683,18 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     resolved_entry_id,
     source_label,
     toast_top_offset,
+  ]);
+
+  const handle_delete_reader_highlight = React.useCallback(() => {
+    if (!active_reader_highlight || is_deleting_reader_highlight) {
+      return;
+    }
+
+    handle_delete_highlight(active_reader_highlight);
+  }, [
+    active_reader_highlight,
+    handle_delete_highlight,
+    is_deleting_reader_highlight,
   ]);
 
   const handle_reader_text_scale_change = React.useCallback(
@@ -851,6 +907,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             highlight_count={highlight_count}
             onCopyHighlight={handle_copy_highlight}
             onDeleteHighlight={handle_delete_highlight}
+            onReaderActiveHighlightChange={handle_reader_active_highlight_change}
             onPressHighlightsPane={handle_highlights_pane_press}
             onPressPostPane={handle_post_pane_press}
             onPressRepliesPane={handle_replies_pane_press}
@@ -924,8 +981,21 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
       {should_show_highlight_action ? (
         <ReaderHighlightAction
-          is_loading={is_creating_highlight}
-          onPress={handle_create_highlight}
+          is_destructive={Boolean(active_reader_highlight)}
+          is_loading={
+            active_reader_highlight
+              ? is_deleting_reader_highlight
+              : is_creating_highlight
+          }
+          label={active_reader_highlight ? "Delete highlight" : "Highlight"}
+          loading_label={
+            active_reader_highlight ? "Deleting..." : "Saving..."
+          }
+          onPress={
+            active_reader_highlight
+              ? handle_delete_reader_highlight
+              : handle_create_highlight
+          }
           safe_area_bottom={insets.bottom}
           theme={theme}
         />
@@ -957,6 +1027,7 @@ function EntryReaderView({
   highlight_count = 0,
   onCopyHighlight,
   onDeleteHighlight,
+  onReaderActiveHighlightChange,
   onPressHighlightsPane,
   onPressPostPane,
   onPressRepliesPane,
@@ -1113,6 +1184,7 @@ function EntryReaderView({
             base_url={reader_base_url}
             highlight_payload={reader_highlights}
             html={reader_html}
+            onActiveHighlightChange={onReaderActiveHighlightChange}
             onSelectionChange={onReaderSelectionChange}
             reload_key={reader_webview_reload_key}
             ref={reader_post_ref}
@@ -1767,12 +1839,35 @@ function ReaderTextSizeTray({
 }
 
 function ReaderHighlightAction({
+  is_destructive = false,
   is_loading = false,
+  label = "Highlight",
+  loading_label = "Saving...",
   onPress,
   safe_area_bottom = 0,
   theme,
 }) {
-  const label = is_loading ? "Saving..." : "Highlight";
+  const resolved_label = is_loading ? loading_label : label;
+  const accessibility_label = is_loading
+    ? loading_label
+    : label || "Reader action";
+  const background_color = is_destructive
+    ? theme.isDark
+      ? "rgba(188, 84, 110, 0.14)"
+      : "rgba(166, 47, 73, 0.05)"
+    : theme.colors.canvas;
+  const border_color = is_destructive
+    ? theme.isDark
+      ? "rgba(255, 160, 182, 0.34)"
+      : "rgba(166, 47, 73, 0.18)"
+    : theme.colors.line;
+  const label_color = is_loading
+    ? theme.colors.inkSoft
+    : is_destructive
+      ? theme.isDark
+        ? "#ffb5c6"
+        : "#942c49"
+      : theme.colors.accentStrong;
 
   return (
     <View
@@ -1785,7 +1880,7 @@ function ReaderHighlightAction({
       ]}
     >
       <Pressable
-        accessibilityLabel={is_loading ? "Saving highlight" : "Create highlight"}
+        accessibilityLabel={accessibility_label}
         accessibilityRole="button"
         disabled={is_loading}
         onPress={onPress}
@@ -1793,8 +1888,8 @@ function ReaderHighlightAction({
           return [
             styles.readerHighlightActionButton,
             {
-              backgroundColor: theme.colors.canvas,
-              borderColor: theme.colors.line,
+              backgroundColor: background_color,
+              borderColor: border_color,
               opacity: is_loading ? 0.78 : pressed ? 0.86 : 1,
               shadowColor: theme.colors.shadow,
             },
@@ -1805,13 +1900,11 @@ function ReaderHighlightAction({
           style={[
             styles.readerHighlightActionLabel,
             {
-              color: is_loading
-                ? theme.colors.inkSoft
-                : theme.colors.accentStrong,
+              color: label_color,
             },
           ]}
         >
-          {label}
+          {resolved_label}
         </Text>
       </Pressable>
     </View>
@@ -1823,6 +1916,7 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
     base_url = "",
     highlight_payload = [],
     html = "",
+    onActiveHighlightChange,
     onSelectionChange,
     reload_key = 0,
     theme,
@@ -1841,6 +1935,9 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
   const content_width = Math.max(
     Math.min(width - READER_HORIZONTAL_PADDING * 2, READER_COLUMN_MAX_WIDTH),
     0,
+  );
+  const serialized_highlight_payload = JSON.stringify(
+    Array.isArray(highlight_payload) ? highlight_payload : [],
   );
   const resolved_base_url = React.useMemo(() => {
     return normalize_http_url(base_url) || "https://example.com/";
@@ -1892,11 +1989,9 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
     }
 
     webview_ref.current.injectJavaScript(
-      `window.inkwellDetail?.restoreHighlights(${JSON.stringify(
-        highlight_payload,
-      )}); true;`,
+      `window.inkwellDetail?.restoreHighlights(${serialized_highlight_payload}); true;`,
     );
-  }, [did_finish_load, highlight_payload]);
+  }, [did_finish_load, serialized_highlight_payload]);
 
   const apply_text_scale = React.useCallback(() => {
     if (!webview_ref.current || !did_finish_load) {
@@ -2001,6 +2096,11 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
           return;
         }
 
+        if (payload?.type === "active_highlight") {
+          onActiveHighlightChange?.(payload?.highlight_id || "");
+          return;
+        }
+
         if (payload?.type === "selection_payload") {
           const request_id = `${payload?.request_id || ""}`;
           const pending_request = pending_selection_request_ref.current;
@@ -2023,7 +2123,7 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
         // Ignore malformed bridge events from the embedded document.
       }
     },
-    [onSelectionChange],
+    [onActiveHighlightChange, onSelectionChange],
   );
 
   const handle_load_end = React.useCallback(() => {
@@ -4216,17 +4316,81 @@ function create_reader_post_bridge_script() {
     }
 
     var previousSelectionState = null;
+    var previousActiveHighlightID = '';
+    var tappedHighlightID = '';
+    var pendingTouchHighlightID = '';
 
-    function postSelectionState() {
-      var nextState = hasContentSelection();
-      if (nextState === previousSelectionState) {
+    function highlightNodeFromTarget(target) {
+      if (!target) {
+        return null;
+      }
+
+      var node = target.nodeType === Node.TEXT_NODE ? target.parentNode : target;
+      if (!node || typeof node.closest !== 'function') {
+        return null;
+      }
+
+      return node.closest('span.reader-highlight-text');
+    }
+
+    function highlightIDFromNode(node) {
+      if (!node || !node.dataset) {
+        return '';
+      }
+
+      return String(node.dataset.highlightId || '').trim();
+    }
+
+    function postActiveHighlight(highlightID) {
+      var nextHighlightID = String(highlightID || '').trim();
+
+      if (nextHighlightID === previousActiveHighlightID) {
         return;
       }
 
-      previousSelectionState = nextState;
-      postBridgeMessage('selection', {
-        has_selection: nextState,
+      previousActiveHighlightID = nextHighlightID;
+      postBridgeMessage('active_highlight', {
+        highlight_id: nextHighlightID,
       });
+    }
+
+    function activateTappedHighlight(highlightID) {
+      tappedHighlightID = String(highlightID || '').trim();
+      postSelectionFlag(false);
+      postActiveHighlight(tappedHighlightID);
+    }
+
+    function postSelectionFlag(nextState) {
+      var normalizedState = Boolean(nextState);
+
+      if (normalizedState === previousSelectionState) {
+        return;
+      }
+
+      previousSelectionState = normalizedState;
+      postBridgeMessage('selection', {
+        has_selection: normalizedState,
+      });
+    }
+
+    function postSelectionState() {
+      var nextState = hasContentSelection();
+
+      if (nextState) {
+        tappedHighlightID = '';
+        postSelectionFlag(true);
+        postActiveHighlight('');
+        return;
+      }
+
+      postSelectionFlag(false);
+
+      if (tappedHighlightID) {
+        postActiveHighlight(tappedHighlightID);
+        return;
+      }
+
+      postActiveHighlight('');
     }
 
     function registerImageObservers() {
@@ -4266,9 +4430,81 @@ function create_reader_post_bridge_script() {
       });
     }, true);
 
-    document.addEventListener('selectionchange', postSelectionState);
-    document.addEventListener('mouseup', postSelectionState);
-    document.addEventListener('keyup', postSelectionState);
+    document.addEventListener('touchstart', function(event) {
+      if (!event.target || !event.target.closest || event.target.closest('a[href]')) {
+        pendingTouchHighlightID = '';
+        return;
+      }
+
+      var highlightNode = event.target.closest('span.reader-highlight-text');
+      pendingTouchHighlightID = highlightIDFromNode(highlightNode);
+    }, true);
+
+    document.addEventListener('touchmove', function() {
+      pendingTouchHighlightID = '';
+    }, true);
+
+    document.addEventListener('touchcancel', function() {
+      pendingTouchHighlightID = '';
+    }, true);
+
+    document.addEventListener('touchend', function() {
+      var highlightID = pendingTouchHighlightID;
+      pendingTouchHighlightID = '';
+
+      if (!highlightID) {
+        return;
+      }
+
+      setTimeout(function() {
+        if (hasContentSelection()) {
+          postSelectionState();
+          return;
+        }
+
+        activateTappedHighlight(highlightID);
+      }, 0);
+    }, true);
+
+    document.addEventListener('click', function(event) {
+      if (!event.target || !event.target.closest) {
+        tappedHighlightID = '';
+        postSelectionState();
+        return;
+      }
+
+      if (event.target.closest('a[href]')) {
+        tappedHighlightID = '';
+        postSelectionState();
+        return;
+      }
+
+      var highlightNode = event.target.closest('span.reader-highlight-text');
+      var highlightID = highlightIDFromNode(highlightNode);
+
+      if (!highlightID) {
+        tappedHighlightID = '';
+        postSelectionState();
+        return;
+      }
+
+      if (hasContentSelection()) {
+        postSelectionState();
+        return;
+      }
+
+      activateTappedHighlight(highlightID);
+    });
+
+    document.addEventListener('selectionchange', function() {
+      postSelectionState();
+    });
+    document.addEventListener('mouseup', function() {
+      postSelectionState();
+    });
+    document.addEventListener('keyup', function() {
+      postSelectionState();
+    });
     window.addEventListener('resize', postHeight);
     window.addEventListener('load', function() {
       registerImageObservers();
@@ -4304,7 +4540,9 @@ function create_reader_post_bridge_script() {
         });
       },
       restoreHighlights: function(payload) {
+        tappedHighlightID = '';
         restoreHighlights(Array.isArray(payload) ? payload : []);
+        postSelectionState();
       },
       postHeight: postHeight,
     };
@@ -5190,6 +5428,20 @@ function resolve_entry_highlight_entries(entry_id = "") {
   });
 }
 
+function resolve_entry_highlight_by_identifier(highlights = [], identifier = "") {
+  const normalized_identifier = `${identifier || ""}`.trim();
+
+  if (!normalized_identifier || !Array.isArray(highlights)) {
+    return null;
+  }
+
+  return (
+    highlights.find((highlight) => {
+      return highlight_matches_identifier(highlight, normalized_identifier);
+    }) || null
+  );
+}
+
 function resolve_entry_highlight_range(highlight = null) {
   const start_offset = Number(highlight?.start_offset);
   const end_offset = Number(highlight?.end_offset);
@@ -5207,9 +5459,26 @@ function resolve_entry_highlight_range(highlight = null) {
 
   return {
     end_offset: normalized_end_offset,
-    highlight_id: `${highlight?.highlight_id || highlight?.id || ""}`.trim(),
+    highlight_id: resolve_highlight_identifier(highlight),
     start_offset: normalized_start_offset,
   };
+}
+
+function resolve_highlight_identifier(highlight = null) {
+  return `${highlight?.highlight_id || highlight?.id || ""}`.trim();
+}
+
+function highlight_matches_identifier(highlight = null, identifier = "") {
+  const normalized_identifier = `${identifier || ""}`.trim();
+
+  if (!normalized_identifier) {
+    return false;
+  }
+
+  return (
+    `${highlight?.id || ""}`.trim() === normalized_identifier ||
+    `${highlight?.highlight_id || ""}`.trim() === normalized_identifier
+  );
 }
 
 function sanitize_reader_html_attributes(raw_attributes = "", options = {}) {
