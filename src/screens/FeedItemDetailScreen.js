@@ -108,8 +108,6 @@ const READER_IGNORED_DOM_TAGS = [
   "button",
   "select",
   "textarea",
-  "video",
-  "audio",
   "source",
   "link",
   "meta",
