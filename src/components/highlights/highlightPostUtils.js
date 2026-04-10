@@ -30,11 +30,14 @@ export function build_micro_blog_post_urls(markdown = '') {
     };
   }
 
-  const encoded_markdown = encodeURIComponent(normalized_markdown);
+  // The Micro.blog mobile app currently decodes incoming post text with
+  // `decodeURI`, so the app deep link must preserve reserved URL characters.
+  const app_encoded_markdown = encodeURI(normalized_markdown);
+  const web_encoded_markdown = encodeURIComponent(normalized_markdown);
 
   return {
-    app_url: `${MICRO_BLOG_APP_POST_BASE_URL}${encoded_markdown}`,
-    web_url: `${MICRO_BLOG_WEB_POST_BASE_URL}${encoded_markdown}`,
+    app_url: `${MICRO_BLOG_APP_POST_BASE_URL}${app_encoded_markdown}`,
+    web_url: `${MICRO_BLOG_WEB_POST_BASE_URL}${web_encoded_markdown}`,
   };
 }
 
