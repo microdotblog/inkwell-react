@@ -222,7 +222,7 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
               AppStore.show_toast('Subscription removed', {
                 top_offset: toast_top_offset,
               });
-              navigation.navigate('Subscriptions');
+              navigation.goBack();
             } finally {
               set_is_removing(false);
             }
