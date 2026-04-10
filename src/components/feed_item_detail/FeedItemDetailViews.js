@@ -3171,6 +3171,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: READER_HORIZONTAL_PADDING,
   },
   readerTextSizeTray: {
+    borderBottomLeftRadius: READER_TEXT_SIZE_TRAY_RADIUS,
+    borderBottomRightRadius: READER_TEXT_SIZE_TRAY_RADIUS,
     borderTopLeftRadius: READER_TEXT_SIZE_TRAY_RADIUS,
     borderTopRightRadius: READER_TEXT_SIZE_TRAY_RADIUS,
     borderWidth: 1,
