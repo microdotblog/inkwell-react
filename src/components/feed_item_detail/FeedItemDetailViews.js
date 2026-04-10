@@ -53,6 +53,7 @@ import {
   READER_PANE_CONTROL_HEIGHT,
   READER_PANE_CONTROL_INSET,
   READER_PANE_CONTROL_RADIUS,
+  READER_PANE_LAYOUT_TRANSITION,
   READER_PARAGRAPH_SPACING,
   READER_REPLY_CONTENT_WIDTH_OFFSET,
   READER_TEXT_SIZE_TRAY_BOTTOM_GAP,
@@ -267,7 +268,8 @@ const EntryReaderView = observer(function EntryReaderView({
         />
       ) : null}
 
-      <View
+      <Animated.View
+        layout={READER_PANE_LAYOUT_TRANSITION}
         style={[
           styles.bodySection,
           should_show_pane_tabs ? styles.bodySectionWithPaneTabs : null,
@@ -313,7 +315,7 @@ const EntryReaderView = observer(function EntryReaderView({
             title="No readable preview yet."
           />
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 });
@@ -417,6 +419,7 @@ function ReaderPaneTabs({
   return (
     <Animated.View
       entering={READER_PANE_TABS_ENTERING}
+      layout={READER_PANE_LAYOUT_TRANSITION}
       style={styles.readerPaneTabsWrap}
     >
       <View
