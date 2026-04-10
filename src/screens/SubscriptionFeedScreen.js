@@ -1,13 +1,17 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
+import { MenuView } from '@react-native-menu/menu';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -29,8 +33,12 @@ const FEED_AVATAR_SIZE = 28;
 const FEED_AVATAR_TRANSITION_MS = 180;
 const READ_ROW_OPACITY = 0.56;
 const TEXT_STYLE_NAMES = [
+  'editActionButtonLabel',
+  'editInput',
+  'editingLabel',
   'inlineStateBody',
   'inlineStateTitle',
+  'renameError',
   'rowSummary',
   'rowTitle',
   'sourceAvatarInitial',
@@ -74,6 +82,17 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
     Feed.has_loaded_subscription_feed;
   const content_top_padding = header_height + LIST_TOP_PADDING;
   const list_bottom_inset = insets.bottom + LIST_BOTTOM_PADDING;
+  const toast_top_offset = header_height + 10;
+  const subscription_id = normalize_string(subscription?.id);
+  const [is_rename_open, set_is_rename_open] = React.useState(false);
+  const [rename_value, set_rename_value] = React.useState('');
+  const [rename_error_message, set_rename_error_message] = React.useState('');
+  const [is_renaming, set_is_renaming] = React.useState(false);
+  const [is_removing, set_is_removing] = React.useState(false);
+  const is_busy = is_renaming || is_removing;
+  const subscription_menu_actions = React.useMemo(() => {
+    return get_subscription_menu_actions(theme);
+  }, [theme]);
 
   React.useEffect(() => {
     if (!feed_id) {
@@ -86,12 +105,6 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
       Feed.clear_active_subscription_feed();
     };
   }, [feed_id]);
-
-  React.useLayoutEffect(() => {
-    navigation.setOptions({
-      title: subscription_title,
-    });
-  }, [navigation, subscription_title]);
 
   const handle_refresh = React.useCallback(() => {
     if (!feed_id) {
@@ -117,6 +130,153 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
     },
     [navigation],
   );
+
+  const handle_start_rename = React.useCallback(() => {
+    if (!subscription_id || is_busy) {
+      return;
+    }
+
+    set_is_rename_open(true);
+    set_rename_value(subscription_title);
+    set_rename_error_message('');
+  }, [is_busy, subscription_id, subscription_title]);
+
+  const handle_cancel_rename = React.useCallback(() => {
+    set_is_rename_open(false);
+    set_rename_value('');
+    set_rename_error_message('');
+  }, []);
+
+  const handle_save_rename = React.useCallback(async () => {
+    const normalized_title = normalize_string(rename_value);
+
+    if (!subscription_id) {
+      return;
+    }
+
+    if (!normalized_title) {
+      set_rename_error_message('Enter a title before saving.');
+      return;
+    }
+
+    set_is_renaming(true);
+    set_rename_error_message('');
+
+    try {
+      const result = await Feed.rename_subscription(subscription_id, normalized_title);
+
+      if (!result?.ok) {
+        set_rename_error_message(
+          result?.error_message || 'We could not rename that subscription.',
+        );
+        return;
+      }
+
+      handle_cancel_rename();
+      AppStore.show_toast('Subscription renamed', {
+        top_offset: toast_top_offset,
+      });
+    } finally {
+      set_is_renaming(false);
+    }
+  }, [
+    handle_cancel_rename,
+    rename_value,
+    subscription_id,
+    toast_top_offset,
+  ]);
+
+  const confirm_remove_subscription = React.useCallback(() => {
+    if (!subscription_id || is_busy) {
+      return;
+    }
+
+    Alert.alert(
+      'Remove subscription?',
+      'This removes the feed from your subscriptions.',
+      [
+        {
+          style: 'cancel',
+          text: 'Cancel',
+        },
+        {
+          style: 'destructive',
+          text: 'Remove',
+          onPress: async () => {
+            set_is_removing(true);
+
+            try {
+              const result = await Feed.delete_subscription(subscription_id);
+
+              if (!result?.ok) {
+                AppStore.show_toast(
+                  result?.error_message || 'We could not remove that subscription.',
+                  {
+                    top_offset: toast_top_offset,
+                  },
+                );
+                return;
+              }
+
+              handle_cancel_rename();
+              AppStore.show_toast('Subscription removed', {
+                top_offset: toast_top_offset,
+              });
+              navigation.navigate('Subscriptions');
+            } finally {
+              set_is_removing(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [
+    handle_cancel_rename,
+    is_busy,
+    navigation,
+    subscription_id,
+    toast_top_offset,
+  ]);
+
+  const handle_header_menu_action = React.useCallback(
+    (action_id = '') => {
+      if (action_id === 'rename') {
+        handle_start_rename();
+        return;
+      }
+
+      if (action_id === 'remove') {
+        confirm_remove_subscription();
+      }
+    },
+    [confirm_remove_subscription, handle_start_rename],
+  );
+
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: subscription_id
+        ? () => (
+            <HeaderSubscriptionMenuButton
+              is_dark={isDark}
+              is_disabled={is_busy}
+              menu_actions={subscription_menu_actions}
+              onMenuAction={handle_header_menu_action}
+              theme={theme}
+            />
+          )
+        : undefined,
+      title: subscription_title,
+    });
+  }, [
+    handle_header_menu_action,
+    isDark,
+    is_busy,
+    navigation,
+    subscription_id,
+    subscription_menu_actions,
+    subscription_title,
+    theme,
+  ]);
 
   if (!feed_id) {
     return (
@@ -245,6 +405,13 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
                 error_message={
                   subscription_feed_entries.length > 0 ? error_message : ''
                 }
+                is_busy={is_busy}
+                is_editing={is_rename_open}
+                onCancelRename={handle_cancel_rename}
+                onChangeRenameValue={set_rename_value}
+                onSaveRename={handle_save_rename}
+                rename_error_message={rename_error_message}
+                rename_value={rename_value}
                 scaled_text_styles={scaled_text_styles}
                 subscription={subscription}
                 theme={theme}
@@ -280,6 +447,13 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
 
 function SubscriptionFeedHeader({
   error_message = '',
+  is_busy = false,
+  is_editing = false,
+  onCancelRename,
+  onChangeRenameValue,
+  onSaveRename,
+  rename_error_message = '',
+  rename_value = '',
   scaled_text_styles,
   subscription = null,
   theme,
@@ -348,6 +522,20 @@ function SubscriptionFeedHeader({
         ) : null}
       </View>
 
+      {is_editing ? (
+        <SubscriptionRenameCard
+          is_busy={is_busy}
+          onCancelRename={onCancelRename}
+          onChangeRenameValue={onChangeRenameValue}
+          onSaveRename={onSaveRename}
+          rename_error_message={rename_error_message}
+          rename_value={rename_value}
+          scaled_text_styles={scaled_text_styles}
+          subscription={subscription}
+          theme={theme}
+        />
+      ) : null}
+
       {error_message ? (
         <AuthCard style={styles.inlineStateCard} theme={theme}>
           <Text
@@ -370,6 +558,145 @@ function SubscriptionFeedHeader({
           </Text>
         </AuthCard>
       ) : null}
+    </View>
+  );
+}
+
+function SubscriptionRenameCard({
+  is_busy = false,
+  onCancelRename,
+  onChangeRenameValue,
+  onSaveRename,
+  rename_error_message = '',
+  rename_value = '',
+  scaled_text_styles,
+  subscription = null,
+  theme,
+}) {
+  const title = resolve_subscription_title(subscription);
+
+  return (
+    <View
+      style={[
+        styles.renameCard,
+        {
+          backgroundColor: theme.colors.paper,
+          borderColor: theme.colors.line,
+        },
+      ]}
+    >
+      <View style={styles.renameHeader}>
+        <Text
+          style={[
+            styles.editingLabel,
+            scaled_text_styles.editingLabel,
+            { color: theme.colors.inkSoft },
+          ]}
+        >
+          Rename subscription
+        </Text>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.renameTitle,
+            scaled_text_styles.summaryCopy,
+            { color: theme.colors.ink },
+          ]}
+        >
+          {title}
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.editInputWrap,
+          {
+            backgroundColor: theme.colors.canvas,
+            borderColor: theme.colors.line,
+          },
+        ]}
+      >
+        <TextInput
+          autoCapitalize="sentences"
+          autoCorrect={false}
+          autoFocus
+          editable={!is_busy}
+          onChangeText={onChangeRenameValue}
+          onSubmitEditing={onSaveRename}
+          placeholder="Subscription title"
+          placeholderTextColor={theme.colors.inkSoft}
+          returnKeyType="done"
+          selectionColor={theme.colors.accentStrong}
+          style={[
+            styles.editInput,
+            scaled_text_styles.editInput,
+            { color: theme.colors.ink },
+          ]}
+          value={rename_value}
+        />
+      </View>
+      {rename_error_message ? (
+        <Text
+          style={[
+            styles.renameError,
+            scaled_text_styles.renameError,
+            { color: theme.colors.danger },
+          ]}
+        >
+          {rename_error_message}
+        </Text>
+      ) : null}
+      <View style={styles.editActions}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={is_busy}
+          onPress={onSaveRename}
+          style={({ pressed }) => {
+            return [
+              styles.editActionButton,
+              {
+                backgroundColor: theme.colors.accentSoft,
+                borderColor: theme.colors.line,
+                opacity: is_busy ? 0.56 : pressed ? 0.84 : 1,
+              },
+            ];
+          }}
+        >
+          <Text
+            style={[
+              styles.editActionButtonLabel,
+              scaled_text_styles.editActionButtonLabel,
+              { color: theme.colors.accentStrong },
+            ]}
+          >
+            Save
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          disabled={is_busy}
+          onPress={onCancelRename}
+          style={({ pressed }) => {
+            return [
+              styles.editActionButton,
+              {
+                backgroundColor: theme.colors.canvas,
+                borderColor: theme.colors.line,
+                opacity: is_busy ? 0.56 : pressed ? 0.84 : 1,
+              },
+            ];
+          }}
+        >
+          <Text
+            style={[
+              styles.editActionButtonLabel,
+              scaled_text_styles.editActionButtonLabel,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
+            Cancel
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -510,6 +837,52 @@ function FeedSourceAvatar({
   );
 }
 
+function HeaderSubscriptionMenuButton({
+  is_dark = false,
+  is_disabled = false,
+  menu_actions = [],
+  onMenuAction,
+  theme,
+}) {
+  if (menu_actions.length === 0) {
+    return null;
+  }
+
+  const button = (
+    <View
+      accessibilityRole="button"
+      style={[
+        styles.headerMenuButton,
+        is_disabled ? styles.headerMenuButtonDisabled : null,
+      ]}
+    >
+      <MaterialIcons
+        color={theme.colors.accentStrong}
+        name="more-horiz"
+        size={24}
+      />
+    </View>
+  );
+
+  if (is_disabled) {
+    return button;
+  }
+
+  return (
+    <MenuView
+      accessibilityLabel="Open subscription actions"
+      actions={menu_actions}
+      onPressAction={({ nativeEvent }) => {
+        onMenuAction?.(nativeEvent.event);
+      }}
+      shouldOpenOnLongPress={false}
+      themeVariant={is_dark ? 'dark' : 'light'}
+    >
+      {button}
+    </MenuView>
+  );
+}
+
 function SubscriptionFeedEmptyState({
   error_message = '',
   onRetry,
@@ -575,9 +948,51 @@ function SubscriptionFeedEmptyState({
 }
 
 const styles = StyleSheet.create({
+  editActionButton: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 16,
+  },
+  editActionButtonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  editInput: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  editInputWrap: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  editingLabel: {
+    flexShrink: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
   headerContent: {
     gap: 14,
     marginBottom: 14,
+  },
+  headerMenuButton: {
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  headerMenuButtonDisabled: {
+    opacity: 0.42,
   },
   inlineStateBody: {
     fontSize: 14,
@@ -607,6 +1022,24 @@ const styles = StyleSheet.create({
     height: 42,
     justifyContent: 'center',
     width: 42,
+  },
+  renameCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  renameError: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  renameHeader: {
+    gap: 4,
+  },
+  renameTitle: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   rowBody: {
     gap: 8,
@@ -827,6 +1260,30 @@ function resolve_summary_card_background_color(theme) {
   return theme.isDark
     ? 'rgba(255, 255, 255, 0.03)'
     : 'rgba(255, 255, 255, 0.72)';
+}
+
+function get_subscription_menu_actions(theme) {
+  return [
+    {
+      id: 'rename',
+      image: Platform.select({
+        ios: 'pencil',
+      }),
+      imageColor: theme.colors.inkSoft,
+      title: 'Rename',
+    },
+    {
+      attributes: {
+        destructive: true,
+      },
+      id: 'remove',
+      image: Platform.select({
+        ios: 'trash',
+      }),
+      imageColor: theme.colors.danger,
+      title: 'Remove',
+    },
+  ];
 }
 
 export default observer(SubscriptionFeedScreen);
