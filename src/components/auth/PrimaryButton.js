@@ -29,6 +29,7 @@ function darkenHexColor(hex_color, amount = 0) {
 function PrimaryButton({
   label,
   onPress,
+  onLongPress = null,
   variant = 'solid',
   style,
   textStyle,
@@ -37,6 +38,7 @@ function PrimaryButton({
   leadingIconSource = null,
 }) {
   const scale = useSharedValue(1);
+  const did_long_press_ref = React.useRef(false);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -64,6 +66,34 @@ function PrimaryButton({
       damping: 16,
       stiffness: 220,
     });
+
+    if (did_long_press_ref.current) {
+      setTimeout(() => {
+        did_long_press_ref.current = false;
+      }, 0);
+    }
+  }
+
+  function handlePress(event) {
+    if (disabled) {
+      return;
+    }
+
+    if (did_long_press_ref.current) {
+      did_long_press_ref.current = false;
+      return;
+    }
+
+    onPress?.(event);
+  }
+
+  function handleLongPress(event) {
+    if (disabled || !onLongPress) {
+      return;
+    }
+
+    did_long_press_ref.current = true;
+    onLongPress(event);
   }
 
   const solid_gradient_colors = theme.isDark
@@ -80,7 +110,8 @@ function PrimaryButton({
         accessibilityRole="button"
         accessibilityState={{ disabled }}
         disabled={disabled}
-        onPress={onPress}
+        onLongPress={onLongPress ? handleLongPress : undefined}
+        onPress={handlePress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         style={({ pressed }) => [
