@@ -1025,6 +1025,7 @@ function ReaderTextSizeTray({
 }
 
 function ReaderHighlightAction({
+  action_group_style = "default",
   actions = [],
   safe_area_bottom = 0,
   theme,
@@ -1043,11 +1044,26 @@ function ReaderHighlightAction({
         },
       ]}
     >
-      <View style={styles.readerHighlightActionRow}>
+      <View
+        style={[
+          styles.readerHighlightActionRow,
+          action_group_style === "joined"
+            ? [
+                styles.readerHighlightActionRowJoined,
+                {
+                  backgroundColor: theme.colors.canvas,
+                  borderColor: theme.colors.line,
+                  shadowColor: theme.colors.shadow,
+                },
+              ]
+            : null,
+        ]}
+      >
         {actions.map((action, index) => {
           return (
             <ReaderHighlightActionButton
               action={action}
+              action_group_style={action_group_style}
               is_primary={index === 0}
               key={`${action?.label || "reader-action"}-${index}`}
               theme={theme}
@@ -1061,6 +1077,7 @@ function ReaderHighlightAction({
 
 function ReaderHighlightActionButton({
   action = {},
+  action_group_style = "default",
   is_primary = false,
   theme,
 }) {
@@ -1089,6 +1106,27 @@ function ReaderHighlightActionButton({
     is_primary,
     theme,
   });
+  const resolved_background_color =
+    action_group_style === "joined"
+      ? resolve_reader_highlight_toolbar_action_background_color({
+          is_destructive,
+          is_primary,
+          theme,
+        })
+      : background_color;
+  const resolved_border_color =
+    action_group_style === "joined" ? "transparent" : border_color;
+  const resolved_label_color =
+    action_group_style === "joined"
+      ? resolve_reader_highlight_toolbar_action_label_color({
+          is_destructive,
+          is_loading,
+          is_primary,
+          theme,
+        })
+      : label_color;
+  const resolved_shadow_color =
+    action_group_style === "joined" ? "transparent" : theme.colors.shadow;
 
   return (
     <Pressable
@@ -1100,11 +1138,23 @@ function ReaderHighlightActionButton({
         return [
           styles.readerHighlightActionButton,
           !is_primary ? styles.readerHighlightActionButtonSecondary : null,
+          action_group_style === "joined"
+            ? styles.readerHighlightActionButtonJoined
+            : null,
+          action_group_style === "joined" && is_primary
+            ? styles.readerHighlightActionButtonJoinedLeading
+            : null,
+          action_group_style === "joined" && !is_primary
+            ? styles.readerHighlightActionButtonJoinedTrailing
+            : null,
+          action_group_style === "joined" && !is_primary
+            ? styles.readerHighlightActionButtonJoinedAfterLeading
+            : null,
           {
-            backgroundColor: background_color,
-            borderColor: border_color,
+            backgroundColor: resolved_background_color,
+            borderColor: resolved_border_color,
             opacity: is_disabled ? 0.72 : pressed ? 0.86 : 1,
-            shadowColor: theme.colors.shadow,
+            shadowColor: resolved_shadow_color,
           },
         ];
       }}
@@ -1113,7 +1163,7 @@ function ReaderHighlightActionButton({
         style={[
           styles.readerHighlightActionLabel,
           {
-            color: label_color,
+            color: resolved_label_color,
           },
         ]}
       >
@@ -1178,6 +1228,39 @@ function resolve_reader_highlight_action_label_color({
   }
 
   return theme.colors.accentStrong;
+}
+
+function resolve_reader_highlight_toolbar_action_background_color({
+  is_destructive = false,
+  is_primary = false,
+  theme,
+}) {
+  if (is_destructive) {
+    return "transparent";
+  }
+
+  if (is_primary) {
+    return theme.isDark ? "rgba(255, 255, 255, 0.08)" : theme.colors.paper;
+  }
+
+  return "transparent";
+}
+
+function resolve_reader_highlight_toolbar_action_label_color({
+  is_destructive = false,
+  is_loading = false,
+  is_primary = false,
+  theme,
+}) {
+  if (is_destructive) {
+    return theme.isDark ? "#ffd5df" : "#8f2341";
+  }
+
+  if (is_loading || is_primary) {
+    return theme.colors.ink;
+  }
+
+  return theme.colors.inkSoft;
 }
 
 function ReaderImageViewerModal({
@@ -2999,15 +3082,33 @@ const styles = StyleSheet.create({
     gap: 10,
     justifyContent: "center",
   },
+  readerHighlightActionRowJoined: {
+    alignSelf: "center",
+    borderRadius: 20,
+    borderWidth: 1,
+    flexWrap: "nowrap",
+    gap: 4,
+    justifyContent: "center",
+    maxWidth: 320,
+    padding: 4,
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    width: "100%",
+    elevation: 4,
+  },
   readerHighlightActionButton: {
     alignItems: "center",
     borderRadius: 999,
     borderWidth: 1,
     justifyContent: "center",
-    minHeight: 48,
-    minWidth: 124,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    minHeight: 44,
+    minWidth: 112,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     shadowOffset: {
       width: 0,
       height: 10,
@@ -3016,13 +3117,37 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 5,
   },
+  readerHighlightActionButtonJoined: {
+    borderRadius: 14,
+    borderWidth: 0,
+    flex: 1,
+    minWidth: 0,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  readerHighlightActionButtonJoinedLeading: {
+    borderBottomRightRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  readerHighlightActionButtonJoinedTrailing: {
+    borderBottomLeftRadius: 14,
+    borderTopLeftRadius: 14,
+  },
+  readerHighlightActionButtonJoinedAfterLeading: {
+    marginLeft: 0,
+  },
   readerHighlightActionButtonSecondary: {
-    minWidth: 132,
+    minWidth: 120,
   },
   readerHighlightActionLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 20,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 16,
+    textAlign: "center",
   },
   readerTextSizeBackdrop: {
     ...StyleSheet.absoluteFillObject,

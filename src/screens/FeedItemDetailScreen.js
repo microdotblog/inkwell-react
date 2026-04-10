@@ -101,6 +101,8 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     React.useState("");
   const [is_creating_highlight, set_is_creating_highlight] =
     React.useState(false);
+  const [is_opening_reader_post, set_is_opening_reader_post] =
+    React.useState(false);
   const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
     React.useState(false);
   const [is_text_size_tray_visible, set_is_text_size_tray_visible] =
@@ -492,6 +494,60 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     toast_top_offset,
   ]);
 
+  const handle_create_post_from_selection = React.useCallback(async () => {
+    if (
+      is_opening_reader_post ||
+      !entry ||
+      !resolved_entry_id ||
+      !reader_post_ref.current
+    ) {
+      return;
+    }
+
+    const selection_payload =
+      await reader_post_ref.current.requestSelectionPayload?.();
+    const selection_text = `${selection_payload?.selection_text || ""}`;
+    const trimmed_selection_text = selection_text.trim();
+    const normalized_post_title = `${entry?.title || ""}`.trim();
+
+    if (!trimmed_selection_text) {
+      return;
+    }
+
+    set_is_opening_reader_post(true);
+
+    try {
+      const did_open = await open_micro_blog_highlight_post(
+        {
+          text: selection_text,
+        },
+        {
+          post_has_title:
+            Boolean(normalized_post_title) &&
+            normalized_post_title.toLowerCase() !== "untitled",
+          post_source: source_label,
+          post_title: entry?.title,
+          post_url: original_url,
+        },
+      );
+
+      if (!did_open) {
+        AppStore.show_toast("We could not open Micro.blog.", {
+          top_offset: toast_top_offset,
+        });
+      }
+    } finally {
+      set_is_opening_reader_post(false);
+    }
+  }, [
+    entry,
+    is_opening_reader_post,
+    original_url,
+    resolved_entry_id,
+    source_label,
+    toast_top_offset,
+  ]);
+
   const handle_delete_reader_highlight = React.useCallback(() => {
     if (!active_reader_highlight || is_deleting_reader_highlight) {
       return;
@@ -818,13 +874,22 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
                 ]
               : [
                   {
+                    is_disabled: is_opening_reader_post,
                     is_loading: is_creating_highlight,
                     label: "Highlight",
                     loading_label: "Saving...",
                     onPress: handle_create_highlight,
                   },
+                  {
+                    is_disabled: is_creating_highlight,
+                    is_loading: is_opening_reader_post,
+                    label: "New post...",
+                    loading_label: "Opening...",
+                    onPress: handle_create_post_from_selection,
+                  },
                 ]
           }
+          action_group_style="joined"
           safe_area_bottom={insets.bottom}
           theme={theme}
         />
