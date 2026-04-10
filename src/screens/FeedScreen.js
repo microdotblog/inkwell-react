@@ -40,6 +40,8 @@ import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import { open_micro_blog_entry_post } from '../components/highlights/highlightPostUtils';
 import RssLoadingView from '../components/loading/RssLoadingView';
+import FeedTimelineCard from '../components/timeline/FeedTimelineCard';
+import { resolve_feed_timeline_entry_content } from '../components/timeline/timelineEntryContent';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
@@ -69,9 +71,6 @@ const FOOTER_VISIBILITY_TOP_THRESHOLD = 24;
 const SEGMENT_CONTROL_INSET = 3;
 const SEGMENT_BUTTON_HEIGHT = HEADER_CONTROL_HEIGHT - SEGMENT_CONTROL_INSET * 2;
 const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
-const FEED_AVATAR_SIZE = 26;
-const READ_ROW_OPACITY = 0.56;
-const FEED_AVATAR_TRANSITION_MS = 180;
 const TOP_STATUS_SCRIM_EXTRA_HEIGHT = 44;
 const TOP_STATUS_SCRIM_SCROLL_DISTANCE = 24;
 const TEXT_STYLE_NAMES = [
@@ -1056,13 +1055,34 @@ function render_content({
           />
         }
         renderItem={({ item }) => {
+          const timeline_entry_content =
+            resolve_feed_timeline_entry_content(item);
+
           return (
-            <FeedTimelineRow
-              entry={item}
-              onMenuAction={on_entry_menu_action}
-              onPress={on_entry_press}
+            <FeedTimelineCard
+              accessibility_label={`Open ${timeline_entry_content.display_title}`}
+              avatar_url={item.avatar_url}
+              display_title={timeline_entry_content.display_title}
+              menu_actions={get_entry_menu_actions({
+                entry: item,
+                theme,
+              })}
+              onMenuAction={(menu_action_id) => {
+                on_entry_menu_action?.(item, menu_action_id);
+              }}
+              onPress={() => on_entry_press?.(item.id)}
+              row_opacity={timeline_entry_content.row_opacity}
               scaled_text_styles={scaled_text_styles}
+              secondary_source_label={
+                timeline_entry_content.secondary_source_label
+              }
+              show_bookmark_indicator={
+                timeline_entry_content.show_bookmark_indicator
+              }
+              source_label={timeline_entry_content.source_label}
+              summary={timeline_entry_content.summary}
               theme={theme}
+              timestamp={timeline_entry_content.timestamp}
             />
           );
         }}
@@ -1173,141 +1193,6 @@ function FeedFooterControlsRow({
         theme={theme}
       />
     </View>
-  );
-}
-
-function FeedTimelineRow({
-  entry,
-  onMenuAction,
-  onPress,
-  scaled_text_styles,
-  theme,
-}) {
-  const source_label = entry.source || 'Feed';
-  const post_title = resolve_entry_title(entry);
-  const display_title = resolve_entry_display_title(entry, source_label);
-  const secondary_source_label = resolve_entry_secondary_source_label(
-    source_label,
-    post_title,
-  );
-  const summary = resolve_entry_summary(entry, post_title);
-  const timestamp = format_entry_timestamp(entry.published_at);
-  const is_bookmarked = Boolean(entry?.is_bookmarked);
-  const row_opacity = entry.is_read ? READ_ROW_OPACITY : 1;
-  const menu_actions = React.useMemo(() => {
-    return get_entry_menu_actions({
-      entry,
-      theme,
-    });
-  }, [entry, theme]);
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onLongPress={() => {}}
-      onPress={() => onPress?.(entry.id)}
-      style={({ pressed }) => {
-        return [
-          styles.rowCard,
-          {
-            backgroundColor: theme.colors.paper,
-            borderColor: theme.colors.line,
-            opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
-          },
-        ];
-      }}
-    >
-      <MenuView
-        accessibilityLabel={`More options for ${display_title}`}
-        actions={menu_actions}
-        onPressAction={({ nativeEvent }) => {
-          onMenuAction?.(entry, nativeEvent.event);
-        }}
-        shouldOpenOnLongPress
-        themeVariant={theme.isDark ? 'dark' : 'light'}
-      >
-        <View style={styles.rowContentWrap}>
-          <FeedSourceAvatar
-            avatar_url={entry.avatar_url}
-            scaled_text_styles={scaled_text_styles}
-            source={source_label}
-            theme={theme}
-          />
-          <View style={styles.rowContent}>
-            <Text
-              numberOfLines={2}
-              style={[
-                styles.rowTitle,
-                scaled_text_styles.rowTitle,
-                { color: theme.colors.ink },
-              ]}
-            >
-              {display_title}
-            </Text>
-            {summary ? (
-              <Text
-                numberOfLines={3}
-                style={[
-                  styles.rowSummary,
-                  scaled_text_styles.rowSummary,
-                  { color: theme.colors.inkSoft },
-                ]}
-              >
-                {summary}
-              </Text>
-            ) : null}
-            {secondary_source_label ? (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.rowSourceLabel,
-                  scaled_text_styles.rowSourceLabel,
-                  { color: theme.colors.inkSoft },
-                ]}
-              >
-                {secondary_source_label}
-              </Text>
-            ) : null}
-            {timestamp || is_bookmarked ? (
-              <View style={styles.rowFooter}>
-                {timestamp ? (
-                  <Text
-                    style={[
-                      styles.timestamp,
-                      scaled_text_styles.timestamp,
-                      { color: theme.colors.inkSoft },
-                    ]}
-                  >
-                    {timestamp}
-                  </Text>
-                ) : (
-                  <View />
-                )}
-                {is_bookmarked ? (
-                  <View style={styles.bookmarkIndicator}>
-                    <MaterialIcons
-                      color={theme.colors.inkSoft}
-                      name="star"
-                      size={16}
-                    />
-                    <Text
-                      style={[
-                        styles.timestamp,
-                        scaled_text_styles.timestamp,
-                        styles.bookmarkLabel,
-                        { color: theme.colors.inkSoft },
-                      ]}
-                    >
-                      Bookmarked
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
-        </View>
-      </MenuView>
-    </Pressable>
   );
 }
 
@@ -1583,121 +1468,6 @@ function FeedSearchToggleButton({
   );
 }
 
-function FeedSourceAvatar({
-  avatar_url = '',
-  scaled_text_styles,
-  source = '',
-  theme,
-}) {
-  const trimmed_avatar_url = `${avatar_url || ''}`.trim();
-  const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
-  const [is_image_loaded, set_is_image_loaded] = React.useState(false);
-  const initial = get_source_avatar_initial(source);
-  const should_show_image = trimmed_avatar_url && !did_fail_to_load;
-  const should_show_initial =
-    !trimmed_avatar_url || did_fail_to_load || !is_image_loaded;
-
-  React.useEffect(() => {
-    set_did_fail_to_load(false);
-    set_is_image_loaded(false);
-  }, [trimmed_avatar_url]);
-
-  return (
-    <View
-      style={[
-        styles.sourceAvatarFrame,
-        {
-          backgroundColor: theme.colors.accentSoft,
-        },
-      ]}
-    >
-      <View style={styles.sourceAvatarPlaceholder}>
-        {should_show_initial ? (
-          <Text
-            style={[
-              styles.sourceAvatarInitial,
-              scaled_text_styles.sourceAvatarInitial,
-              { color: theme.colors.accentStrong },
-            ]}
-          >
-            {initial}
-          </Text>
-        ) : null}
-      </View>
-      {should_show_image ? (
-        <Image
-          cachePolicy="memory-disk"
-          contentFit="cover"
-          onError={() => set_did_fail_to_load(true)}
-          onLoad={() => set_is_image_loaded(true)}
-          source={{ uri: trimmed_avatar_url }}
-          style={styles.sourceAvatarImage}
-          transition={FEED_AVATAR_TRANSITION_MS}
-        />
-      ) : null}
-    </View>
-  );
-}
-
-function resolve_entry_title(entry) {
-  const title = normalize_entry_text(entry?.title);
-
-  if (title) {
-    return title;
-  } else {
-    return '';
-  }
-}
-
-function resolve_entry_display_title(entry, source_label = '') {
-  const title = resolve_entry_title(entry);
-
-  if (title) {
-    return title;
-  } else {
-    return source_label;
-  }
-}
-
-function resolve_entry_secondary_source_label(
-  source_label = '',
-  post_title = '',
-) {
-  if (post_title) {
-    return source_label;
-  } else {
-    return '';
-  }
-}
-
-function resolve_entry_summary(entry, title = '') {
-  const normalized_title = normalize_entry_text(title || entry?.title);
-  const summary = normalize_entry_text(entry?.summary);
-
-  if (!summary) {
-    return '';
-  } else if (normalized_title && summary === normalized_title) {
-    return '';
-  } else {
-    return summary;
-  }
-}
-
-function normalize_entry_text(value = '') {
-  return `${value || ''}`.replace(/\s+/g, ' ').trim();
-}
-
-function get_source_avatar_initial(source = '') {
-  const trimmed_source = `${source || ''}`.trim();
-  const initial = trimmed_source.charAt(0).toUpperCase();
-
-  if (initial) {
-    return initial;
-  } else {
-    return 'F';
-  }
-}
-
 function get_profile_initial(profile_name = '') {
   const trimmed_profile_name = `${profile_name || ''}`.trim();
   const initial = trimmed_profile_name.charAt(0).toUpperCase();
@@ -1706,34 +1476,6 @@ function get_profile_initial(profile_name = '') {
     return initial;
   } else {
     return 'M';
-  }
-}
-
-function format_entry_timestamp(raw_date = '') {
-  if (!raw_date) {
-    return '';
-  }
-
-  const date = new Date(raw_date);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-
-  const date_part = date.toLocaleDateString([], {
-    day: 'numeric',
-    month: 'short',
-  });
-  const time_part = date.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-
-  if (!date_part) {
-    return time_part;
-  } else if (!time_part) {
-    return date_part;
-  } else {
-    return `${date_part}, ${time_part}`;
   }
 }
 
@@ -2013,12 +1755,6 @@ const styles = StyleSheet.create({
   listContentEmpty: {
     flexGrow: 1,
   },
-  rowCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-  },
   recapCard: {
     borderWidth: 1,
     borderRadius: 24,
@@ -2070,36 +1806,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 16,
   },
-  rowContentWrap: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  sourceAvatarFrame: {
-    width: FEED_AVATAR_SIZE,
-    height: FEED_AVATAR_SIZE,
-    borderRadius: FEED_AVATAR_SIZE / 2,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  sourceAvatarPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sourceAvatarImage: {
-    ...StyleSheet.absoluteFillObject,
-  },
   sourceAvatarInitial: {
     fontFamily: 'Newsreader_700Bold',
     fontSize: 14,
     lineHeight: 15,
-  },
-  rowContent: {
-    flex: 1,
-    gap: 8,
   },
   rowTitle: {
     fontSize: 15,
@@ -2113,21 +1823,6 @@ const styles = StyleSheet.create({
   rowSourceLabel: {
     fontSize: 15,
     lineHeight: 20,
-  },
-  rowFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  bookmarkIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flexShrink: 0,
-  },
-  bookmarkLabel: {
-    flexShrink: 0,
   },
   timestamp: {
     fontSize: 13,
