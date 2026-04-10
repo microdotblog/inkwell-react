@@ -20,6 +20,7 @@ import RenderHtml, {
 } from "react-native-render-html";
 import { WebView } from "react-native-webview";
 import Animated, {
+  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -104,6 +105,8 @@ import {
   sanitize_reader_html,
   with_color_opacity,
 } from "./feedItemDetailUtils";
+
+const READER_PANE_TABS_ENTERING = FadeInDown.duration(220);
 
 export function useFeedItemDetailScaledTextStyles() {
   return React.useMemo(() => {
@@ -412,7 +415,10 @@ function ReaderPaneTabs({
   }, []);
 
   return (
-    <View style={styles.readerPaneTabsWrap}>
+    <Animated.View
+      entering={READER_PANE_TABS_ENTERING}
+      style={styles.readerPaneTabsWrap}
+    >
       <View
         style={[
           styles.readerPaneTabs,
@@ -452,7 +458,7 @@ function ReaderPaneTabs({
           );
         })}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
