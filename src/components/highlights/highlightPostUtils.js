@@ -3,21 +3,37 @@ const MICRO_BLOG_WEB_POST_BASE_URL = 'https://micro.blog/post?text=';
 
 export function build_highlight_post_markdown(highlight = null, fallback = {}) {
   const highlight_text = normalize_string(highlight?.text);
-  const post_url =
-    normalize_web_url(highlight?.post_url) || normalize_web_url(fallback?.post_url);
+  const post_link_markdown = build_micro_blog_post_link_markdown(
+    highlight,
+    fallback,
+  );
 
-  if (!highlight_text || !post_url) {
+  if (!highlight_text || !post_link_markdown) {
     return '';
   }
 
-  const link_label = resolve_highlight_post_title(highlight, fallback);
   const quoted_text = format_highlight_quote_markdown(highlight_text);
 
   if (!quoted_text) {
     return '';
   }
 
-  return `[${link_label}](${post_url}):\n\n${quoted_text}`;
+  return `${post_link_markdown}:\n\n${quoted_text}`;
+}
+
+export function build_micro_blog_post_link_markdown(
+  post = null,
+  fallback = {},
+) {
+  const post_url = resolve_micro_blog_post_url(post, fallback);
+
+  if (!post_url) {
+    return '';
+  }
+
+  const link_label = resolve_micro_blog_post_title(post, fallback);
+
+  return `[${link_label}](${post_url})`;
 }
 
 export function build_micro_blog_post_urls(markdown = '') {
@@ -45,8 +61,19 @@ export async function open_micro_blog_highlight_post(
   highlight = null,
   fallback = {},
 ) {
-  const { Linking } = require('react-native');
   const markdown = build_highlight_post_markdown(highlight, fallback);
+
+  return open_micro_blog_post_markdown(markdown);
+}
+
+export async function open_micro_blog_entry_post(entry = null, fallback = {}) {
+  const markdown = build_micro_blog_post_link_markdown(entry, fallback);
+
+  return open_micro_blog_post_markdown(markdown);
+}
+
+async function open_micro_blog_post_markdown(markdown = '') {
+  const { Linking } = require('react-native');
   const { app_url, web_url } = build_micro_blog_post_urls(markdown);
 
   if (!app_url || !web_url) {
@@ -78,14 +105,18 @@ export async function open_micro_blog_highlight_post(
   }
 }
 
-function resolve_highlight_post_title(highlight = null, fallback = {}) {
-  const highlight_title = normalize_string(highlight?.post_title);
-  const fallback_title = normalize_string(fallback?.post_title);
-  const highlight_source = normalize_string(highlight?.post_source);
-  const fallback_source = normalize_string(fallback?.post_source);
+function resolve_micro_blog_post_title(post = null, fallback = {}) {
+  const highlight_title = normalize_string(post?.post_title || post?.title);
+  const fallback_title = normalize_string(
+    fallback?.post_title || fallback?.title,
+  );
+  const highlight_source = normalize_string(post?.post_source || post?.source);
+  const fallback_source = normalize_string(
+    fallback?.post_source || fallback?.source,
+  );
   const has_highlight_title = has_valid_post_title(
     highlight_title,
-    highlight?.post_has_title,
+    post?.post_has_title,
   );
   const has_fallback_title = has_valid_post_title(
     fallback_title,
@@ -109,6 +140,13 @@ function resolve_highlight_post_title(highlight = null, fallback = {}) {
   }
 
   return 'Post';
+}
+
+function resolve_micro_blog_post_url(post = null, fallback = {}) {
+  return (
+    normalize_web_url(post?.post_url || post?.url) ||
+    normalize_web_url(fallback?.post_url || fallback?.url)
+  );
 }
 
 function has_valid_post_title(title = '', post_has_title = false) {

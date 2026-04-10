@@ -38,6 +38,7 @@ import Animated, {
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
+import { open_micro_blog_entry_post } from '../components/highlights/highlightPostUtils';
 import RssLoadingView from '../components/loading/RssLoadingView';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
@@ -190,6 +191,15 @@ function get_entry_menu_actions({ entry = null, theme }) {
   const actions = [];
 
   if (original_url) {
+    actions.push({
+      id: 'new_post',
+      image: Platform.select({
+        ios: 'square.and.pencil',
+      }),
+      imageColor: icon_color,
+      title: 'New Post...',
+    });
+
     actions.push({
       id: 'copy_link',
       image: Platform.select({
@@ -435,6 +445,25 @@ function FeedScreen({ navigation, isDark = false }) {
           });
         } catch (error) {
           console.warn('Failed to copy link', error);
+        }
+        return;
+      }
+
+      if (menu_action_id === 'new_post') {
+        const normalized_post_title = `${entry?.title || ''}`.trim();
+        const did_open = await open_micro_blog_entry_post(entry, {
+          post_has_title:
+            Boolean(normalized_post_title) &&
+            normalized_post_title.toLowerCase() !== 'untitled',
+          post_source: entry?.source,
+          post_title: entry?.title,
+          post_url: original_url,
+        });
+
+        if (!did_open) {
+          AppStore.show_toast('We could not open Micro.blog.', {
+            top_offset: toast_top_offset,
+          });
         }
         return;
       }

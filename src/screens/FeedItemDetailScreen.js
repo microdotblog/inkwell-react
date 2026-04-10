@@ -24,7 +24,10 @@ import {
   get_entry_menu_actions,
   useFeedItemDetailScaledTextStyles,
 } from "../components/feed_item_detail/FeedItemDetailViews";
-import { open_micro_blog_highlight_post } from "../components/highlights/highlightPostUtils";
+import {
+  open_micro_blog_entry_post,
+  open_micro_blog_highlight_post,
+} from "../components/highlights/highlightPostUtils";
 import {
   IOS_HEADER_TITLE_REVEAL_OFFSET,
   READER_BOTTOM_PADDING,
@@ -627,6 +630,25 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
       if (menu_action_id === "copy_link") {
         await handle_copy_link();
+        return;
+      }
+
+      if (menu_action_id === "new_post") {
+        const normalized_post_title = `${entry?.title || ""}`.trim();
+        const did_open = await open_micro_blog_entry_post(entry, {
+          post_has_title:
+            Boolean(normalized_post_title) &&
+            normalized_post_title.toLowerCase() !== "untitled",
+          post_source: source_label,
+          post_title: entry?.title,
+          post_url: original_url,
+        });
+
+        if (!did_open) {
+          AppStore.show_toast("We could not open Micro.blog.", {
+            top_offset: toast_top_offset,
+          });
+        }
         return;
       }
 

@@ -2379,6 +2379,15 @@ function get_entry_menu_actions({
 
   if (original_url) {
     actions.push({
+      id: "new_post",
+      image: Platform.select({
+        ios: "square.and.pencil",
+      }),
+      imageColor: icon_color,
+      title: "New Post...",
+    });
+
+    actions.push({
       id: "copy_link",
       image: Platform.select({
         ios: "link",
