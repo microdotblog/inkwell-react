@@ -133,19 +133,29 @@ function TokenSignInModal({
             <View style={styles.modalActions}>
               <PrimaryButton
                 disabled={is_signing_in}
-                label="Cancel"
-                onPress={onCancel}
-                style={styles.modalButton}
-                theme={theme}
-                variant="ghost"
-              />
-              <PrimaryButton
-                disabled={is_signing_in}
                 label={is_signing_in ? 'Checking token...' : 'Sign in with token'}
                 onPress={onSubmit}
                 style={styles.modalButton}
                 theme={theme}
               />
+              <Pressable
+                accessibilityRole="button"
+                disabled={is_signing_in}
+                onPress={onCancel}
+                style={({ pressed }) => [
+                  styles.modalCancelAction,
+                  pressed && !is_signing_in ? styles.modalCancelActionPressed : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.modalCancelText,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
             </View>
           </AuthCard>
         </View>
@@ -391,6 +401,20 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     width: '100%',
+  },
+  modalCancelAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 24,
+    paddingVertical: 4,
+  },
+  modalCancelActionPressed: {
+    opacity: 0.6,
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
   },
 });
 
