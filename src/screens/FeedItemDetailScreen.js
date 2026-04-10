@@ -24,6 +24,7 @@ import {
   get_entry_menu_actions,
   useFeedItemDetailScaledTextStyles,
 } from "../components/feed_item_detail/FeedItemDetailViews";
+import { open_micro_blog_highlight_post } from "../components/highlights/highlightPostUtils";
 import {
   IOS_HEADER_TITLE_REVEAL_OFFSET,
   READER_BOTTOM_PADDING,
@@ -503,6 +504,39 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     is_deleting_reader_highlight,
   ]);
 
+  const handle_post_highlight = React.useCallback(
+    async (highlight_entry = null) => {
+      const normalized_post_title = `${entry?.title || ""}`.trim();
+      const did_open = await open_micro_blog_highlight_post(highlight_entry, {
+        post_has_title:
+          Boolean(normalized_post_title) &&
+          normalized_post_title.toLowerCase() !== "untitled",
+        post_source: source_label,
+        post_title: entry?.title,
+        post_url: original_url,
+      });
+
+      if (!did_open) {
+        AppStore.show_toast("We could not open Micro.blog.", {
+          top_offset: toast_top_offset,
+        });
+      }
+    },
+    [entry?.title, original_url, source_label, toast_top_offset],
+  );
+
+  const handle_post_reader_highlight = React.useCallback(() => {
+    if (!active_reader_highlight || is_deleting_reader_highlight) {
+      return;
+    }
+
+    handle_post_highlight(active_reader_highlight);
+  }, [
+    active_reader_highlight,
+    handle_post_highlight,
+    is_deleting_reader_highlight,
+  ]);
+
   const handle_reader_text_scale_change = React.useCallback(
     (next_slider_index = 0) => {
       AppStore.apply_reader_text_scale(
@@ -713,6 +747,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             entry={entry}
             onCopyHighlight={handle_copy_highlight}
             onDeleteHighlight={handle_delete_highlight}
+            onPostHighlight={handle_post_highlight}
             onPressHighlightsPane={handle_highlights_pane_press}
             onPressPostPane={handle_post_pane_press}
             onPressRepliesPane={handle_replies_pane_press}
@@ -765,20 +800,30 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
       {should_show_highlight_action ? (
         <ReaderHighlightAction
-          is_destructive={Boolean(active_reader_highlight)}
-          is_loading={
+          actions={
             active_reader_highlight
-              ? is_deleting_reader_highlight
-              : is_creating_highlight
-          }
-          label={active_reader_highlight ? "Delete highlight" : "Highlight"}
-          loading_label={
-            active_reader_highlight ? "Deleting..." : "Saving..."
-          }
-          onPress={
-            active_reader_highlight
-              ? handle_delete_reader_highlight
-              : handle_create_highlight
+              ? [
+                  {
+                    is_disabled: is_deleting_reader_highlight,
+                    label: "Post highlight",
+                    onPress: handle_post_reader_highlight,
+                  },
+                  {
+                    is_destructive: true,
+                    is_loading: is_deleting_reader_highlight,
+                    label: "Delete highlight",
+                    loading_label: "Deleting...",
+                    onPress: handle_delete_reader_highlight,
+                  },
+                ]
+              : [
+                  {
+                    is_loading: is_creating_highlight,
+                    label: "Highlight",
+                    loading_label: "Saving...",
+                    onPress: handle_create_highlight,
+                  },
+                ]
           }
           safe_area_bottom={insets.bottom}
           theme={theme}

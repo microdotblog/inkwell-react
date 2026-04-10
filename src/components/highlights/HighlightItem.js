@@ -26,6 +26,7 @@ export default function HighlightItem({
   is_deleting = false,
   onCopyPress,
   onDeletePress,
+  onPostPress,
   theme,
 }) {
   const scaled_text_styles = React.useMemo(() => {
@@ -35,6 +36,7 @@ export default function HighlightItem({
   const timestamp = format_highlight_date(entry);
   const highlight_background_color = resolve_highlight_background_color(theme);
   const delete_button_colors = resolve_highlight_delete_button_colors(theme);
+  const post_button_colors = resolve_highlight_post_button_colors(theme);
 
   return (
     <View style={styles.rowCard}>
@@ -105,6 +107,33 @@ export default function HighlightItem({
             ]}
           >
             {is_copied ? 'Copied' : 'Copy'}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityLabel="Post highlight"
+          accessibilityRole="button"
+          disabled={is_deleting || !onPostPress}
+          onPress={() => onPostPress?.(entry)}
+          style={({ pressed }) => {
+            return [
+              styles.actionButton,
+              {
+                backgroundColor: post_button_colors.backgroundColor,
+                borderColor: post_button_colors.borderColor,
+                opacity: is_deleting || !onPostPress ? 0.5 : pressed ? 0.84 : 1,
+              },
+            ];
+          }}
+        >
+          <Text
+            style={[
+              styles.actionButtonLabel,
+              scaled_text_styles.actionButtonLabel,
+              { color: post_button_colors.labelColor },
+            ]}
+          >
+            Post
           </Text>
         </Pressable>
 
@@ -278,5 +307,21 @@ function resolve_highlight_delete_button_colors(theme) {
     backgroundColor: 'rgba(166, 47, 73, 0.05)',
     borderColor: 'rgba(166, 47, 73, 0.18)',
     labelColor: '#a63b58',
+  };
+}
+
+function resolve_highlight_post_button_colors(theme) {
+  if (theme?.isDark) {
+    return {
+      backgroundColor: 'rgba(86, 122, 255, 0.18)',
+      borderColor: 'rgba(146, 176, 255, 0.28)',
+      labelColor: '#bed0ff',
+    };
+  }
+
+  return {
+    backgroundColor: 'rgba(64, 110, 255, 0.07)',
+    borderColor: 'rgba(64, 110, 255, 0.2)',
+    labelColor: '#355de0',
   };
 }

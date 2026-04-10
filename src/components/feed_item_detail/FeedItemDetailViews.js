@@ -117,6 +117,7 @@ const EntryReaderView = observer(function EntryReaderView({
   entry,
   onCopyHighlight,
   onDeleteHighlight,
+  onPostHighlight,
   onReaderActiveHighlightChange,
   onReaderImagePress,
   onPressHighlightsPane,
@@ -282,6 +283,7 @@ const EntryReaderView = observer(function EntryReaderView({
             highlights={entry_highlights}
             onCopyHighlight={onCopyHighlight}
             onDeleteHighlight={onDeleteHighlight}
+            onPostHighlight={onPostHighlight}
             theme={theme}
           />
         ) : has_renderable_body ? (
@@ -522,6 +524,7 @@ function HighlightsListView({
   highlights = [],
   onCopyHighlight,
   onDeleteHighlight,
+  onPostHighlight,
   theme,
 }) {
   return (
@@ -535,6 +538,7 @@ function HighlightsListView({
             key={highlight.id}
             onCopyPress={onCopyHighlight}
             onDeletePress={onDeleteHighlight}
+            onPostPress={onPostHighlight}
             theme={theme}
           />
         );
@@ -1021,35 +1025,13 @@ function ReaderTextSizeTray({
 }
 
 function ReaderHighlightAction({
-  is_destructive = false,
-  is_loading = false,
-  label = "Highlight",
-  loading_label = "Saving...",
-  onPress,
+  actions = [],
   safe_area_bottom = 0,
   theme,
 }) {
-  const resolved_label = is_loading ? loading_label : label;
-  const accessibility_label = is_loading
-    ? loading_label
-    : label || "Reader action";
-  const background_color = is_destructive
-    ? theme.isDark
-      ? "rgba(72, 24, 37, 0.92)"
-      : "rgba(255, 246, 249, 0.96)"
-    : theme.colors.canvas;
-  const border_color = is_destructive
-    ? theme.isDark
-      ? "rgba(255, 178, 197, 0.42)"
-      : "rgba(166, 47, 73, 0.28)"
-    : theme.colors.line;
-  const label_color = is_loading
-    ? theme.colors.inkSoft
-    : is_destructive
-      ? theme.isDark
-        ? "#ffd5df"
-        : "#8f2341"
-      : theme.colors.accentStrong;
+  if (!Array.isArray(actions) || actions.length === 0) {
+    return null;
+  }
 
   return (
     <View
@@ -1061,36 +1043,141 @@ function ReaderHighlightAction({
         },
       ]}
     >
-      <Pressable
-        accessibilityLabel={accessibility_label}
-        accessibilityRole="button"
-        disabled={is_loading}
-        onPress={onPress}
-        style={({ pressed }) => {
-          return [
-            styles.readerHighlightActionButton,
-            {
-              backgroundColor: background_color,
-              borderColor: border_color,
-              opacity: is_loading ? 0.78 : pressed ? 0.86 : 1,
-              shadowColor: theme.colors.shadow,
-            },
-          ];
-        }}
-      >
-        <Text
-          style={[
-            styles.readerHighlightActionLabel,
-            {
-              color: label_color,
-            },
-          ]}
-        >
-          {resolved_label}
-        </Text>
-      </Pressable>
+      <View style={styles.readerHighlightActionRow}>
+        {actions.map((action, index) => {
+          return (
+            <ReaderHighlightActionButton
+              action={action}
+              is_primary={index === 0}
+              key={`${action?.label || "reader-action"}-${index}`}
+              theme={theme}
+            />
+          );
+        })}
+      </View>
     </View>
   );
+}
+
+function ReaderHighlightActionButton({
+  action = {},
+  is_primary = false,
+  theme,
+}) {
+  const is_destructive = action?.is_destructive === true;
+  const is_loading = action?.is_loading === true;
+  const is_disabled = action?.is_disabled === true || is_loading;
+  const resolved_label = is_loading
+    ? action?.loading_label || action?.label || "Working..."
+    : action?.label || "Reader action";
+  const accessibility_label = is_loading
+    ? action?.loading_label || resolved_label
+    : action?.label || resolved_label;
+  const background_color = resolve_reader_highlight_action_background_color({
+    is_destructive,
+    is_primary,
+    theme,
+  });
+  const border_color = resolve_reader_highlight_action_border_color({
+    is_destructive,
+    is_primary,
+    theme,
+  });
+  const label_color = resolve_reader_highlight_action_label_color({
+    is_destructive,
+    is_loading,
+    is_primary,
+    theme,
+  });
+
+  return (
+    <Pressable
+      accessibilityLabel={accessibility_label}
+      accessibilityRole="button"
+      disabled={is_disabled}
+      onPress={action?.onPress}
+      style={({ pressed }) => {
+        return [
+          styles.readerHighlightActionButton,
+          !is_primary ? styles.readerHighlightActionButtonSecondary : null,
+          {
+            backgroundColor: background_color,
+            borderColor: border_color,
+            opacity: is_disabled ? 0.72 : pressed ? 0.86 : 1,
+            shadowColor: theme.colors.shadow,
+          },
+        ];
+      }}
+    >
+      <Text
+        style={[
+          styles.readerHighlightActionLabel,
+          {
+            color: label_color,
+          },
+        ]}
+      >
+        {resolved_label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function resolve_reader_highlight_action_background_color({
+  is_destructive = false,
+  is_primary = false,
+  theme,
+}) {
+  if (is_destructive) {
+    return theme.isDark
+      ? "rgba(72, 24, 37, 0.92)"
+      : "rgba(255, 246, 249, 0.96)";
+  }
+
+  if (is_primary) {
+    return theme.colors.accentStrong;
+  }
+
+  return theme.colors.canvas;
+}
+
+function resolve_reader_highlight_action_border_color({
+  is_destructive = false,
+  is_primary = false,
+  theme,
+}) {
+  if (is_destructive) {
+    return theme.isDark
+      ? "rgba(255, 178, 197, 0.42)"
+      : "rgba(166, 47, 73, 0.28)";
+  }
+
+  if (is_primary) {
+    return theme.colors.accentStrong;
+  }
+
+  return theme.colors.line;
+}
+
+function resolve_reader_highlight_action_label_color({
+  is_destructive = false,
+  is_loading = false,
+  is_primary = false,
+  theme,
+}) {
+  if (is_loading) {
+    return is_primary ? theme.colors.white : theme.colors.inkSoft;
+  }
+
+  if (is_destructive) {
+    return theme.isDark ? "#ffd5df" : "#8f2341";
+  }
+
+  if (is_primary) {
+    return theme.colors.white;
+  }
+
+  return theme.colors.accentStrong;
 }
 
 function ReaderImageViewerModal({
@@ -2906,6 +2993,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: READER_HORIZONTAL_PADDING,
     zIndex: 3,
   },
+  readerHighlightActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
+  },
   readerHighlightActionButton: {
     alignItems: "center",
     borderRadius: 999,
@@ -2922,6 +3015,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 18,
     elevation: 5,
+  },
+  readerHighlightActionButtonSecondary: {
+    minWidth: 132,
   },
   readerHighlightActionLabel: {
     fontSize: 15,

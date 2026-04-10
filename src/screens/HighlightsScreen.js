@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
 import HighlightItem from '../components/highlights/HighlightItem';
+import { open_micro_blog_highlight_post } from '../components/highlights/highlightPostUtils';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import AppStore from '../stores/App';
 import Highlights from '../stores/Highlights';
@@ -187,6 +188,16 @@ function HighlightsScreen({ isDark = false }) {
     );
   }, [copied_highlight_id, deleting_highlight_id, header_height]);
 
+  const handle_post_press = React.useCallback(async (entry = null) => {
+    const did_open = await open_micro_blog_highlight_post(entry);
+
+    if (!did_open) {
+      AppStore.show_toast('We could not open Micro.blog.', {
+        top_offset: header_height + 10,
+      });
+    }
+  }, [header_height]);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
@@ -288,6 +299,7 @@ function HighlightsScreen({ isDark = false }) {
                   is_deleting={deleting_highlight_id === item.id}
                   onCopyPress={handle_copy_press}
                   onDeletePress={handle_delete_press}
+                  onPostPress={handle_post_press}
                   theme={theme}
                 />
               );

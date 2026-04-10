@@ -4,7 +4,6 @@ Inkwell is a React Native feed reader built with Expo. It reads RSS and JSON Fee
 
 ## Product Concepts
 The core product concepts are subscriptions, feeds, timeline entries, reader state, bookmarks, highlights, and feed filtering.
-Prefer these terms consistently in code, comments, and UI copy.
 
 ## Expo
 For Expo specific documentation and how-to's, reference https://docs.expo.dev/llms.txt.
@@ -16,7 +15,7 @@ When instructions in those projects conflict with their live code, follow the im
 `./../inkwell-web` is the primary reference for endpoint behavior, API semantics, domain naming, and user flows for timeline, reader, bookmarks, highlights, and subscriptions.
 `./../inkwell-web/docs/feedbin/` contains Feedbin API documentation that is useful when implementing subscription, timeline, and entry behavior.
 
-Use `./../strata` or `./../epilogue` for React Native implementation style.
+Use `./../strata` or `./../epilogue` or `./../microblog-react` for React Native implementation style.
 Use `./../inkwell-web` for product behavior and data semantics.
 
 Use `./../inkwell-mac` to reference the Mac app implementation for this app so that we align on styles.
