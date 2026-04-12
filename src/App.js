@@ -355,14 +355,14 @@ function resolve_toast_icon_name(toast_message = '') {
   if (normalized_toast_message.includes('bookmark removed')) {
     return {
       android: 'bookmark-border',
-      ios: 'bookmark',
+      ios: 'star.fill',
     };
   }
 
   if (normalized_toast_message.includes('bookmarked')) {
     return {
       android: 'bookmark',
-      ios: 'bookmark',
+      ios: 'star.fill',
     };
   }
 

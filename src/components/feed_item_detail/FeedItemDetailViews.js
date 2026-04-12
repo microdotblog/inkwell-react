@@ -2426,7 +2426,7 @@ function get_entry_menu_actions({
         : undefined,
     id: "toggle_bookmark",
     image: Platform.select({
-      ios: bookmark_title === "Unbookmark" ? "bookmark.slash" : "bookmark",
+      ios: "star.fill",
     }),
     imageColor: icon_color,
     title: bookmark_title,

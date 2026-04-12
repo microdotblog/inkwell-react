@@ -137,7 +137,7 @@ function get_profile_menu_actions(theme) {
         id: 'bookmarks',
         title: 'Bookmarks',
         image: Platform.select({
-          ios: 'bookmark',
+          ios: 'star',
         }),
         imageColor: icon_color,
       },
@@ -160,7 +160,7 @@ function get_profile_menu_actions(theme) {
       id: 'bookmarks',
       title: 'Bookmarks',
       image: Platform.select({
-        ios: 'bookmark',
+        ios: 'star',
       }),
       imageColor: icon_color,
     },
@@ -221,7 +221,7 @@ function get_entry_menu_actions({ entry = null, theme }) {
   actions.push({
     id: 'toggle_bookmark',
     image: Platform.select({
-      ios: bookmark_title === 'Unbookmark' ? 'bookmark.slash' : 'bookmark',
+      ios: 'star.fill',
     }),
     imageColor: icon_color,
     title: bookmark_title,
