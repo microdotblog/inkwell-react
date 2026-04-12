@@ -1303,7 +1303,7 @@ function ReaderImageViewerModal({
     <Modal
       animationType="fade"
       onRequestClose={onRequestClose}
-      presentationStyle="fullScreen"
+      presentationStyle="overFullScreen"
       statusBarTranslucent
       transparent
       visible={visible}
