@@ -29,7 +29,6 @@ import {
   open_micro_blog_highlight_post,
 } from "../components/highlights/highlightPostUtils";
 import {
-  IOS_HEADER_TITLE_REVEAL_OFFSET,
   READER_BOTTOM_PADDING,
   READER_HORIZONTAL_PADDING,
   create_reader_body_html,
@@ -39,7 +38,6 @@ import {
   resolve_detail_mode,
   resolve_entry_source,
   resolve_highlight_identifier,
-  resolve_translucent_header_background_color,
   sanitize_reader_html,
 } from "../components/feed_item_detail/feedItemDetailUtils";
 import AppStore from "../stores/App";
@@ -90,11 +88,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       ? Boolean(entry)
       : Boolean(entry?.is_bookmarked);
   const toast_top_offset = header_height + 10;
-  const content_top_padding = header_height + (Platform.OS === "ios" ? 0 : 12);
-  const header_background_color = resolve_translucent_header_background_color(
-    theme,
-    Platform.OS,
-  );
+  const content_top_padding = 12;
   const [active_pane, set_active_pane] = React.useState("post");
   const [deleting_highlight_id, set_deleting_highlight_id] = React.useState("");
   const [, set_is_loading_replies] = React.useState(false);
@@ -106,14 +100,11 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     React.useState(false);
   const [is_opening_reader_post, set_is_opening_reader_post] =
     React.useState(false);
-  const [is_ios_header_title_visible, set_is_ios_header_title_visible] =
-    React.useState(false);
   const [is_text_size_tray_visible, set_is_text_size_tray_visible] =
     React.useState(false);
   const [reader_image_viewer, set_reader_image_viewer] = React.useState(null);
   const [reader_webview_reload_key, set_reader_webview_reload_key] =
     React.useState(0);
-  const is_ios_header_title_visible_ref = React.useRef(false);
   const replies_request_token_ref = React.useRef(0);
   const reader_post_ref = React.useRef(null);
   const active_reader_highlight = Highlights.entry_highlight_snapshot_by_identifier(
@@ -145,22 +136,6 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       theme,
     });
   }, [entry, entry_source, is_entry_bookmarked, original_url, theme]);
-
-  const handle_scroll = React.useCallback((event) => {
-    if (Platform.OS !== "ios") {
-      return;
-    }
-
-    const offset_y = Math.max(event?.nativeEvent?.contentOffset?.y || 0, 0);
-    const next_visibility = offset_y > IOS_HEADER_TITLE_REVEAL_OFFSET;
-
-    if (next_visibility === is_ios_header_title_visible_ref.current) {
-      return;
-    }
-
-    is_ios_header_title_visible_ref.current = next_visibility;
-    set_is_ios_header_title_visible(next_visibility);
-  }, []);
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
@@ -739,28 +714,6 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
-      headerBackButtonDisplayMode: "minimal",
-      headerBackground: () => (
-        <View
-          pointerEvents="none"
-          style={[
-            {
-              bottom: 0,
-              left: 0,
-              position: "absolute",
-              right: 0,
-              top: 0,
-            },
-            {
-              backgroundColor: header_background_color,
-            },
-          ]}
-        />
-      ),
-      headerStyle: {
-        backgroundColor: "transparent",
-      },
-      headerTransparent: true,
       headerRight: has_entry_menu
         ? () => (
             <HeaderEntryMenuButton
@@ -771,30 +724,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             />
           )
         : undefined,
-      headerShadowVisible: false,
-      headerTintColor: theme.colors.ink,
-      headerTitleStyle: {
-        color: theme.colors.ink,
-        fontSize: 17,
-        fontWeight: "600",
-      },
-      title:
-        Platform.OS === "ios"
-          ? is_ios_header_title_visible
-            ? header_title
-            : ""
-          : header_title,
+      title: header_title,
     });
   }, [
     entry_menu_actions,
     handle_entry_menu_action,
-    header_background_color,
     header_title,
     has_entry_menu,
     isDark,
-    is_ios_header_title_visible,
     navigation,
-    theme,
   ]);
 
   return (
@@ -814,8 +752,6 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           paddingHorizontal: READER_HORIZONTAL_PADDING,
           paddingTop: content_top_padding,
         }}
-        onScroll={handle_scroll}
-        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
         {detail_mode === "entry" && entry ? (

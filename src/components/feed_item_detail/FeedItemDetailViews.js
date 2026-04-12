@@ -89,7 +89,6 @@ import {
   get_recap_day_chip_label,
   get_recap_day_summary_label,
   get_recap_email_settings_copy,
-  get_recap_summary_copy,
   get_reply_author_name,
   get_reply_count_label,
   get_source_avatar_initial,
@@ -665,7 +664,6 @@ const RecapReaderView = observer(function RecapReaderView({
   width = 0,
 }) {
   const recap = Feed.active_recap_snapshot();
-  const recap_entry_count = Feed.active_recap_entry_count();
   const recap_email_day = Feed.recap_email_day;
   const is_loading_recap_email_settings = Feed.is_loading_recap_email_settings;
   const is_saving_recap_email_settings = Feed.is_saving_recap_email_settings;
@@ -752,37 +750,7 @@ const RecapReaderView = observer(function RecapReaderView({
 
   return (
     <View style={styles.readerColumn}>
-      <View
-        style={[
-          styles.masthead,
-          {
-            borderBottomColor: theme.colors.line,
-          },
-        ]}
-      >
-        <View style={styles.titleWrapCompact}>
-          <Text
-            style={[
-              styles.title,
-              scaled_text_styles.title,
-              { color: theme.colors.ink },
-            ]}
-          >
-            Reading Recap
-          </Text>
-        </View>
-        <Text
-          style={[
-            styles.recapBody,
-            scaled_text_styles.recapBody,
-            { color: theme.colors.inkSoft },
-          ]}
-        >
-          {get_recap_summary_copy(recap_entry_count)}
-        </Text>
-      </View>
-
-      <View style={styles.bodySection}>
+      <View>
         <RecapEmailSettingsCard
           is_enabled={is_recap_email_enabled}
           is_loading={is_loading_recap_email_settings}
@@ -2726,15 +2694,6 @@ const styles = StyleSheet.create({
   titleWrap: {
     marginTop: READER_TITLE_TOP_MARGIN,
   },
-  titleWrapCompact: {
-    marginTop: 8,
-  },
-  recapBody: {
-    fontSize: 16,
-    lineHeight: 24,
-    marginTop: 10,
-    maxWidth: 420,
-  },
   bodySection: {
     paddingTop: Platform.OS === "ios" ? 20 : 24,
   },
@@ -2842,8 +2801,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   recapSettingsTitle: {
-    fontFamily: "Newsreader_600SemiBold",
-    fontSize: 24,
+    // fontFamily: "Newsreader_600SemiBold",
+    fontSize: 18,
     lineHeight: 28,
   },
   recapSettingsBody: {
