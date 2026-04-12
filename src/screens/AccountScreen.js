@@ -223,7 +223,7 @@ function AccountScreenContent({
                     { color: theme.colors.inkSoft },
                   ]}
                 >
-                  Choose an accent colour for this device.
+                  Choose an accent color for this device.
                 </Text>
               </View>
 
@@ -379,7 +379,7 @@ function AccentPaletteChip({
 
   return (
     <Pressable
-      accessibilityLabel={`Use ${label} accent colour`}
+      accessibilityLabel={`Use ${label} accent color`}
       accessibilityRole="button"
       accessibilityState={{ selected: is_selected }}
       onPress={onPress}
