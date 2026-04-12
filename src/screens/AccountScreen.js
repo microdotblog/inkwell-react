@@ -1,6 +1,5 @@
 import React from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Slider from '@react-native-community/slider';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -22,15 +21,6 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
-import {
-  DEFAULT_TEXT_SCALE,
-  formatTextScaleLabel,
-  MAX_TEXT_SCALE,
-  MIN_TEXT_SCALE,
-  TEXT_SCALE_PRESET_COUNT,
-  getTextScaleForSliderIndex,
-  getTextScaleSliderIndex,
-} from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const CONTENT_TOP_PADDING = 12;
@@ -87,10 +77,6 @@ function format_account_label(profile_name = '') {
 
 function AccountScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
-  const reader_text_scale = AppStore.reader_text_scale;
-  const reader_text_scale_slider_index = React.useMemo(() => {
-    return getTextScaleSliderIndex(reader_text_scale);
-  }, [reader_text_scale]);
   const theme = getAuthTheme(isDark, accent_palette_id);
   const profile = Auth.current_profile();
   const profile_name = profile.name || 'Micro.blog account';
@@ -151,8 +137,6 @@ function AccountScreen({ isDark = false }) {
         profile_handle={profile_handle}
         profile_name={profile_name}
         profile_photo={profile_photo}
-        reader_text_scale={reader_text_scale}
-        reader_text_scale_slider_index={reader_text_scale_slider_index}
         theme={theme}
         transition_progress={transition_progress}
         transition_theme={transition_theme}
@@ -168,8 +152,6 @@ function AccountScreenContent({
   is_busy = false,
   is_dark = false,
   profile_photo = '',
-  reader_text_scale = DEFAULT_TEXT_SCALE,
-  reader_text_scale_slider_index = 0,
   theme,
   transition_progress,
   transition_theme,
@@ -262,103 +244,6 @@ function AccountScreenContent({
                     />
                   );
                 })}
-              </View>
-
-              <View style={styles.preferenceCopy}>
-                <View style={styles.preferenceHeaderRow}>
-                  <Text
-                    style={[
-                      styles.preferenceTitle,
-                      { color: theme.colors.ink },
-                    ]}
-                  >
-                    Reader text size
-                  </Text>
-                  <Text
-                    style={[
-                      styles.textScaleValue,
-                      { color: theme.colors.accentStrong },
-                    ]}
-                  >
-                    {formatTextScaleLabel(reader_text_scale)}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.preferenceBody,
-                    { color: theme.colors.inkSoft },
-                  ]}
-                >
-                  Adjust the text size in the reader post view on this device.
-                </Text>
-              </View>
-
-              <View style={styles.sliderWrap}>
-                <Slider
-                  maximumTrackTintColor={theme.colors.line}
-                  maximumValue={TEXT_SCALE_PRESET_COUNT - 1}
-                  minimumTrackTintColor={theme.colors.accent}
-                  minimumValue={0}
-                  onSlidingComplete={(next_slider_index) => {
-                    AppStore.set_reader_text_scale(
-                      getTextScaleForSliderIndex(next_slider_index),
-                    );
-                  }}
-                  onValueChange={(next_slider_index) => {
-                    AppStore.apply_reader_text_scale(
-                      getTextScaleForSliderIndex(next_slider_index),
-                    );
-                  }}
-                  step={1}
-                  thumbTintColor={theme.colors.accentStrong}
-                  value={reader_text_scale_slider_index}
-                />
-                <View style={styles.sliderMarkersRow}>
-                  <Text
-                    style={[
-                      styles.sliderMarkerLabel,
-                      { color: theme.colors.inkSoft },
-                    ]}
-                  >
-                    {formatTextScaleLabel(MIN_TEXT_SCALE)}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.sliderMarkerLabel,
-                      { color: theme.colors.accentStrong },
-                    ]}
-                  >
-                    {formatTextScaleLabel(DEFAULT_TEXT_SCALE)}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.sliderMarkerLabel,
-                      { color: theme.colors.inkSoft },
-                    ]}
-                  >
-                    {formatTextScaleLabel(MAX_TEXT_SCALE)}
-                  </Text>
-                </View>
-                <View style={styles.sliderStepDotsRow}>
-                  {Array.from({ length: TEXT_SCALE_PRESET_COUNT }).map((_, index) => {
-                    const is_active = index === reader_text_scale_slider_index;
-
-                    return (
-                      <View
-                        key={`text-scale-step-${index}`}
-                        style={[
-                          styles.sliderStepDot,
-                          {
-                            backgroundColor: is_active
-                              ? theme.colors.accentStrong
-                              : theme.colors.line,
-                            opacity: is_active ? 1 : 0.72,
-                          },
-                        ]}
-                      />
-                    );
-                  })}
-                </View>
               </View>
             </View>
           </AuthCard>
@@ -681,12 +566,6 @@ const styles = StyleSheet.create({
   preferenceCopy: {
     gap: 4,
   },
-  preferenceHeaderRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-  },
   preferenceTitle: {
     // fontFamily: 'Newsreader_600SemiBold',
     fontSize: 20,
@@ -758,35 +637,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 18,
-  },
-  sliderWrap: {
-    marginTop: -2,
-  },
-  sliderMarkersRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  sliderMarkerLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 16,
-  },
-  sliderStepDotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-    paddingHorizontal: 4,
-  },
-  sliderStepDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  textScaleValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
   },
 });
 
