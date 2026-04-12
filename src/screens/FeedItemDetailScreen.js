@@ -40,6 +40,7 @@ import {
   resolve_highlight_identifier,
   sanitize_reader_html,
 } from "../components/feed_item_detail/feedItemDetailUtils";
+import { resolve_reader_image_viewer_payload } from "../components/feed_item_detail/readerImagePayload";
 import AppStore from "../stores/App";
 import Bookmarks from "../stores/Bookmarks";
 import Feed from "../stores/Feed";
@@ -374,11 +375,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   }, []);
 
   const handle_reader_image_press = React.useCallback((payload = {}) => {
-    const image_url = normalize_http_url(
-      payload?.image_url || payload?.image_src,
-    );
+    const image_viewer_payload = resolve_reader_image_viewer_payload(payload);
 
-    if (!image_url) {
+    if (!image_viewer_payload) {
       return;
     }
 
@@ -386,10 +385,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     set_has_reader_selection(false);
     set_active_reader_highlight_id("");
     set_is_text_size_tray_visible(false);
-    set_reader_image_viewer({
-      image_alt: `${payload?.image_alt || ""}`.trim(),
-      image_url,
-    });
+    set_reader_image_viewer(image_viewer_payload);
   }, []);
 
   const handle_reader_image_viewer_dismiss = React.useCallback(() => {
@@ -779,6 +775,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
         {detail_mode === "recap" && recap ? (
           <RecapReaderView
+            onReaderImagePress={handle_reader_image_press}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
             width={width}
