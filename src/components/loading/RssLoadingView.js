@@ -249,9 +249,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   title: {
-    fontFamily: 'Newsreader_700Bold',
-    fontSize: 34,
-    lineHeight: 40,
+    // fontFamily: 'Newsreader_700Bold',
+    fontSize: 18,
+    lineHeight: 28,
     textAlign: 'center',
   },
   compactTitle: {

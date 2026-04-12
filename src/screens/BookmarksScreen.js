@@ -268,9 +268,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   stateTitle: {
-    fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 28,
-    lineHeight: 34,
+    // fontFamily: 'Newsreader_600SemiBold',
+    fontSize: 18,
+    lineHeight: 28,
     textAlign: 'center',
   },
   stateBody: {

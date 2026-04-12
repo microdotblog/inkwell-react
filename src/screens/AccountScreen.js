@@ -688,9 +688,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   preferenceTitle: {
-    fontFamily: 'Newsreader_600SemiBold',
-    fontSize: 22,
-    lineHeight: 26,
+    // fontFamily: 'Newsreader_600SemiBold',
+    fontSize: 20,
+    lineHeight: 28,
   },
   preferenceBody: {
     fontSize: 14,

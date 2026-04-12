@@ -329,10 +329,11 @@ const styles = StyleSheet.create({
     paddingTop: 28,
   },
   title: {
-    fontFamily: 'Newsreader_700Bold',
-    fontSize: 48,
-    lineHeight: 52,
+    // fontFamily: 'Newsreader_700Bold',
+    fontSize: 18,
+    lineHeight: 28,
     maxWidth: 320,
+    paddingBottom: 10
   },
   body: {
     fontSize: 18,
