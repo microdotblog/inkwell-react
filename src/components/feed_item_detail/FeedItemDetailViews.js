@@ -2643,7 +2643,7 @@ const styles = StyleSheet.create({
   },
   masthead: {
     borderBottomWidth: 1,
-    paddingBottom: 24,
+    paddingBottom: 20,
     paddingTop: Platform.OS === "ios" ? 0 : 10,
   },
   feedHeaderRow: {
@@ -2683,7 +2683,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   title: {
-    fontFamily: "Newsreader_600SemiBold",
+    // fontFamily: "Newsreader_600SemiBold",
     fontSize: READER_TITLE_FONT_SIZE,
     lineHeight: READER_TITLE_LINE_HEIGHT,
   },
