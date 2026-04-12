@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -13,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
+import RssLoadingView from '../components/loading/RssLoadingView';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import FeedTimelineCard from '../components/timeline/FeedTimelineCard';
 import { resolve_bookmark_timeline_entry_content } from '../components/timeline/timelineEntryContent';
@@ -86,37 +86,11 @@ function BookmarksScreen({ navigation, isDark = false }) {
             ]}
           >
             <AuthCard style={styles.stateCard} theme={theme}>
-              <View
-                style={[
-                  styles.loadingOrb,
-                  {
-                    backgroundColor: theme.colors.accentSoft,
-                    borderColor: theme.colors.line,
-                  },
-                ]}
-              >
-                <ActivityIndicator color={theme.colors.accentStrong} size="small" />
-              </View>
-              <View style={styles.stateCopy}>
-                <Text
-                  style={[
-                    styles.stateTitle,
-                    scaled_text_styles.stateTitle,
-                    { color: theme.colors.ink },
-                  ]}
-                >
-                  Loading your bookmarks
-                </Text>
-                <Text
-                  style={[
-                    styles.stateBody,
-                    scaled_text_styles.stateBody,
-                    { color: theme.colors.inkSoft },
-                  ]}
-                >
-                  Recent saved posts will show up here as soon as Micro.blog responds.
-                </Text>
-              </View>
+              <RssLoadingView
+                body="Recent saved posts will show up here as soon as Micro.blog responds."
+                theme={theme}
+                title="Loading your bookmarks"
+              />
             </AuthCard>
           </View>
         ) : (
@@ -257,15 +231,6 @@ const styles = StyleSheet.create({
   stateCopy: {
     alignItems: 'center',
     gap: 10,
-  },
-  loadingOrb: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
   },
   stateTitle: {
     // fontFamily: 'Newsreader_600SemiBold',
