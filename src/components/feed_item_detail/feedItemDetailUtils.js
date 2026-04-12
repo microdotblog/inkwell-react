@@ -1940,27 +1940,6 @@ function get_recap_day_summary_label(dayofweek = "") {
   return `${dayofweek || ""}`.trim();
 }
 
-function get_recap_email_settings_copy({
-  is_enabled = false,
-  is_expanded = false,
-  is_showing_loading_summary = false,
-  selected_day = "",
-} = {}) {
-  if (is_showing_loading_summary) {
-    return "Loading your weekly email setting.";
-  }
-
-  if (is_expanded) {
-    return "Choose a day for Reading Recap, or turn weekly email off.";
-  }
-
-  if (is_enabled && selected_day) {
-    return `Reading Recap is included in weekly email every ${selected_day}.`;
-  }
-
-  return "Reading Recap is not included in weekly email.";
-}
-
 function resolve_entry_highlight_by_identifier(highlights = [], identifier = "") {
   const normalized_identifier = `${identifier || ""}`.trim();
 
@@ -2255,7 +2234,6 @@ export {
   get_highlight_count_label,
   get_recap_day_chip_label,
   get_recap_day_summary_label,
-  get_recap_email_settings_copy,
   get_reply_author_name,
   get_reply_count_label,
   get_source_avatar_initial,

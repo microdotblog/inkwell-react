@@ -88,7 +88,6 @@ import {
   get_highlight_count_label,
   get_recap_day_chip_label,
   get_recap_day_summary_label,
-  get_recap_email_settings_copy,
   get_reply_author_name,
   get_reply_count_label,
   get_source_avatar_initial,
@@ -2129,12 +2128,7 @@ function RecapEmailSettingsCard({
       ? get_recap_day_summary_label(selected_day)
       : "Off";
   const summary_selection_kind = is_enabled ? "accent" : "neutral";
-  const helper_copy = get_recap_email_settings_copy({
-    is_enabled,
-    is_expanded,
-    is_showing_loading_summary,
-    selected_day,
-  });
+  const helper_copy = "Send Reading Recap in a weekly email on:";
 
   async function handle_day_selection(next_dayofweek = "") {
     if (typeof onSelectDay !== "function" || is_busy) {
@@ -2199,15 +2193,17 @@ function RecapEmailSettingsCard({
               </Animated.View>
             ) : null}
           </Animated.View>
-          <Text
-            style={[
-              styles.recapSettingsBody,
-              scaled_text_styles.recapSettingsBody,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {helper_copy}
-          </Text>
+          {is_expanded ? (
+            <Text
+              style={[
+                styles.recapSettingsBody,
+                scaled_text_styles.recapSettingsBody,
+                { color: theme.colors.inkSoft },
+              ]}
+            >
+              {helper_copy}
+            </Text>
+          ) : null}
         </View>
         {is_loading || is_saving ? (
           <ActivityIndicator color={theme.colors.accentStrong} size="small" />
