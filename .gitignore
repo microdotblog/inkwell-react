@@ -39,3 +39,4 @@ yarn-error.*
 *.kotlin
 android/app/release/
 /bun.lockb
+/ios/Config/Local.xcconfig
