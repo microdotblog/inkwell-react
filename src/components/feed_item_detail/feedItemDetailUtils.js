@@ -24,11 +24,10 @@ const READER_IMAGE_MODAL_VIEWPORT_PADDING = 20;
 const READER_IMAGE_MODAL_MAXIMUM_SCALE = 8;
 const READER_AVATAR_SIZE = 42;
 const READER_AVATAR_TRANSITION_MS = 180;
-const READER_TITLE_FONT_SIZE = 34;
-const READER_TITLE_LINE_HEIGHT = 40;
-const READER_TITLE_TOP_MARGIN = 18;
+const READER_TITLE_FONT_SIZE = 22;
+const READER_TITLE_LINE_HEIGHT = 30;
+const READER_TITLE_TOP_MARGIN = 20;
 const READER_PARAGRAPH_SPACING = 18;
-const IOS_HEADER_TITLE_REVEAL_OFFSET = 12;
 const RECAP_FAVICON_SIZE = 22;
 const RECAP_SETTINGS_LAYOUT_TRANSITION = LinearTransition.duration(180);
 const RECAP_SETTINGS_ROW_ENTERING = FadeInDown.duration(180);
@@ -122,20 +121,6 @@ const TEXT_STYLE_NAMES = [
   "unavailableBody",
   "openOriginalLabel",
 ];
-
-function resolve_translucent_header_background_color(
-  theme,
-  platform = Platform.OS,
-) {
-  if (platform === "ios") {
-    return with_color_opacity(
-      theme?.colors?.canvas,
-      theme?.isDark ? 0.18 : 0.14,
-    );
-  }
-
-  return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.78 : 0.84);
-}
 
 function resolve_reader_text_size_backdrop_color(theme) {
   return with_color_opacity(theme?.colors?.canvas, theme?.isDark ? 0.58 : 0.3);
@@ -1941,13 +1926,6 @@ function resolve_reply_html(reply = null) {
   return `<p>${safe_text}</p>`;
 }
 
-function get_recap_summary_copy(count = 0) {
-  const normalized_count = Number.isFinite(count) ? Math.max(count, 0) : 0;
-  const noun = normalized_count === 1 ? "post" : "posts";
-
-  return `${normalized_count} older ${noun}, grouped into one recap.`;
-}
-
 function get_recap_day_chip_label(dayofweek = "") {
   const trimmed_dayofweek = `${dayofweek || ""}`.trim();
 
@@ -1960,27 +1938,6 @@ function get_recap_day_chip_label(dayofweek = "") {
 
 function get_recap_day_summary_label(dayofweek = "") {
   return `${dayofweek || ""}`.trim();
-}
-
-function get_recap_email_settings_copy({
-  is_enabled = false,
-  is_expanded = false,
-  is_showing_loading_summary = false,
-  selected_day = "",
-} = {}) {
-  if (is_showing_loading_summary) {
-    return "Loading your weekly email setting.";
-  }
-
-  if (is_expanded) {
-    return "Choose a day for Reading Recap, or turn weekly email off.";
-  }
-
-  if (is_enabled && selected_day) {
-    return `Reading Recap is included in weekly email every ${selected_day}.`;
-  }
-
-  return "Reading Recap is not included in weekly email.";
 }
 
 function resolve_entry_highlight_by_identifier(highlights = [], identifier = "") {
@@ -2224,7 +2181,6 @@ function decode_html_entities(value = "") {
 }
 
 export {
-  IOS_HEADER_TITLE_REVEAL_OFFSET,
   READER_AVATAR_SIZE,
   READER_AVATAR_TRANSITION_MS,
   READER_BOTTOM_PADDING,
@@ -2278,8 +2234,6 @@ export {
   get_highlight_count_label,
   get_recap_day_chip_label,
   get_recap_day_summary_label,
-  get_recap_email_settings_copy,
-  get_recap_summary_copy,
   get_reply_author_name,
   get_reply_count_label,
   get_source_avatar_initial,
@@ -2299,7 +2253,6 @@ export {
   resolve_reader_title,
   resolve_recap_colors,
   resolve_reply_html,
-  resolve_translucent_header_background_color,
   sanitize_reader_html,
   with_color_opacity,
 };

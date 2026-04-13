@@ -15,7 +15,9 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { observer } from "mobx-react";
 import RenderHtml, {
+  IMGElement,
   TChildrenRenderer,
+  useIMGElementProps,
   useTNodeChildrenProps,
 } from "react-native-render-html";
 import { WebView } from "react-native-webview";
@@ -88,8 +90,6 @@ import {
   get_highlight_count_label,
   get_recap_day_chip_label,
   get_recap_day_summary_label,
-  get_recap_email_settings_copy,
-  get_recap_summary_copy,
   get_reply_author_name,
   get_reply_count_label,
   get_source_avatar_initial,
@@ -106,6 +106,7 @@ import {
   sanitize_reader_html,
   with_color_opacity,
 } from "./feedItemDetailUtils";
+import { resolve_reader_image_viewer_payload } from "./readerImagePayload";
 
 const READER_PANE_TABS_ENTERING = FadeInDown.duration(220);
 
@@ -660,12 +661,12 @@ function ReplyHtml({ html = "", theme, width = 0 }) {
 }
 
 const RecapReaderView = observer(function RecapReaderView({
+  onReaderImagePress,
   scaled_text_styles,
   theme,
   width = 0,
 }) {
   const recap = Feed.active_recap_snapshot();
-  const recap_entry_count = Feed.active_recap_entry_count();
   const recap_email_day = Feed.recap_email_day;
   const is_loading_recap_email_settings = Feed.is_loading_recap_email_settings;
   const is_saving_recap_email_settings = Feed.is_saving_recap_email_settings;
@@ -713,6 +714,7 @@ const RecapReaderView = observer(function RecapReaderView({
         return (
           <RecapPhotoStripRenderer
             {...props}
+            onImagePress={onReaderImagePress}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
           />
@@ -732,8 +734,17 @@ const RecapReaderView = observer(function RecapReaderView({
           />
         );
       },
+      img: (props) => {
+        return (
+          <RecapImageRenderer
+            {...props}
+            onImagePress={onReaderImagePress}
+          />
+        );
+      },
     };
   }, [
+    onReaderImagePress,
     bookmarking_recap_quote_url,
     recap_bookmarked_quote_urls.join("|"),
     scaled_text_styles,
@@ -752,37 +763,7 @@ const RecapReaderView = observer(function RecapReaderView({
 
   return (
     <View style={styles.readerColumn}>
-      <View
-        style={[
-          styles.masthead,
-          {
-            borderBottomColor: theme.colors.line,
-          },
-        ]}
-      >
-        <View style={styles.titleWrapCompact}>
-          <Text
-            style={[
-              styles.title,
-              scaled_text_styles.title,
-              { color: theme.colors.ink },
-            ]}
-          >
-            Reading Recap
-          </Text>
-        </View>
-        <Text
-          style={[
-            styles.recapBody,
-            scaled_text_styles.recapBody,
-            { color: theme.colors.inkSoft },
-          ]}
-        >
-          {get_recap_summary_copy(recap_entry_count)}
-        </Text>
-      </View>
-
-      <View style={styles.bodySection}>
+      <View>
         <RecapEmailSettingsCard
           is_enabled={is_recap_email_enabled}
           is_loading={is_loading_recap_email_settings}
@@ -1322,7 +1303,7 @@ function ReaderImageViewerModal({
     <Modal
       animationType="fade"
       onRequestClose={onRequestClose}
-      presentationStyle="fullScreen"
+      presentationStyle="overFullScreen"
       statusBarTranslucent
       transparent
       visible={visible}
@@ -1938,6 +1919,7 @@ function RecapPhotoStripRenderer({ scaled_text_styles, ...props }) {
               image_alt={photo_item.image_alt}
               image_url={photo_item.image_url}
               key={photo_item.key}
+              onImagePress={props.onImagePress}
               scaled_text_styles={scaled_text_styles}
               theme={props.theme}
             />
@@ -1952,12 +1934,28 @@ function RecapPhotoTile({
   href = "",
   image_alt = "",
   image_url = "",
+  onImagePress,
   scaled_text_styles,
   theme,
 }) {
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const accessibility_label = image_alt || "Recap image";
-  const is_link = Boolean(href);
+  const image_payload = React.useMemo(() => {
+    return resolve_reader_image_viewer_payload({
+      image_alt,
+      image_url,
+    });
+  }, [image_alt, image_url]);
+  const handle_press = React.useCallback(() => {
+    if (image_payload && typeof onImagePress === "function") {
+      onImagePress?.(image_payload);
+    } else if (href) {
+      open_external_url(href);
+    }
+  }, [href, image_payload, onImagePress]);
+  const is_pressable = Boolean(
+    (image_payload && typeof onImagePress === "function") || href,
+  );
   const tile_content = did_fail_to_load ? (
     <View
       style={[
@@ -1992,12 +1990,12 @@ function RecapPhotoTile({
     />
   );
 
-  if (is_link) {
+  if (is_pressable) {
     return (
       <Pressable
         accessibilityLabel={accessibility_label}
-        accessibilityRole="link"
-        onPress={() => open_external_url(href)}
+        accessibilityRole={image_payload ? "button" : "link"}
+        onPress={handle_press}
         style={({ pressed }) => {
           return [
             styles.recapPhotoTile,
@@ -2021,6 +2019,34 @@ function RecapPhotoTile({
       </View>
     );
   }
+}
+
+function RecapImageRenderer({ onImagePress, ...props }) {
+  const image_element_props = useIMGElementProps(props);
+  const image_payload = React.useMemo(() => {
+    return resolve_reader_image_viewer_payload({
+      alt: props?.tnode?.attributes?.alt,
+      src: props?.tnode?.attributes?.src,
+    });
+  }, [props?.tnode?.attributes?.alt, props?.tnode?.attributes?.src]);
+  const handle_press = React.useCallback(() => {
+    if (!image_payload) {
+      return;
+    }
+
+    onImagePress?.(image_payload);
+  }, [image_payload, onImagePress]);
+
+  return (
+    <IMGElement
+      {...image_element_props}
+      onPress={
+        image_payload && typeof onImagePress === "function"
+          ? handle_press
+          : undefined
+      }
+    />
+  );
 }
 
 function RecapQuoteRenderer({
@@ -2161,12 +2187,7 @@ function RecapEmailSettingsCard({
       ? get_recap_day_summary_label(selected_day)
       : "Off";
   const summary_selection_kind = is_enabled ? "accent" : "neutral";
-  const helper_copy = get_recap_email_settings_copy({
-    is_enabled,
-    is_expanded,
-    is_showing_loading_summary,
-    selected_day,
-  });
+  const helper_copy = "Send Reading Recap in a weekly email on:";
 
   async function handle_day_selection(next_dayofweek = "") {
     if (typeof onSelectDay !== "function" || is_busy) {
@@ -2231,15 +2252,17 @@ function RecapEmailSettingsCard({
               </Animated.View>
             ) : null}
           </Animated.View>
-          <Text
-            style={[
-              styles.recapSettingsBody,
-              scaled_text_styles.recapSettingsBody,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {helper_copy}
-          </Text>
+          {is_expanded ? (
+            <Text
+              style={[
+                styles.recapSettingsBody,
+                scaled_text_styles.recapSettingsBody,
+                { color: theme.colors.inkSoft },
+              ]}
+            >
+              {helper_copy}
+            </Text>
+          ) : null}
         </View>
         {is_loading || is_saving ? (
           <ActivityIndicator color={theme.colors.accentStrong} size="small" />
@@ -2426,7 +2449,7 @@ function get_entry_menu_actions({
         : undefined,
     id: "toggle_bookmark",
     image: Platform.select({
-      ios: bookmark_title === "Unbookmark" ? "bookmark.slash" : "bookmark",
+      ios: "star.fill",
     }),
     imageColor: icon_color,
     title: bookmark_title,
@@ -2679,7 +2702,7 @@ const styles = StyleSheet.create({
   },
   masthead: {
     borderBottomWidth: 1,
-    paddingBottom: 24,
+    paddingBottom: 20,
     paddingTop: Platform.OS === "ios" ? 0 : 10,
   },
   feedHeaderRow: {
@@ -2719,21 +2742,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   title: {
-    fontFamily: "Newsreader_600SemiBold",
+    // fontFamily: "Newsreader_600SemiBold",
     fontSize: READER_TITLE_FONT_SIZE,
     lineHeight: READER_TITLE_LINE_HEIGHT,
   },
   titleWrap: {
     marginTop: READER_TITLE_TOP_MARGIN,
-  },
-  titleWrapCompact: {
-    marginTop: 8,
-  },
-  recapBody: {
-    fontSize: 16,
-    lineHeight: 24,
-    marginTop: 10,
-    maxWidth: 420,
   },
   bodySection: {
     paddingTop: Platform.OS === "ios" ? 20 : 24,
@@ -2842,8 +2856,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   recapSettingsTitle: {
-    fontFamily: "Newsreader_600SemiBold",
-    fontSize: 24,
+    // fontFamily: "Newsreader_600SemiBold",
+    fontSize: 18,
     lineHeight: 28,
   },
   recapSettingsBody: {

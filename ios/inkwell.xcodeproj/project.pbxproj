@@ -20,8 +20,10 @@
 		13B07F961A680F5B00A75B9A /* inkwell.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = inkwell.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = inkwell/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = inkwell/Info.plist; sourceTree = "<group>"; };
+		4B5F42242F8BB0E30044F906 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		4B5F42252F8BB1060044F906 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		57D254380DDE86A27DBC4FFD /* Pods-inkwell.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-inkwell.release.xcconfig"; path = "Target Support Files/Pods-inkwell/Pods-inkwell.release.xcconfig"; sourceTree = "<group>"; };
-		5AB071EB5F89BC9DF138C54C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = inkwell/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		5AB071EB5F89BC9DF138C54C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = inkwell/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		9F25AB4DABF4FFF5E332EA7F /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-inkwell/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = inkwell/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
@@ -91,6 +93,8 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				D2FB620757B6674ABAEC2662 /* Pods */,
 				D6BAE6E4B0FB711B677BA5D4 /* ExpoModulesProviders */,
+				4B5F42242F8BB0E30044F906 /* Debug.xcconfig */,
+				4B5F42252F8BB1060044F906 /* Release.xcconfig */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -120,7 +124,6 @@
 				F3CC79C129B13C39E46B775F /* Pods-inkwell.debug.xcconfig */,
 				57D254380DDE86A27DBC4FFD /* Pods-inkwell.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -337,12 +340,12 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = F3CC79C129B13C39E46B775F /* Pods-inkwell.debug.xcconfig */;
+			baseConfigurationReference = 4B5F42242F8BB0E30044F906 /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = inkwell/inkwell.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -362,7 +365,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = blog.micro.inkwell;
-				PRODUCT_NAME = "inkwell";
+				PRODUCT_NAME = inkwell;
 				SWIFT_OBJC_BRIDGING_HEADER = "inkwell/inkwell-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -373,12 +376,12 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 57D254380DDE86A27DBC4FFD /* Pods-inkwell.release.xcconfig */;
+			baseConfigurationReference = 4B5F42252F8BB1060044F906 /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = inkwell/inkwell.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				INFOPLIST_FILE = inkwell/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -393,7 +396,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = blog.micro.inkwell;
-				PRODUCT_NAME = "inkwell";
+				PRODUCT_NAME = inkwell;
 				SWIFT_OBJC_BRIDGING_HEADER = "inkwell/inkwell-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
