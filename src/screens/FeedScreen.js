@@ -65,6 +65,7 @@ const HEADER_ACCOUNT_AVATAR_TRANSITION_MS = 180;
 const LIST_TOP_GAP = 12;
 const FOOTER_FLOAT_GAP = 2;
 const FOOTER_TOP_PADDING = 10;
+const SEARCH_KEYBOARD_GAP = 12;
 const FOOTER_SCROLL_DELTA_THRESHOLD = 6;
 const FOOTER_TOUCH_BLOCK_THRESHOLD = 0.05;
 const FOOTER_VISIBILITY_TOP_THRESHOLD = 24;
@@ -302,7 +303,7 @@ function FeedScreen({ navigation, isDark = false }) {
     SEGMENT_WRAP_MAX_HEIGHT +
     LIST_TOP_GAP;
   const search_footer_open_offset = Math.max(
-    footer_bottom_inset - FOOTER_FLOAT_GAP,
+    footer_bottom_inset - FOOTER_FLOAT_GAP - SEARCH_KEYBOARD_GAP,
     0,
   );
   const footer_visibility_bottom_threshold = list_bottom_inset;
