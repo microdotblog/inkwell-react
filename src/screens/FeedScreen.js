@@ -89,7 +89,10 @@ const TEXT_STYLE_NAMES = [
   'rowSummary',
 ];
 
-function get_profile_menu_actions(theme) {
+function get_profile_menu_actions(
+  theme,
+  hide_read_posts = false,
+) {
   const icon_color = theme?.colors?.ink;
   const settings_action = {
     id: 'settings',
@@ -115,6 +118,38 @@ function get_profile_menu_actions(theme) {
     }),
     imageColor: icon_color,
   };
+  const highlights_action = {
+    id: 'highlights',
+    title: 'Highlights',
+    image: Platform.select({
+      ios: 'highlighter',
+    }),
+    imageColor: icon_color,
+  };
+  const bookmarks_action = {
+    id: 'bookmarks',
+    title: 'Bookmarks',
+    image: Platform.select({
+      ios: 'star',
+    }),
+    imageColor: icon_color,
+  };
+  const mark_all_as_read_action = {
+    id: 'mark_all_as_read',
+    title: 'Mark All as Read',
+    image: Platform.select({
+      ios: 'button.programmable',
+    }),
+    imageColor: icon_color,
+  };
+  const hide_read_posts_action = {
+    id: 'toggle_hide_read_posts',
+    title: hide_read_posts ? 'Show Read Posts' : 'Hide Read Posts',
+    image: Platform.select({
+      ios: 'circle.dashed',
+    }),
+    imageColor: icon_color,
+  };
 
   if (Platform.OS === 'ios') {
     return [
@@ -123,47 +158,35 @@ function get_profile_menu_actions(theme) {
         subactions: [settings_action],
         title: '',
       },
+      {
+        displayInline: true,
+        subactions: [
+          mark_all_as_read_action,
+          hide_read_posts_action,
+        ],
+        title: '',
+      },
+      {
+        displayInline: true,
+        subactions: [
+          bookmarks_action,
+          highlights_action,
+          subscriptions_action,
+        ],
+        title: '',
+      },
       new_feed_action,
-      subscriptions_action,
-      {
-        id: 'highlights',
-        title: 'Highlights',
-        image: Platform.select({
-          ios: 'highlighter',
-        }),
-        imageColor: icon_color,
-      },
-      {
-        id: 'bookmarks',
-        title: 'Bookmarks',
-        image: Platform.select({
-          ios: 'star',
-        }),
-        imageColor: icon_color,
-      },
     ];
   }
 
   return [
-    settings_action,
     new_feed_action,
+    bookmarks_action,
+    highlights_action,
     subscriptions_action,
-    {
-      id: 'highlights',
-      title: 'Highlights',
-      image: Platform.select({
-        ios: 'highlighter',
-      }),
-      imageColor: icon_color,
-    },
-    {
-      id: 'bookmarks',
-      title: 'Bookmarks',
-      image: Platform.select({
-        ios: 'star',
-      }),
-      imageColor: icon_color,
-    },
+    mark_all_as_read_action,
+    hide_read_posts_action,
+    settings_action,
   ];
 }
 
@@ -212,7 +235,7 @@ function get_entry_menu_actions({ entry = null, theme }) {
   actions.push({
     id: 'toggle_read',
     image: Platform.select({
-      ios: entry?.is_read ? 'button.programmable' : 'circle',
+      ios: entry?.is_read ? 'circle' : 'button.programmable',
     }),
     imageColor: icon_color,
     title: read_title,
@@ -221,7 +244,7 @@ function get_entry_menu_actions({ entry = null, theme }) {
   actions.push({
     id: 'toggle_bookmark',
     image: Platform.select({
-      ios: 'star.fill',
+      ios: 'star',
     }),
     imageColor: icon_color,
     title: bookmark_title,
@@ -249,6 +272,7 @@ function FeedScreen({ navigation, isDark = false }) {
   }, []);
   const insets = useSafeAreaInsets();
   const active_segment = Feed.active_segment;
+  const hide_read_posts = Feed.hide_read_posts;
   const is_search_active = Feed.is_search_active;
   const search_query = Feed.search_query;
   const profile = Auth.current_profile();
@@ -542,6 +566,26 @@ function FeedScreen({ navigation, isDark = false }) {
         navigation.navigate('Bookmarks');
       } else if (menu_action_id === 'highlights') {
         navigation.navigate('Highlights');
+      } else if (menu_action_id === 'mark_all_as_read') {
+        const unread_visible_entry_ids = visible_timeline_entries
+          .filter((entry) => {
+            return Boolean(entry?.id) && !entry?.is_read;
+          })
+          .map((entry) => {
+            return entry.id;
+          });
+        const marked_entry_count = Feed.mark_entries_read(
+          unread_visible_entry_ids,
+        );
+
+        AppStore.show_toast(
+          get_mark_all_as_read_toast_message(marked_entry_count),
+          {
+            top_offset: toast_top_offset,
+          },
+        );
+      } else if (menu_action_id === 'toggle_hide_read_posts') {
+        Feed.toggle_hide_read_posts();
       } else if (menu_action_id === 'settings') {
         const parent_navigation = navigation.getParent();
 
@@ -552,7 +596,7 @@ function FeedScreen({ navigation, isDark = false }) {
         }
       }
     },
-    [navigation],
+    [navigation, toast_top_offset, visible_timeline_entries],
   );
 
   useFocusEffect(
@@ -821,6 +865,7 @@ function FeedScreen({ navigation, isDark = false }) {
               <FeedFooterControlsRow
                 active_segment={active_segment}
                 active_segment_style={active_segment_style}
+                hide_read_posts={hide_read_posts}
                 input_ref={search_input_ref}
                 is_search_active={is_search_active}
                 is_dark={isDark}
@@ -873,6 +918,7 @@ function FeedScreen({ navigation, isDark = false }) {
               <FeedFooterControlsRow
                 active_segment={active_segment}
                 active_segment_style={active_segment_style}
+                hide_read_posts={hide_read_posts}
                 input_ref={search_input_ref}
                 is_search_active={is_search_active}
                 is_dark={isDark}
@@ -1097,6 +1143,7 @@ function render_content({
 function FeedFooterControlsRow({
   active_segment = 'today',
   active_segment_style,
+  hide_read_posts = false,
   input_ref,
   is_dark = false,
   is_search_active = false,
@@ -1115,6 +1162,7 @@ function FeedFooterControlsRow({
   return (
     <View style={styles.headerControlsRow}>
       <AccountHeaderButton
+        hide_read_posts={hide_read_posts}
         is_dark={is_dark}
         onMenuAction={onProfileMenuAction}
         onMenuOpen={onProfileMenuOpen}
@@ -1301,6 +1349,7 @@ function FeedRecapSummaryCard({
 }
 
 function AccountHeaderButton({
+  hide_read_posts = false,
   is_dark = false,
   onMenuAction,
   onMenuOpen,
@@ -1310,8 +1359,8 @@ function AccountHeaderButton({
   theme,
 }) {
   const menu_actions = React.useMemo(() => {
-    return get_profile_menu_actions(theme);
-  }, [theme]);
+    return get_profile_menu_actions(theme, hide_read_posts);
+  }, [hide_read_posts, theme]);
   const trimmed_profile_photo = `${profile_photo || ''}`.trim();
   const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
   const [is_image_loaded, set_is_image_loaded] = React.useState(false);
@@ -1540,6 +1589,22 @@ function get_recap_summary_label(count = 0) {
   const noun = normalized_count === 1 ? 'post' : 'posts';
 
   return `${normalized_count} older ${noun}, grouped`;
+}
+
+function get_mark_all_as_read_toast_message(marked_entry_count = 0) {
+  const normalized_count = Number.isFinite(marked_entry_count)
+    ? Math.max(Math.round(marked_entry_count), 0)
+    : 0;
+
+  if (normalized_count === 0) {
+    return 'No unread posts';
+  }
+
+  if (normalized_count === 1) {
+    return 'Marked 1 post as read';
+  }
+
+  return `Marked ${normalized_count} posts as read`;
 }
 
 const styles = StyleSheet.create({

@@ -1,3 +1,4 @@
+import { Platform, Settings } from 'react-native';
 import { flow, getSnapshot, types } from 'mobx-state-tree';
 
 import {
@@ -67,10 +68,12 @@ const RECAP_EMAIL_DAYS = [
   'Saturday',
   'Sunday',
 ];
+const HIDE_READ_POSTS_SETTINGS_KEY = 'HideReadPosts';
 
 const Feed = types
   .model('Feed', {
     active_segment: types.optional(types.string, 'today'),
+    hide_read_posts: types.optional(types.boolean, false),
     is_search_active: types.optional(types.boolean, false),
     search_query: types.optional(types.string, ''),
     subscriptions: types.optional(types.array(FeedSubscription), []),
@@ -163,6 +166,22 @@ const Feed = types
     set_active_segment(segment = 'today') {
       const next_segment = normalize_segment(segment);
       self.active_segment = next_segment;
+    },
+
+    set_hide_read_posts(next_hide_read_posts = false) {
+      const normalized_next_hide_read_posts = Boolean(next_hide_read_posts);
+
+      if (self.hide_read_posts === normalized_next_hide_read_posts) {
+        return self.hide_read_posts;
+      }
+
+      self.hide_read_posts = normalized_next_hide_read_posts;
+      persist_hide_read_posts_preference(normalized_next_hide_read_posts);
+      return self.hide_read_posts;
+    },
+
+    toggle_hide_read_posts() {
+      return self.set_hide_read_posts(!self.hide_read_posts);
     },
 
     show_search() {
@@ -1169,14 +1188,35 @@ const Feed = types
     },
 
     mark_entry_read(entry_id = '') {
-      const did_mark_read = self.mark_entry_read_locally(entry_id);
+      const did_mark_read = self.mark_entries_read([entry_id]) > 0;
 
       if (!did_mark_read) {
         return false;
       }
-
-      self.sync_read_entries([entry_id]);
       return true;
+    },
+
+    mark_entries_read(entry_ids = []) {
+      const normalized_entry_ids = normalize_unique_entry_ids(entry_ids);
+
+      if (normalized_entry_ids.length === 0) {
+        return 0;
+      }
+
+      const changed_entry_ids = [];
+
+      normalized_entry_ids.forEach((entry_id) => {
+        if (self.mark_entry_read_locally(entry_id)) {
+          changed_entry_ids.push(entry_id);
+        }
+      });
+
+      if (changed_entry_ids.length === 0) {
+        return 0;
+      }
+
+      self.sync_read_entries(changed_entry_ids);
+      return changed_entry_ids.length;
     },
 
     mark_entry_unread(entry_id = '') {
@@ -1497,6 +1537,12 @@ const Feed = types
             });
       }
 
+      if (self.hide_read_posts) {
+        timeline_entries = timeline_entries.filter((timeline_entry) => {
+          return !timeline_entry.is_read;
+        });
+      }
+
       // FlatList can temporarily hold onto older items while a refresh replaces the MST array.
       // Returning snapshots here prevents the UI from reading dead model nodes between renders.
       return timeline_entries.map((timeline_entry) => {
@@ -1579,7 +1625,9 @@ const Feed = types
       return getSnapshot(subscription_feed_entry);
     },
   }))
-  .create();
+  .create({
+    hide_read_posts: read_hide_read_posts_preference(),
+  });
 
 export default Feed;
 
@@ -1599,6 +1647,26 @@ function normalize_segment(segment = 'today') {
 
 function normalize_search_query(search_query = '') {
   return `${search_query || ''}`.trim().toLowerCase();
+}
+
+function read_hide_read_posts_preference() {
+  if (Platform.OS !== 'ios') {
+    return false;
+  }
+
+  return normalize_hide_read_posts_setting(
+    Settings.get(HIDE_READ_POSTS_SETTINGS_KEY),
+  );
+}
+
+function persist_hide_read_posts_preference(next_hide_read_posts = false) {
+  if (Platform.OS !== 'ios') {
+    return;
+  }
+
+  Settings.set({
+    [HIDE_READ_POSTS_SETTINGS_KEY]: Boolean(next_hide_read_posts),
+  });
 }
 
 function normalize_recap_email_day(dayofweek = '') {
@@ -1658,6 +1726,14 @@ function resolve_published_timestamp(raw_date = '') {
   } else {
     return timestamp;
   }
+}
+
+function normalize_hide_read_posts_setting(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return false;
 }
 
 function normalize_subscriptions(subscriptions = [], icons = []) {
