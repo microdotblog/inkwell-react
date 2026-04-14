@@ -20,6 +20,8 @@ function SignedInTabs({ isDark = false }) {
   const theme = getAuthTheme(isDark, accent_palette_id);
   const header_background_color =
     resolve_translucent_header_background_color(theme, Platform.OS);
+  const feed_item_detail_header_options =
+    build_feed_item_detail_header_options(theme, Platform.OS);
   const translucent_header_options = {
     headerBackground: () => (
       <View
@@ -145,6 +147,7 @@ function SignedInTabs({ isDark = false }) {
       <Stack.Screen
         name="FeedItemDetail"
         options={{
+          ...feed_item_detail_header_options,
           title: '',
         }}
       >
@@ -180,6 +183,23 @@ function resolve_translucent_header_background_color(
     theme?.colors?.canvas,
     theme?.isDark ? 0.72 : 0.84,
   );
+}
+
+function build_feed_item_detail_header_options(
+  theme,
+  platform = Platform.OS,
+) {
+  const header_options = {
+    headerShadowVisible: false,
+  };
+
+  if (platform === 'android') {
+    header_options.headerStyle = {
+      backgroundColor: theme?.colors?.canvas,
+    };
+  }
+
+  return header_options;
 }
 
 function with_color_opacity(color_value = '', opacity = 1) {
