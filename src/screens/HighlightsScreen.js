@@ -493,8 +493,10 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   headerButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
   },
   searchField: {
     minHeight: 52,
