@@ -384,8 +384,8 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const handle_search_toggle_press = React.useCallback(() => {
     if (Feed.is_search_active) {
+      clear_feed_search_focus(search_input_ref, true);
       Feed.hide_search();
-      Keyboard.dismiss();
       return;
     }
 
@@ -863,25 +863,27 @@ function FeedScreen({ navigation, isDark = false }) {
                 },
               ]}
             >
-              <FeedFooterControlsRow
-                active_segment={active_segment}
-                active_segment_style={active_segment_style}
-                hide_read_posts={hide_read_posts}
-                input_ref={search_input_ref}
-                is_search_active={is_search_active}
-                is_dark={isDark}
-                onProfileMenuAction={handle_profile_menu_action}
-                onProfileMenuOpen={handle_profile_menu_open}
-                onSearchQueryChange={handle_search_query_change}
-                onSearchTogglePress={handle_search_toggle_press}
-                onSegmentPress={handle_segment_press}
-                profile_name={profile.name}
-                profile_photo={profile.photo}
-                search_query={search_query}
-                scaled_text_styles={scaled_text_styles}
-                theme={theme}
-                update_segment_frame={update_segment_frame}
-              />
+              <View style={styles.footerWrap}>
+                <FeedFooterControlsRow
+                  active_segment={active_segment}
+                  active_segment_style={active_segment_style}
+                  hide_read_posts={hide_read_posts}
+                  input_ref={search_input_ref}
+                  is_search_active={is_search_active}
+                  is_dark={isDark}
+                  onProfileMenuAction={handle_profile_menu_action}
+                  onProfileMenuOpen={handle_profile_menu_open}
+                  onSearchQueryChange={handle_search_query_change}
+                  onSearchTogglePress={handle_search_toggle_press}
+                  onSegmentPress={handle_segment_press}
+                  profile_name={profile.name}
+                  profile_photo={profile.photo}
+                  search_query={search_query}
+                  scaled_text_styles={scaled_text_styles}
+                  theme={theme}
+                  update_segment_frame={update_segment_frame}
+                />
+              </View>
             </View>
           </KeyboardStickyView>
         </View>
@@ -1466,6 +1468,7 @@ function FeedSearchField({
         onSubmitEditing={Keyboard.dismiss}
         placeholder="Search"
         placeholderTextColor={theme.colors.inkSoft}
+        rejectResponderTermination={false}
         ref={input_ref}
         returnKeyType="search"
         selectionColor={theme.colors.accentStrong}
@@ -1486,15 +1489,13 @@ function FeedSearchToggleButton({
   theme,
 }) {
   const icon_name = is_search_active ? 'close' : 'search';
-  const handle_press = is_search_active ? undefined : onPress;
-  const handle_press_in = is_search_active ? onPress : undefined;
 
   return (
     <Pressable
       accessibilityLabel={is_search_active ? 'Close search' : 'Search'}
       accessibilityRole="button"
-      onPress={handle_press}
-      onPressIn={handle_press_in}
+      hitSlop={8}
+      onPress={onPress}
       style={({ pressed }) => {
         return [
           styles.headerUtilityButton,
@@ -1644,10 +1645,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   searchFooterOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
     zIndex: 4,
   },
   searchFooterSticky: {
