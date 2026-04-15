@@ -981,11 +981,11 @@ function render_content({
       >
         <AuthCard style={styles.stateCard} theme={theme}>
           <RssLoadingView
-            body="Fetching subscriptions and recent entries for your first timeline."
+            body="Fetching subscriptions and recent entries."
             compact
             phase="loading_feeds"
             theme={theme}
-            title="Loading your feed"
+            title="Loading posts"
           />
         </AuthCard>
       </View>

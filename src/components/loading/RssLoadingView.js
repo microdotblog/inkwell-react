@@ -9,12 +9,12 @@ const PHASE_COPY = {
     body: 'Handing you off to your Micro.blog sign in and waiting for the callback.',
   },
   verifying: {
-    title: 'Verifying your session',
-    body: 'Checking the token and pulling the profile details we need for Inkwell.',
+    title: 'Verifying session',
+    body: 'Checking the token and pulling the profile details.',
   },
   loading_feeds: {
-    title: 'Loading your feeds',
-    body: 'Fetching subscriptions and recent entries so your reader is ready to go.',
+    title: 'Loading posts',
+    body: 'Fetching subscriptions and recent entries.',
   },
 };
 
