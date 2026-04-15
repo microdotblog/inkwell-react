@@ -1447,8 +1447,10 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   headerButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
   },
   headerContent: {
     gap: 14,

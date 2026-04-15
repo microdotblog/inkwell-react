@@ -29,13 +29,11 @@ import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
-const LIST_TOP_PADDING = 12;
+const LIST_TOP_PADDING = 0;
 const LIST_BOTTOM_PADDING = 28;
 const COPIED_FEEDBACK_DURATION_MS = 1600;
 const TEXT_STYLE_NAMES = [
   'searchInput',
-  'summaryBadgeLabel',
-  'summaryCopy',
   'stateTitle',
   'stateBody',
 ];
@@ -272,15 +270,15 @@ function HighlightsScreen({ isDark = false }) {
               />
             }
             ListHeaderComponent={
-              <HighlightsHeader
-                is_search_open={is_search_open}
-                matching_count={highlight_entries.length}
-                onChangeSearch={handle_search_query_change}
-                scaled_text_styles={scaled_text_styles}
-                search_query={search_query}
-                theme={theme}
-                total_count={total_highlights}
-              />
+              is_search_open ? (
+                <HighlightsHeader
+                  is_search_open={is_search_open}
+                  onChangeSearch={handle_search_query_change}
+                  scaled_text_styles={scaled_text_styles}
+                  search_query={search_query}
+                  theme={theme}
+                />
+              ) : null
             }
             refreshControl={
               <RefreshControl
@@ -315,17 +313,11 @@ function HighlightsScreen({ isDark = false }) {
 
 function HighlightsHeader({
   is_search_open = false,
-  matching_count = 0,
   onChangeSearch,
   scaled_text_styles,
   search_query = '',
   theme,
-  total_count = 0,
 }) {
-  const display_count = is_search_open || search_query ? matching_count : total_count;
-  const summary_copy =
-    display_count === 1 ? '1 highlight' : `${display_count} highlights`;
-
   return (
     <View style={styles.headerContent}>
       {is_search_open ? (
@@ -337,26 +329,6 @@ function HighlightsHeader({
           value={search_query}
         />
       ) : null}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryBadge}>
-            <MaterialIcons
-              color={theme.colors.accentStrong}
-              name="format-quote"
-              size={16}
-            />
-            <Text
-              style={[
-                styles.summaryBadgeLabel,
-                scaled_text_styles.summaryBadgeLabel,
-                { color: theme.colors.accentStrong },
-              ]}
-            >
-              {summary_copy}
-            </Text>
-          </View>
-        </View>
-      </View>
     </View>
   );
 }
@@ -521,8 +493,10 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   headerButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
   },
   searchField: {
     minHeight: 52,
@@ -557,35 +531,6 @@ const styles = StyleSheet.create({
     gap: 18,
     minHeight: 220,
     justifyContent: 'center',
-  },
-  summaryCard: {
-    borderRadius: 24,
-    marginVertical: 8,
-  },
-  summaryRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 10,
-    columnGap: 12,
-  },
-  summaryBadge: {
-    alignItems: 'center',
-    borderRadius: 999,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  summaryBadgeLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 16,
-  },
-  summaryCopy: {
-    flexShrink: 1,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'right',
   },
   stateCopy: {
     alignItems: 'center',
