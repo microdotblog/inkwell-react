@@ -113,9 +113,9 @@ function get_profile_menu_actions(
   };
   const subscriptions_action = {
     id: 'subscriptions',
-    title: 'Subscriptions',
+    title: 'Feeds',
     image: Platform.select({
-      ios: 'dot.radiowaves.left.and.right',
+      ios: 'dot.radiowaves.up.forward',
     }),
     imageColor: icon_color,
   };
