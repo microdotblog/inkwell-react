@@ -72,6 +72,7 @@ const FOOTER_VISIBILITY_TOP_THRESHOLD = 24;
 const SEGMENT_CONTROL_INSET = 3;
 const SEGMENT_BUTTON_HEIGHT = HEADER_CONTROL_HEIGHT - SEGMENT_CONTROL_INSET * 2;
 const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
+const SEGMENT_LABEL_MAX_FONT_SIZE_MULTIPLIER = 1.15;
 const TOP_STATUS_SCRIM_EXTRA_HEIGHT = 44;
 const TOP_STATUS_SCRIM_SCROLL_DISTANCE = 24;
 const TEXT_STYLE_NAMES = [
@@ -1219,6 +1220,8 @@ function FeedFooterControlsRow({
                 style={[styles.segmentButton]}
               >
                 <Text
+                  maxFontSizeMultiplier={SEGMENT_LABEL_MAX_FONT_SIZE_MULTIPLIER}
+                  numberOfLines={1}
                   style={[
                     styles.segmentLabel,
                     scaled_text_styles.segmentLabel,
