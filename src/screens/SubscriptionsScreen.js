@@ -32,6 +32,7 @@ const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const SUBSCRIPTION_AVATAR_SIZE = 30;
 const SUBSCRIPTION_AVATAR_TRANSITION_MS = 180;
+const MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS = 160;
 const TEXT_STYLE_NAMES = [
   'avatarInitial',
   'choiceSubtitle',
@@ -78,6 +79,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
   const list_bottom_inset = insets.bottom + LIST_BOTTOM_PADDING;
   const toast_top_offset = header_height + 10;
   const add_input_ref = React.useRef(null);
+  const menu_touch_overlay_timeout_ref = React.useRef(null);
   const [search_query, set_search_query] = React.useState('');
   const [is_search_open, set_is_search_open] = React.useState(false);
   const [is_composer_open, set_is_composer_open] = React.useState(
@@ -97,6 +99,8 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
     React.useState('');
   const [removing_subscription_id, set_removing_subscription_id] =
     React.useState('');
+  const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
+    React.useState(false);
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
@@ -424,6 +428,34 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
     [confirm_remove_subscription, handle_start_rename],
   );
 
+  const handle_menu_open = React.useCallback(() => {
+    if (menu_touch_overlay_timeout_ref.current) {
+      clearTimeout(menu_touch_overlay_timeout_ref.current);
+      menu_touch_overlay_timeout_ref.current = null;
+    }
+
+    set_is_menu_touch_overlay_active(true);
+  }, []);
+
+  const handle_menu_close = React.useCallback(() => {
+    if (menu_touch_overlay_timeout_ref.current) {
+      clearTimeout(menu_touch_overlay_timeout_ref.current);
+    }
+
+    menu_touch_overlay_timeout_ref.current = setTimeout(() => {
+      set_is_menu_touch_overlay_active(false);
+      menu_touch_overlay_timeout_ref.current = null;
+    }, MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (menu_touch_overlay_timeout_ref.current) {
+        clearTimeout(menu_touch_overlay_timeout_ref.current);
+      }
+    };
+  }, []);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground
@@ -555,6 +587,8 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                   onCancelRename={handle_cancel_rename}
                   onChangeRenameValue={set_rename_value}
                   onMenuAction={handle_row_menu_action}
+                  onMenuClose={handle_menu_close}
+                  onMenuOpen={handle_menu_open}
                   onPress={handle_subscription_press}
                   onSaveRename={handle_save_rename}
                   rename_error_message={rename_error_message}
@@ -570,6 +604,15 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
           />
         )}
       </View>
+      {is_menu_touch_overlay_active ? (
+        <Pressable
+          accessibilityElementsHidden
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          onPress={() => {}}
+          style={styles.menuDismissTouchOverlay}
+        />
+      ) : null}
     </View>
   );
 }
@@ -908,6 +951,8 @@ function SubscriptionRow({
   onCancelRename,
   onChangeRenameValue,
   onMenuAction,
+  onMenuClose,
+  onMenuOpen,
   onPress,
   onSaveRename,
   rename_error_message = '',
@@ -1127,6 +1172,8 @@ function SubscriptionRow({
           <MenuView
             accessibilityLabel={`More options for ${title}`}
             actions={row_menu_actions}
+            onCloseMenu={onMenuClose}
+            onOpenMenu={onMenuOpen}
             onPressAction={({ nativeEvent }) => {
               onMenuAction?.(subscription, nativeEvent.event);
             }}
@@ -1484,6 +1531,10 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+  },
+  menuDismissTouchOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 4,
   },
   listContent: {
     flexGrow: 1,
