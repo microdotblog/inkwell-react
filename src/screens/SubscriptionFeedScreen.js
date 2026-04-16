@@ -32,6 +32,7 @@ const LIST_BOTTOM_PADDING = 28;
 const FEED_AVATAR_SIZE = 28;
 const FEED_AVATAR_TRANSITION_MS = 180;
 const READ_ROW_OPACITY = 0.56;
+const MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS = 160;
 const TEXT_STYLE_NAMES = [
   'editActionButtonLabel',
   'editInput',
@@ -89,6 +90,9 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
   const [rename_error_message, set_rename_error_message] = React.useState('');
   const [is_renaming, set_is_renaming] = React.useState(false);
   const [is_removing, set_is_removing] = React.useState(false);
+  const menu_touch_overlay_timeout_ref = React.useRef(null);
+  const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
+    React.useState(false);
   const is_busy = is_renaming || is_removing;
   const subscription_menu_actions = React.useMemo(() => {
     return get_subscription_menu_actions(theme);
@@ -252,6 +256,34 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
     [confirm_remove_subscription, handle_start_rename],
   );
 
+  const handle_menu_open = React.useCallback(() => {
+    if (menu_touch_overlay_timeout_ref.current) {
+      clearTimeout(menu_touch_overlay_timeout_ref.current);
+      menu_touch_overlay_timeout_ref.current = null;
+    }
+
+    set_is_menu_touch_overlay_active(true);
+  }, []);
+
+  const handle_menu_close = React.useCallback(() => {
+    if (menu_touch_overlay_timeout_ref.current) {
+      clearTimeout(menu_touch_overlay_timeout_ref.current);
+    }
+
+    menu_touch_overlay_timeout_ref.current = setTimeout(() => {
+      set_is_menu_touch_overlay_active(false);
+      menu_touch_overlay_timeout_ref.current = null;
+    }, MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (menu_touch_overlay_timeout_ref.current) {
+        clearTimeout(menu_touch_overlay_timeout_ref.current);
+      }
+    };
+  }, []);
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: subscription_id
@@ -261,6 +293,8 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
               is_disabled={is_busy}
               menu_actions={subscription_menu_actions}
               onMenuAction={handle_header_menu_action}
+              onMenuClose={handle_menu_close}
+              onMenuOpen={handle_menu_open}
               theme={theme}
             />
           )
@@ -271,6 +305,8 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
     handle_header_menu_action,
     isDark,
     is_busy,
+    handle_menu_close,
+    handle_menu_open,
     navigation,
     subscription_id,
     subscription_menu_actions,
@@ -441,6 +477,15 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
           />
         )}
       </View>
+      {is_menu_touch_overlay_active ? (
+        <Pressable
+          accessibilityElementsHidden
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          onPress={() => {}}
+          style={styles.menuDismissTouchOverlay}
+        />
+      ) : null}
     </View>
   );
 }
@@ -842,6 +887,8 @@ function HeaderSubscriptionMenuButton({
   is_disabled = false,
   menu_actions = [],
   onMenuAction,
+  onMenuClose,
+  onMenuOpen,
   theme,
 }) {
   if (menu_actions.length === 0) {
@@ -872,6 +919,8 @@ function HeaderSubscriptionMenuButton({
     <MenuView
       accessibilityLabel="Open subscription actions"
       actions={menu_actions}
+      onCloseMenu={onMenuClose}
+      onOpenMenu={onMenuOpen}
       onPressAction={({ nativeEvent }) => {
         onMenuAction?.(nativeEvent.event);
       }}
@@ -1008,6 +1057,10 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+  },
+  menuDismissTouchOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 4,
   },
   listContent: {
     flexGrow: 1,

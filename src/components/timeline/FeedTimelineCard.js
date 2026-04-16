@@ -13,6 +13,8 @@ export default function FeedTimelineCard({
   display_title = '',
   menu_actions = [],
   onMenuAction,
+  onMenuClose,
+  onMenuOpen,
   onPress,
   row_opacity = 1,
   scaled_text_styles = {},
@@ -131,6 +133,8 @@ export default function FeedTimelineCard({
             accessibility_label || `More options for ${display_title}`
           }
           actions={menu_actions}
+          onCloseMenu={onMenuClose}
+          onOpenMenu={onMenuOpen}
           onPressAction={({ nativeEvent }) => {
             onMenuAction(nativeEvent.event);
           }}

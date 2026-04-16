@@ -2482,6 +2482,8 @@ function HeaderEntryMenuButton({
   is_dark = false,
   menu_actions = [],
   onMenuAction,
+  onMenuClose,
+  onMenuOpen,
   theme,
 }) {
   if (menu_actions.length === 0) {
@@ -2492,6 +2494,8 @@ function HeaderEntryMenuButton({
     <MenuView
       accessibilityLabel="Open post actions"
       actions={menu_actions}
+      onCloseMenu={onMenuClose}
+      onOpenMenu={onMenuOpen}
       onPressAction={({ nativeEvent }) => {
         onMenuAction?.(nativeEvent.event);
       }}

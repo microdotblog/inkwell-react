@@ -2,6 +2,7 @@ import React from "react";
 import {
   Alert,
   Platform,
+  Pressable,
   ScrollView,
   View,
   useWindowDimensions,
@@ -51,6 +52,8 @@ import {
   getTextScaleForSliderIndex,
   getTextScaleSliderIndex,
 } from "../theme/textScale";
+
+const MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS = 160;
 
 function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
@@ -106,6 +109,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const [reader_image_viewer, set_reader_image_viewer] = React.useState(null);
   const [reader_webview_reload_key, set_reader_webview_reload_key] =
     React.useState(0);
+  const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
+    React.useState(false);
+  const menu_touch_overlay_timeout_ref = React.useRef(null);
   const replies_request_token_ref = React.useRef(0);
   const reader_post_ref = React.useRef(null);
   const active_reader_highlight = Highlights.entry_highlight_snapshot_by_identifier(
@@ -708,6 +714,34 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     ],
   );
 
+  const handle_entry_menu_open = React.useCallback(() => {
+    if (menu_touch_overlay_timeout_ref.current) {
+      clearTimeout(menu_touch_overlay_timeout_ref.current);
+      menu_touch_overlay_timeout_ref.current = null;
+    }
+
+    set_is_menu_touch_overlay_active(true);
+  }, []);
+
+  const handle_entry_menu_close = React.useCallback(() => {
+    if (menu_touch_overlay_timeout_ref.current) {
+      clearTimeout(menu_touch_overlay_timeout_ref.current);
+    }
+
+    menu_touch_overlay_timeout_ref.current = setTimeout(() => {
+      set_is_menu_touch_overlay_active(false);
+      menu_touch_overlay_timeout_ref.current = null;
+    }, MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (menu_touch_overlay_timeout_ref.current) {
+        clearTimeout(menu_touch_overlay_timeout_ref.current);
+      }
+    };
+  }, []);
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: has_entry_menu
@@ -716,6 +750,8 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
               is_dark={isDark}
               menu_actions={entry_menu_actions}
               onMenuAction={handle_entry_menu_action}
+              onMenuClose={handle_entry_menu_close}
+              onMenuOpen={handle_entry_menu_open}
               theme={theme}
             />
           )
@@ -725,6 +761,8 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   }, [
     entry_menu_actions,
     handle_entry_menu_action,
+    handle_entry_menu_close,
+    handle_entry_menu_open,
     header_title,
     has_entry_menu,
     isDark,
@@ -871,6 +909,23 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         theme={theme}
         visible={is_reader_image_viewer_visible}
       />
+
+      {is_menu_touch_overlay_active ? (
+        <Pressable
+          accessibilityElementsHidden
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          onPress={() => {}}
+          style={{
+            bottom: 0,
+            left: 0,
+            position: "absolute",
+            right: 0,
+            top: 0,
+            zIndex: 5,
+          }}
+        />
+      ) : null}
     </View>
   );
 }

@@ -69,6 +69,7 @@ const SEARCH_KEYBOARD_GAP = 12;
 const FOOTER_SCROLL_DELTA_THRESHOLD = 6;
 const FOOTER_TOUCH_BLOCK_THRESHOLD = 0.05;
 const FOOTER_VISIBILITY_TOP_THRESHOLD = 24;
+const MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS = 160;
 const SEGMENT_CONTROL_INSET = 3;
 const SEGMENT_BUTTON_HEIGHT = HEADER_CONTROL_HEIGHT - SEGMENT_CONTROL_INSET * 2;
 const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
@@ -310,6 +311,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const footer_visibility_bottom_threshold = list_bottom_inset;
   const list_ref = React.useRef(null);
   const search_input_ref = React.useRef(null);
+  const menu_touch_overlay_timeout_ref = React.useRef(null);
   const [segment_frames, set_segment_frames] = React.useState({});
   const scroll_y = useSharedValue(0);
   const previous_scroll_y = useSharedValue(0);
@@ -319,6 +321,8 @@ function FeedScreen({ navigation, isDark = false }) {
   const { height: keyboard_height } = useReanimatedKeyboardAnimation();
   const [should_block_footer_touches, set_should_block_footer_touches] =
     React.useState(true);
+  const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
+    React.useState(false);
   const is_loading_initial =
     (Feed.is_bootstrapping && visible_timeline_entries.length === 0) ||
     (!has_bootstrapped &&
@@ -418,9 +422,30 @@ function FeedScreen({ navigation, isDark = false }) {
     clear_feed_search_focus(search_input_ref);
   }, []);
 
+  const handle_any_menu_open = React.useCallback(() => {
+    if (menu_touch_overlay_timeout_ref.current) {
+      clearTimeout(menu_touch_overlay_timeout_ref.current);
+      menu_touch_overlay_timeout_ref.current = null;
+    }
+
+    set_is_menu_touch_overlay_active(true);
+  }, []);
+
+  const handle_any_menu_close = React.useCallback(() => {
+    if (menu_touch_overlay_timeout_ref.current) {
+      clearTimeout(menu_touch_overlay_timeout_ref.current);
+    }
+
+    menu_touch_overlay_timeout_ref.current = setTimeout(() => {
+      set_is_menu_touch_overlay_active(false);
+      menu_touch_overlay_timeout_ref.current = null;
+    }, MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS);
+  }, []);
+
   const handle_profile_menu_open = React.useCallback(() => {
     clear_feed_search_focus(search_input_ref, true);
-  }, []);
+    handle_any_menu_open();
+  }, [handle_any_menu_open]);
 
   const update_footer_touch_blocking = React.useCallback(
     (next_should_block = false) => {
@@ -673,6 +698,14 @@ function FeedScreen({ navigation, isDark = false }) {
     }
   }, [footer_visibility_progress, is_search_active]);
 
+  React.useEffect(() => {
+    return () => {
+      if (menu_touch_overlay_timeout_ref.current) {
+        clearTimeout(menu_touch_overlay_timeout_ref.current);
+      }
+    };
+  }, []);
+
   useAnimatedReaction(
     () => {
       return footer_visibility_progress.value > FOOTER_TOUCH_BLOCK_THRESHOLD;
@@ -815,6 +848,8 @@ function FeedScreen({ navigation, isDark = false }) {
             is_generating_recap,
             on_entry_press: handle_entry_press,
             on_entry_menu_action: handle_entry_menu_action,
+            on_entry_menu_close: handle_any_menu_close,
+            on_entry_menu_open: handle_any_menu_open,
             on_open_recap: handle_recap_press,
             search_query,
             recap_error_message,
@@ -873,6 +908,7 @@ function FeedScreen({ navigation, isDark = false }) {
                   is_search_active={is_search_active}
                   is_dark={isDark}
                   onProfileMenuAction={handle_profile_menu_action}
+                  onProfileMenuClose={handle_any_menu_close}
                   onProfileMenuOpen={handle_profile_menu_open}
                   onSearchQueryChange={handle_search_query_change}
                   onSearchTogglePress={handle_search_toggle_press}
@@ -927,6 +963,7 @@ function FeedScreen({ navigation, isDark = false }) {
                 is_search_active={is_search_active}
                 is_dark={isDark}
                 onProfileMenuAction={handle_profile_menu_action}
+                onProfileMenuClose={handle_any_menu_close}
                 onProfileMenuOpen={handle_profile_menu_open}
                 onSearchQueryChange={handle_search_query_change}
                 onSearchTogglePress={handle_search_toggle_press}
@@ -942,6 +979,15 @@ function FeedScreen({ navigation, isDark = false }) {
           </View>
         </View>
       )}
+      {is_menu_touch_overlay_active ? (
+        <Pressable
+          accessibilityElementsHidden
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          onPress={() => {}}
+          style={styles.menuDismissTouchOverlay}
+        />
+      ) : null}
     </View>
   );
 }
@@ -961,6 +1007,8 @@ function render_content({
   is_generating_recap,
   on_entry_press,
   on_entry_menu_action,
+  on_entry_menu_close,
+  on_entry_menu_open,
   on_open_recap,
   search_query,
   recap_error_message,
@@ -1120,6 +1168,8 @@ function render_content({
               onMenuAction={(menu_action_id) => {
                 on_entry_menu_action?.(item, menu_action_id);
               }}
+              onMenuClose={on_entry_menu_close}
+              onMenuOpen={on_entry_menu_open}
               onPress={() => on_entry_press?.(item.id)}
               row_opacity={timeline_entry_content.row_opacity}
               scaled_text_styles={scaled_text_styles}
@@ -1152,6 +1202,7 @@ function FeedFooterControlsRow({
   is_dark = false,
   is_search_active = false,
   onProfileMenuAction,
+  onProfileMenuClose,
   onProfileMenuOpen,
   onSearchQueryChange,
   onSearchTogglePress,
@@ -1169,6 +1220,7 @@ function FeedFooterControlsRow({
         hide_read_posts={hide_read_posts}
         is_dark={is_dark}
         onMenuAction={onProfileMenuAction}
+        onMenuClose={onProfileMenuClose}
         onMenuOpen={onProfileMenuOpen}
         profile_name={profile_name}
         profile_photo={profile_photo}
@@ -1358,6 +1410,7 @@ function AccountHeaderButton({
   hide_read_posts = false,
   is_dark = false,
   onMenuAction,
+  onMenuClose,
   onMenuOpen,
   profile_name = '',
   profile_photo = '',
@@ -1384,6 +1437,7 @@ function AccountHeaderButton({
     <MenuView
       accessibilityLabel="Open profile menu"
       actions={menu_actions}
+      onCloseMenu={onMenuClose}
       onOpenMenu={onMenuOpen}
       onPressAction={({ nativeEvent }) => {
         onMenuAction?.(nativeEvent.event);
@@ -1669,6 +1723,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+  },
+  menuDismissTouchOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
   },
   headerControlsRow: {
     flexDirection: 'row',
