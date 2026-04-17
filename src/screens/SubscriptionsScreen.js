@@ -18,6 +18,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  FadeInDown,
+  FadeOutUp,
+  LinearTransition,
+} from 'react-native-reanimated';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
@@ -33,6 +38,9 @@ const LIST_BOTTOM_PADDING = 28;
 const SUBSCRIPTION_AVATAR_SIZE = 30;
 const SUBSCRIPTION_AVATAR_TRANSITION_MS = 180;
 const MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS = 160;
+const COMPOSER_LAYOUT_TRANSITION = LinearTransition.duration(220);
+const COMPOSER_ENTERING = FadeInDown.duration(220);
+const COMPOSER_EXITING = FadeOutUp.duration(160);
 const TEXT_STYLE_NAMES = [
   'avatarInitial',
   'choiceSubtitle',
@@ -46,7 +54,6 @@ const TEXT_STYLE_NAMES = [
   'inlineStateTitle',
   'inlineUtilityButtonLabel',
   'renameError',
-  'rowHint',
   'searchInput',
   'secondaryActionButtonLabel',
   'stateBody',
@@ -55,8 +62,6 @@ const TEXT_STYLE_NAMES = [
   'subscriptionDetailLabel',
   'subscriptionSupportingUrl',
   'subscriptionTitle',
-  'summaryBadgeLabel',
-  'summaryCopy',
 ];
 
 function SubscriptionsScreen({ navigation, route, isDark = false }) {
@@ -546,7 +551,6 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 add_input_ref={add_input_ref}
                 feed_choices={feed_choices}
                 feed_url={feed_url}
-                filtered_count={filtered_subscriptions.length}
                 is_composer_open={is_composer_open}
                 is_search_open={is_search_open}
                 is_submitting={is_submitting}
@@ -559,7 +563,6 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 scaled_text_styles={scaled_text_styles}
                 search_query={search_query}
                 submit_status={submit_status}
-                subscriptions={subscriptions}
                 subscriptions_error_message={
                   subscriptions.length > 0 ? subscriptions_error_message : ''
                 }
@@ -621,7 +624,6 @@ function SubscriptionsHeader({
   add_input_ref,
   feed_choices = [],
   feed_url = '',
-  filtered_count = 0,
   is_composer_open = false,
   is_search_open = false,
   is_submitting = false,
@@ -634,17 +636,14 @@ function SubscriptionsHeader({
   scaled_text_styles,
   search_query = '',
   submit_status = null,
-  subscriptions = [],
   subscriptions_error_message = '',
   theme,
 }) {
-  const total_count = subscriptions.length;
-  const display_count = is_search_open || search_query ? filtered_count : total_count;
-  const summary_copy =
-    display_count === 1 ? '1 subscription' : `${display_count} subscriptions`;
-
   return (
-    <View style={styles.headerContent}>
+    <Animated.View
+      layout={COMPOSER_LAYOUT_TRANSITION}
+      style={styles.headerContent}
+    >
       {is_search_open ? (
         <SearchField
           autoFocus={true}
@@ -657,26 +656,10 @@ function SubscriptionsHeader({
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
-          <View style={styles.summaryBadge}>
-            <MaterialIcons
-              color={theme.colors.accentStrong}
-              name="rss-feed"
-              size={16}
-            />
-            <Text
-              style={[
-                styles.summaryBadgeLabel,
-                scaled_text_styles.summaryBadgeLabel,
-                { color: theme.colors.accentStrong },
-              ]}
-            >
-              {summary_copy}
-            </Text>
-          </View>
           {!is_search_open ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={is_composer_open ? 'Cancel' : 'Add feed'}
+              accessibilityLabel={is_composer_open ? 'Cancel' : 'New Feed'}
               disabled={is_submitting}
               onPress={is_composer_open ? onCloseComposer : onOpenComposer}
               style={({ pressed }) => {
@@ -690,15 +673,7 @@ function SubscriptionsHeader({
                   },
                 ];
               }}
-            >
-              {!is_composer_open ? (
-                <MaterialIcons
-                  color={theme.colors.accentStrong}
-                  name="add"
-                  size={16}
-                  style={styles.addFeedButtonIcon}
-                />
-              ) : null}
+            >              
               <Text
                 style={[
                   styles.addFeedButtonLabel,
@@ -706,7 +681,7 @@ function SubscriptionsHeader({
                   { color: is_composer_open ? theme.colors.danger : theme.colors.accentStrong },
                 ]}
               >
-                {is_composer_open ? 'Cancel' : 'Add feed'}
+                {is_composer_open ? 'Cancel' : 'New Feed...'}
               </Text>
             </Pressable>
           ) : null}
@@ -714,21 +689,28 @@ function SubscriptionsHeader({
       </View>
 
       {!is_search_open && is_composer_open ? (
-        <NewFeedComposerCard
-          add_input_ref={add_input_ref}
-          feed_choices={feed_choices}
-          feed_url={feed_url}
-          is_open={true}
-          is_submitting={is_submitting}
-          onChangeFeedUrl={onChangeFeedUrl}
-          onClose={onCloseComposer}
-          onFeedChoicePress={onFeedChoicePress}
-          onOpen={onOpenComposer}
-          onSubmit={onAddSubscription}
-          scaled_text_styles={scaled_text_styles}
-          status={submit_status}
-          theme={theme}
-        />
+        <Animated.View
+          entering={COMPOSER_ENTERING}
+          exiting={COMPOSER_EXITING}
+          layout={COMPOSER_LAYOUT_TRANSITION}
+          style={styles.composerWrap}
+        >
+          <NewFeedComposerCard
+            add_input_ref={add_input_ref}
+            feed_choices={feed_choices}
+            feed_url={feed_url}
+            is_open={true}
+            is_submitting={is_submitting}
+            onChangeFeedUrl={onChangeFeedUrl}
+            onClose={onCloseComposer}
+            onFeedChoicePress={onFeedChoicePress}
+            onOpen={onOpenComposer}
+            onSubmit={onAddSubscription}
+            scaled_text_styles={scaled_text_styles}
+            status={submit_status}
+            theme={theme}
+          />
+        </Animated.View>
       ) : null}
 
       {subscriptions_error_message ? (
@@ -753,7 +735,7 @@ function SubscriptionsHeader({
           </Text>
         </AuthCard>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -961,7 +943,6 @@ function SubscriptionRow({
   subscription,
   theme,
 }) {
-  const subscription_id = normalize_string(subscription?.id);
   const title = resolve_subscription_title(subscription);
   const supporting_url = resolve_subscription_supporting_url(subscription);
   const detail_label = resolve_subscription_detail_label(subscription);
@@ -1199,18 +1180,6 @@ function SubscriptionRow({
           </MenuView>
         )}
       </View>
-      {subscription_id ? (
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.rowHint,
-            scaled_text_styles.rowHint,
-            { color: theme.colors.inkSoft },
-          ]}
-        >
-          Open feed
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -1447,6 +1416,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  composerWrap: {
+    marginBottom: 20,
+  },
   composerStack: {
     gap: 12,
   },
@@ -1568,11 +1540,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  rowHint: {
-    fontSize: 12,
-    lineHeight: 16,
-    marginLeft: SUBSCRIPTION_AVATAR_SIZE + 12,
-  },
   rowHeader: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -1684,29 +1651,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 21,
   },
-  summaryBadge: {
-    alignItems: 'center',
-    borderRadius: 999,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  summaryBadgeLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 14,
-  },
   summaryCard: {
     borderRadius: 22,
     marginVertical: 8,
   },
-  summaryCopy: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
   summaryRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
   },
 });
 
@@ -1848,9 +1800,9 @@ function resolve_subscription_title(subscription = null) {
 }
 
 function resolve_subscription_supporting_url(subscription = null) {
-  return (
+  return strip_url_scheme(
     normalize_string(subscription?.site_url) ||
-    normalize_string(subscription?.feed_url)
+      normalize_string(subscription?.feed_url),
   );
 }
 
@@ -1859,10 +1811,14 @@ function resolve_subscription_detail_label(subscription = null) {
   const feed_url = normalize_string(subscription?.feed_url);
 
   if (site_url && feed_url && site_url !== feed_url) {
-    return feed_url;
+    return strip_url_scheme(feed_url);
   }
 
   return '';
+}
+
+function strip_url_scheme(value = '') {
+  return normalize_string(value).replace(/^https?:\/\//i, '');
 }
 
 function get_avatar_initial(source = '') {
