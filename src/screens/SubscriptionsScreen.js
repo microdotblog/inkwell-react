@@ -552,6 +552,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 feed_choices={feed_choices}
                 feed_url={feed_url}
                 is_composer_open={is_composer_open}
+                is_refreshing={is_refreshing}
                 is_search_open={is_search_open}
                 is_submitting={is_submitting}
                 onAddSubscription={handle_add_subscription}
@@ -574,8 +575,8 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 colors={[theme.colors.accentStrong]}
                 onRefresh={handle_refresh}
                 progressViewOffset={content_top_padding}
-                refreshing={is_refreshing}
-                tintColor={theme.colors.accentStrong}
+                refreshing={false}
+                tintColor="transparent"
               />
             }
             renderItem={({ item }) => {
@@ -625,6 +626,7 @@ function SubscriptionsHeader({
   feed_choices = [],
   feed_url = '',
   is_composer_open = false,
+  is_refreshing = false,
   is_search_open = false,
   is_submitting = false,
   onAddSubscription,
@@ -656,6 +658,16 @@ function SubscriptionsHeader({
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
+          {!is_search_open ? (
+            <View style={styles.summaryIndicatorSlot}>
+              {is_refreshing ? (
+                <ActivityIndicator
+                  color={theme.colors.accentStrong}
+                  size="small"
+                />
+              ) : null}
+            </View>
+          ) : null}
           {!is_search_open ? (
             <Pressable
               accessibilityRole="button"
@@ -1655,10 +1667,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     marginVertical: 8,
   },
+  summaryIndicatorSlot: {
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
   summaryRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
   },
 });
 
