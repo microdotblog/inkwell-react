@@ -136,6 +136,8 @@ export function normalize_micro_blog_session(token_payload = null, verify_payloa
     token_scope: `${token_payload?.scope || ''}`.trim() || null,
     has_inkwell:
       typeof verify_payload?.has_inkwell === 'boolean' ? verify_payload.has_inkwell : null,
+    is_premium:
+      typeof verify_payload?.is_premium === 'boolean' ? verify_payload.is_premium : null,
     is_using_ai:
       typeof verify_payload?.is_using_ai === 'boolean' ? verify_payload.is_using_ai : null,
   };

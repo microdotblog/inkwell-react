@@ -14,6 +14,8 @@ function normalize_micro_blog_session(token_payload = null, verify_payload = nul
     token_scope: `${token_payload?.scope || ''}`.trim() || null,
     has_inkwell:
       typeof verify_payload?.has_inkwell === 'boolean' ? verify_payload.has_inkwell : null,
+    is_premium:
+      typeof verify_payload?.is_premium === 'boolean' ? verify_payload.is_premium : null,
     is_using_ai:
       typeof verify_payload?.is_using_ai === 'boolean' ? verify_payload.is_using_ai : null,
   };
@@ -51,6 +53,7 @@ export function create_auth_store({
       me: types.maybeNull(types.string),
       token_scope: types.maybeNull(types.string),
       has_inkwell: types.maybeNull(types.boolean),
+      is_premium: types.maybeNull(types.boolean),
       is_using_ai: types.maybeNull(types.boolean),
     })
     .actions(self => ({
@@ -79,6 +82,7 @@ export function create_auth_store({
         self.me = null;
         self.token_scope = null;
         self.has_inkwell = null;
+        self.is_premium = null;
         self.is_using_ai = null;
       },
 
@@ -90,6 +94,7 @@ export function create_auth_store({
         self.me = next_session.me;
         self.token_scope = next_session.token_scope;
         self.has_inkwell = next_session.has_inkwell;
+        self.is_premium = next_session.is_premium;
         self.is_using_ai = next_session.is_using_ai;
       },
 
@@ -308,6 +313,7 @@ export function create_auth_store({
           url: self.profile_url || self.me || '',
           photo: self.profile_photo || '',
           has_inkwell: self.has_inkwell,
+          is_premium: self.is_premium,
           is_using_ai: self.is_using_ai,
         };
       },

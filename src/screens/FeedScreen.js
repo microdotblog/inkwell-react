@@ -76,6 +76,8 @@ const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
 const SEGMENT_LABEL_MAX_FONT_SIZE_MULTIPLIER = 1.15;
 const TOP_STATUS_SCRIM_EXTRA_HEIGHT = 44;
 const TOP_STATUS_SCRIM_SCROLL_DISTANCE = 24;
+const MICRO_BLOG_PLANS_URL = 'https://micro.blog/account/plans';
+const MICRO_BLOG_LOGO = require('../assets/mb_logo.png');
 const TEXT_STYLE_NAMES = [
   'searchInput',
   'segmentLabel',
@@ -279,13 +281,19 @@ function FeedScreen({ navigation, isDark = false }) {
   const is_search_active = Feed.is_search_active;
   const search_query = Feed.search_query;
   const profile = Auth.current_profile();
+  const is_premium = profile.is_premium;
   const has_bootstrapped = Feed.has_bootstrapped;
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
   const visible_timeline_entries = Feed.visible_timeline_entries();
+  const is_fading_locked =
+    active_segment === 'fading' && is_premium === false;
+  const display_timeline_entries = is_fading_locked
+    ? []
+    : visible_timeline_entries;
   const error_message = Feed.error_message;
   const recap_error_message = Feed.recap_error_message;
   const is_generating_recap = Feed.is_generating_recap;
-  const background_intensity = visible_timeline_entries.length > 0 ? 0.14 : 1;
+  const background_intensity = display_timeline_entries.length > 0 ? 0.14 : 1;
   const list_top_inset = insets.top + LIST_TOP_PADDING;
   const top_status_scrim_height = insets.top + TOP_STATUS_SCRIM_EXTRA_HEIGHT;
   const top_status_scrim_color = resolve_top_status_scrim_color(theme);
@@ -324,10 +332,10 @@ function FeedScreen({ navigation, isDark = false }) {
   const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
     React.useState(false);
   const is_loading_initial =
-    (Feed.is_bootstrapping && visible_timeline_entries.length === 0) ||
+    (Feed.is_bootstrapping && display_timeline_entries.length === 0) ||
     (!has_bootstrapped &&
       !error_message &&
-      visible_timeline_entries.length === 0);
+      display_timeline_entries.length === 0);
   const is_refreshing = Feed.is_bootstrapping && has_bootstrapped;
   const scroll_to_top_ref = React.useRef({
     scrollToTop: () => {
@@ -594,7 +602,7 @@ function FeedScreen({ navigation, isDark = false }) {
       } else if (menu_action_id === 'highlights') {
         navigation.navigate('Highlights');
       } else if (menu_action_id === 'mark_all_as_read') {
-        const unread_visible_entry_ids = visible_timeline_entries
+        const unread_display_entry_ids = display_timeline_entries
           .filter((entry) => {
             return Boolean(entry?.id) && !entry?.is_read;
           })
@@ -602,7 +610,7 @@ function FeedScreen({ navigation, isDark = false }) {
             return entry.id;
           });
         const marked_entry_count = Feed.mark_entries_read(
-          unread_visible_entry_ids,
+          unread_display_entry_ids,
         );
 
         AppStore.show_toast(
@@ -623,7 +631,7 @@ function FeedScreen({ navigation, isDark = false }) {
         }
       }
     },
-    [navigation, toast_top_offset, visible_timeline_entries],
+    [display_timeline_entries, navigation, toast_top_offset],
   );
 
   useFocusEffect(
@@ -643,6 +651,17 @@ function FeedScreen({ navigation, isDark = false }) {
       mode: 'recap',
     });
   }, [navigation]);
+
+  const handle_open_micro_blog_plans = React.useCallback(async () => {
+    try {
+      await Linking.openURL(MICRO_BLOG_PLANS_URL);
+    } catch (error) {
+      console.warn('Failed to open Micro.blog plans', error);
+      AppStore.show_toast('We could not open Micro.blog.', {
+        top_offset: toast_top_offset,
+      });
+    }
+  }, [toast_top_offset]);
 
   const handle_segment_swipe = React.useCallback(
     (direction) => {
@@ -844,17 +863,19 @@ function FeedScreen({ navigation, isDark = false }) {
             is_refreshing,
             error_message,
             has_any_timeline_entries,
+            is_fading_locked,
             list_ref,
             is_generating_recap,
             on_entry_press: handle_entry_press,
             on_entry_menu_action: handle_entry_menu_action,
             on_entry_menu_close: handle_any_menu_close,
             on_entry_menu_open: handle_any_menu_open,
+            on_open_plans: handle_open_micro_blog_plans,
             on_open_recap: handle_recap_press,
             search_query,
             recap_error_message,
             search_results_spacer_style,
-            visible_timeline_entries,
+            visible_timeline_entries: display_timeline_entries,
             scaled_text_styles,
           })}
       </Animated.View>
@@ -1003,12 +1024,14 @@ function render_content({
   is_refreshing,
   error_message,
   has_any_timeline_entries,
+  is_fading_locked,
   list_ref,
   is_generating_recap,
   on_entry_press,
   on_entry_menu_action,
   on_entry_menu_close,
   on_entry_menu_open,
+  on_open_plans,
   on_open_recap,
   search_query,
   recap_error_message,
@@ -1057,7 +1080,37 @@ function render_content({
         data={visible_timeline_entries}
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
-          error_message && !has_any_timeline_entries ? (
+          is_fading_locked ? (
+            <AuthCard style={styles.stateCard} theme={theme}>
+              <View style={styles.stateCopy}>
+                <Text
+                  style={[
+                    styles.stateTitle,
+                    scaled_text_styles.stateTitle,
+                    { color: theme.colors.ink },
+                  ]}
+                >
+                  Micro.blog Premium required
+                </Text>
+                <Text
+                  style={[
+                    styles.stateBody,
+                    scaled_text_styles.stateBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  The Fading tab and Reading Recap feature are only available to Micro.blog Premium subscribers.
+                </Text>
+              </View>
+              <PrimaryButton
+                label="Micro.blog Plans"
+                leadingIconSource={MICRO_BLOG_LOGO}
+                onPress={on_open_plans}
+                style={styles.stateButton}
+                theme={theme}
+              />
+            </AuthCard>
+          ) : error_message && !has_any_timeline_entries ? (
             <AuthCard style={styles.stateCard} theme={theme}>
               <View style={styles.stateCopy}>
                 <Text
@@ -1119,6 +1172,7 @@ function render_content({
           )
         }
         ListHeaderComponent={
+          !is_fading_locked &&
           should_show_recap_card({
             active_segment,
             is_search_active,
@@ -1863,6 +1917,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     maxWidth: 320,
+  },
+  stateButton: {
+    width: '100%',
   },
   stateTitle: {
     // fontFamily: 'Newsreader_600SemiBold',
