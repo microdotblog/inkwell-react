@@ -1,4 +1,4 @@
-const READ_ROW_OPACITY = 0.56;
+const READ_ROW_OPACITY = 0.4;
 
 export function resolve_feed_timeline_entry_content(entry = null) {
   const source_label = resolve_source_label(entry?.source, 'Feed');
