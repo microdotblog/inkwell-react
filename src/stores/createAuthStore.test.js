@@ -39,6 +39,7 @@ function build_auth_store(overrides = {}) {
     verify_micro_blog_token: mock(async token => ({
       avatar: 'https://micro.blog/avatar.jpg',
       has_inkwell: true,
+      is_premium: true,
       is_using_ai: false,
       me: 'https://micro.blog/vincent',
       url: 'https://micro.blog/vincent',
@@ -68,6 +69,7 @@ describe('create_auth_store', () => {
       expect(store.profile_url).toBe('https://micro.blog/vincent');
       expect(store.profile_photo).toBe('https://micro.blog/avatar.jpg');
       expect(store.has_inkwell).toBe(true);
+      expect(store.is_premium).toBe(true);
       expect(store.is_using_ai).toBe(false);
       expect(store.error_message).toBe(null);
       expect(store.is_signing_in).toBe(false);
