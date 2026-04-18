@@ -91,6 +91,14 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     entry_source === "bookmark"
       ? Boolean(entry)
       : Boolean(entry?.is_bookmarked);
+  const screen_background_color =
+    detail_mode === "recap"
+      ? isDark
+        ? "#000000"
+        : "#ffffff"
+      : theme.colors.canvas;
+  const background_intensity =
+    detail_mode === "recap" ? 0 : entry ? 0.1 : 1;
   const toast_top_offset = header_height + 10;
   const content_top_padding = 12;
   const [active_pane, set_active_pane] = React.useState("post");
@@ -770,9 +778,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   ]);
 
   return (
-    <View style={{ backgroundColor: theme.colors.canvas, flex: 1 }}>
+    <View style={{ backgroundColor: screen_background_color, flex: 1 }}>
       <AuthBackground
-        intensity={detail_mode === "recap" || entry ? 0.1 : 1}
+        intensity={background_intensity}
         theme={theme}
       />
       <ScrollView
