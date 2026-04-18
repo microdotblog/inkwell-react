@@ -699,32 +699,12 @@ function create_recap_runtime_script({ is_dark = false } = {}) {
           return;
         }
 
-        var backgroundColor = withRecapColorOpacity(
-          baseColor,
-          isDarkTheme ? 'd9' : 'a6'
-        );
-        var borderColor = withRecapColorOpacity(
-          baseColor,
-          isDarkTheme ? 'ff' : 'bf'
-        );
-        var quoteBackgroundColor = withRecapColorOpacity(
-          baseColor,
-          isDarkTheme ? 'ee' : 'cc'
-        );
+        var backgroundColor = withRecapColorOpacity(baseColor, '80');
+        var quoteBackgroundColor = withRecapColorOpacity(baseColor, '99');
         var quoteBorderColor = withRecapColorOpacity(baseColor, 'ff');
-        var topicsBackgroundColor = withRecapColorOpacity(
-          baseColor,
-          isDarkTheme ? 'ff' : 'f0'
-        );
-        var topicsBorderColor = withRecapColorOpacity(baseColor, 'ff');
+        var topicsBackgroundColor = withRecapColorOpacity(baseColor, 'e6');
 
-        if (backgroundColor) {
-          recapElement.style.setProperty('--recap-card-background', backgroundColor);
-        }
-
-        if (borderColor) {
-          recapElement.style.setProperty('--recap-card-border', borderColor);
-        }
+        recapElement.style.backgroundColor = backgroundColor || '';
 
         if (quoteBackgroundColor) {
           recapElement.style.setProperty(
@@ -745,13 +725,8 @@ function create_recap_runtime_script({ is_dark = false } = {}) {
             '--recap-topics-background',
             topicsBackgroundColor
           );
-        }
-
-        if (topicsBorderColor) {
-          recapElement.style.setProperty(
-            '--recap-topics-border',
-            topicsBorderColor
-          );
+        } else {
+          recapElement.style.removeProperty('--recap-topics-background');
         }
       });
     }
@@ -774,8 +749,12 @@ function create_recap_document_html({
   const muted_text_color = theme?.colors?.inkSoft || "#6b7280";
   const link_color = theme?.colors?.accentStrong || "#0b57d0";
   const card_background_color = theme?.colors?.badge || "#f5f5f7";
-  const border_color = theme?.colors?.line || "#d2d2d7";
   const button_background_color = theme?.colors?.paper || "#ffffff";
+  const topics_background_color = theme?.isDark
+    ? "rgba(255, 255, 255, 0.16)"
+    : "rgba(0, 0, 0, 0.08)";
+  const blockquote_background_color = theme?.isDark ? "#2a3446" : "#e1e3f0";
+  const blockquote_border_color = theme?.isDark ? "#7f8fb0" : "#9b99cb";
 
   return `<!doctype html>
 <html>
@@ -794,13 +773,11 @@ function create_recap_document_html({
       --recap-list-text: ${muted_text_color};
       --recap-link: ${link_color};
       --recap-card-background: ${card_background_color};
-      --recap-card-border: ${border_color};
-      --recap-topics-background: rgba(0, 0, 0, 0.08);
-      --recap-topics-border: ${border_color};
-      --recap-blockquote-background: ${card_background_color};
-      --recap-blockquote-border: ${border_color};
+      --recap-topics-background: ${topics_background_color};
+      --recap-blockquote-background: ${blockquote_background_color};
+      --recap-blockquote-border: ${blockquote_border_color};
       --recap-button-background: ${button_background_color};
-      --recap-button-border: ${border_color};
+      --recap-button-border: ${blockquote_border_color};
     }
 
     html {
@@ -811,6 +788,8 @@ function create_recap_document_html({
       background: var(--page-background);
       color: var(--recap-text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 17px;
+      line-height: 1.8;
       margin: 0;
       padding: 0;
       -webkit-text-size-adjust: 100%;
@@ -826,23 +805,22 @@ function create_recap_document_html({
 
     .reading-recap {
       background: var(--recap-card-background);
-      border: 1px solid var(--recap-card-border);
-      border-radius: 24px;
+      border-radius: 22px;
       box-sizing: border-box;
       color: var(--recap-text);
-      margin: 0 0 22px 0;
+      font-size: 17px;
+      line-height: 1.8;
+      margin: 0 0 32px 0;
       overflow: hidden;
-      padding: 18px;
+      padding: 15px 18px;
     }
 
     .reading-recap .reading-header {
       align-items: center;
-      column-gap: 10px;
       display: flex;
-      flex-direction: row;
       flex-wrap: wrap;
-      margin-bottom: 14px;
-      row-gap: 8px;
+      gap: 0.7rem;
+      margin-bottom: 1rem;
     }
 
     .reading-recap .reading-header h2 {
@@ -850,10 +828,9 @@ function create_recap_document_html({
       color: var(--recap-text);
       display: flex;
       flex: 1 1 auto;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 28px;
-      gap: 10px;
-      line-height: 32px;
+      font-size: 1rem;
+      gap: 0.4rem;
+      line-height: 1.3;
       margin: 0;
       min-width: 0;
     }
@@ -862,6 +839,7 @@ function create_recap_document_html({
       border-radius: 999px;
       flex: 0 0 auto;
       height: 20px;
+      margin-right: 4px;
       object-fit: cover;
       width: 20px;
     }
@@ -869,34 +847,31 @@ function create_recap_document_html({
     .reading-recap .reading-header .topics {
       align-items: center;
       display: flex;
-      flex: 0 1 auto;
-      flex-direction: row;
+      flex: 0 0 100%;
       flex-wrap: wrap;
-      gap: 6px;
-      justify-content: flex-end;
-      margin-left: auto;
+      gap: 0.35rem;
+      justify-content: flex-start;
+      margin-left: 0;
+      margin-top: 4px;
     }
 
     .reading-recap .reading-header .topics span {
       align-items: center;
       background: var(--recap-topics-background);
-      border: 1px solid var(--recap-topics-border);
       border-radius: 999px;
       display: inline-flex;
-      font-size: 13px;
-      font-weight: 700;
+      font-size: 0.8rem;
+      font-weight: 400;
       justify-content: center;
-      line-height: 16px;
-      min-height: 34px;
-      padding: 6px 14px;
+      line-height: 1.2;
+      padding: 0.18rem 0.48rem;
       white-space: nowrap;
     }
 
     .reading-recap p {
-      color: var(--recap-text);
-      font-size: 15px;
-      line-height: 23px;
-      margin: 0 0 18px 0;
+      color: inherit;
+      line-height: 1.7;
+      margin: 0 0 1rem 0;
     }
 
     .reading-recap a {
@@ -906,25 +881,31 @@ function create_recap_document_html({
 
     .reading-recap blockquote {
       background: var(--recap-blockquote-background);
-      border-left: 3px solid var(--recap-blockquote-border);
+      border-left: 0.25rem solid var(--recap-blockquote-border);
       color: var(--recap-text);
-      margin: 0 0 20px 0;
-      padding: 14px 16px;
+      line-height: 1.7;
+      margin: 1rem 0;
+      padding: 8px 16px 10px;
     }
 
     .reading-recap blockquote p:last-child {
       margin-bottom: 0;
     }
 
+    .reading-recap blockquote footer {
+      color: var(--recap-muted);
+      font-size: 0.95rem;
+      margin-top: 0.3rem;
+      text-align: right;
+    }
+
     .reading-recap ul {
-      margin: 0;
-      padding-left: 18px;
+      margin-bottom: 0;
+      padding-left: 1.35em;
     }
 
     .reading-recap li {
       color: var(--recap-list-text);
-      font-size: 15px;
-      line-height: 22px;
       margin-bottom: 8px;
     }
 
@@ -948,9 +929,9 @@ function create_recap_document_html({
 
     .reading-recap-photos a img {
       display: block;
-      height: 96px;
+      height: 100px;
       object-fit: cover;
-      width: 96px;
+      width: 100px;
     }
 
     .reading-recap-quote {

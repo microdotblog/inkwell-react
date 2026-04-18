@@ -282,7 +282,8 @@ function RecapEmailSettingsCard({
     : is_enabled
       ? get_recap_day_summary_label(selected_day)
       : "Off";
-  const summary_selection_kind = is_enabled ? "accent" : "neutral";
+  const collapsed_summary_selection_kind = is_enabled ? "accent" : "neutral";
+  const expanded_summary_selection_kind = is_enabled ? "accent-soft" : "neutral";
   const helper_copy = "Send Reading Recap in a weekly email on:";
 
   async function handle_day_selection(next_dayofweek = "") {
@@ -328,25 +329,49 @@ function RecapEmailSettingsCard({
             >
               Weekly email
             </Text>
-            {!is_expanded ? (
-              <Animated.View
-                entering={RECAP_SETTINGS_ROW_ENTERING}
-                exiting={RECAP_SETTINGS_ROW_EXITING}
-                layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
-              >
-                <RecapDayChip
-                  disabled={is_showing_loading_summary || is_busy}
-                  icon_name="expand-more"
-                  is_compact
-                  is_selected
-                  label={summary_label}
-                  onPress={() => set_is_expanded(true)}
-                  scaled_text_styles={scaled_text_styles}
-                  selection_kind={summary_selection_kind}
-                  theme={theme}
-                />
-              </Animated.View>
-            ) : null}
+            <View style={styles.recapSettingsTitleActions}>
+              {is_saving ? (
+                <ActivityIndicator color={theme.colors.accentStrong} size="small" />
+              ) : null}
+              {!is_expanded ? (
+                <Animated.View
+                  entering={RECAP_SETTINGS_ROW_ENTERING}
+                  exiting={RECAP_SETTINGS_ROW_EXITING}
+                  layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
+                >
+                  <RecapDayChip
+                    disabled={is_showing_loading_summary || is_busy}
+                    icon_name="expand-more"
+                    is_compact
+                    is_selected
+                    label={summary_label}
+                    onPress={() => set_is_expanded(true)}
+                    scaled_text_styles={scaled_text_styles}
+                    selection_kind={collapsed_summary_selection_kind}
+                    theme={theme}
+                  />
+                </Animated.View>
+              ) : (
+                <Animated.View
+                  entering={RECAP_SETTINGS_ROW_ENTERING}
+                  exiting={RECAP_SETTINGS_ROW_EXITING}
+                  layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
+                >
+                  <RecapDayChip
+                    accessibility_label="Collapse weekly email settings"
+                    disabled={is_busy}
+                    icon_name="expand-less"
+                    is_compact
+                    is_selected
+                    label={summary_label}
+                    onPress={() => set_is_expanded(false)}
+                    scaled_text_styles={scaled_text_styles}
+                    selection_kind={expanded_summary_selection_kind}
+                    theme={theme}
+                  />
+                </Animated.View>
+              )}
+            </View>
           </Animated.View>
           {is_expanded ? (
             <Text
@@ -360,7 +385,7 @@ function RecapEmailSettingsCard({
             </Text>
           ) : null}
         </View>
-        {is_loading || is_saving ? (
+        {is_loading && !is_saving ? (
           <ActivityIndicator color={theme.colors.accentStrong} size="small" />
         ) : null}
       </View>
@@ -403,6 +428,7 @@ function RecapEmailSettingsCard({
 }
 
 function RecapDayChip({
+  accessibility_label = "",
   disabled = false,
   icon_name = "",
   is_compact = false,
@@ -413,7 +439,10 @@ function RecapDayChip({
   selection_kind = "accent",
   theme,
 }) {
+  const has_label = Boolean(label);
   const uses_accent_selection = is_selected && selection_kind === "accent";
+  const uses_accent_soft_selection =
+    is_selected && selection_kind === "accent-soft";
   const uses_neutral_selection = is_selected && selection_kind === "neutral";
   const uses_destructive_selection =
     is_selected && selection_kind === "destructive";
@@ -426,6 +455,10 @@ function RecapDayChip({
     background_color = theme.colors.accent;
     border_color = theme.colors.accent;
     label_color = theme.colors.white;
+  } else if (uses_accent_soft_selection) {
+    background_color = theme.colors.accentSoft;
+    border_color = theme.colors.accent;
+    label_color = theme.colors.accentStrong;
   } else if (uses_neutral_selection) {
     background_color = theme.colors.paperMuted;
     border_color = theme.colors.inkSoft;
@@ -450,6 +483,7 @@ function RecapDayChip({
 
   return (
     <Pressable
+      accessibilityLabel={accessibility_label || undefined}
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
@@ -466,17 +500,19 @@ function RecapDayChip({
         ];
       }}
     >
-      <Text
-        style={[
-          styles.recapDayChipLabel,
-          scaled_text_styles.recapDayChipLabel,
-          {
-            color: label_color,
-          },
-        ]}
-      >
-        {label}
-      </Text>
+      {has_label ? (
+        <Text
+          style={[
+            styles.recapDayChipLabel,
+            scaled_text_styles.recapDayChipLabel,
+            {
+              color: label_color,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+      ) : null}
       {icon_name ? (
         <MaterialIcons
           color={label_color}
@@ -555,13 +591,18 @@ const styles = StyleSheet.create({
   },
   recapSettingsCopy: {
     flex: 1,
-    gap: 8,
+    gap: 13,
   },
   recapSettingsTitleRow: {
     alignItems: "center",
     flexDirection: "row",
     gap: 10,
     justifyContent: "space-between",
+  },
+  recapSettingsTitleActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
   },
   recapSettingsTitle: {
     fontSize: 18,
