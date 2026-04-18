@@ -189,9 +189,6 @@ function create_reader_post_document_html({
 
     .content {
       box-sizing: border-box;
-      margin-left: auto;
-      margin-right: auto;
-      max-width: ${Math.max(Math.round(content_max_width), 0)}px;
       width: 100%;
     }
 
@@ -564,8 +561,9 @@ function create_reply_document_html({
 
     .content {
       box-sizing: border-box;
-      margin-left: auto;
-      margin-right: auto;
+      margin-top: 5px;
+      // margin-left: auto;
+      // margin-right: auto;
       max-width: ${Math.max(Math.round(content_max_width), 0)}px;
       width: 100%;
     }
