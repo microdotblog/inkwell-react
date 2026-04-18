@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     alignItems: 'center',
-    borderRadius: 7,
+    borderRadius: 16,
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 28,
