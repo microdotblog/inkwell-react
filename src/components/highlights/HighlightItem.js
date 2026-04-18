@@ -38,130 +38,148 @@ export default function HighlightItem({
   const delete_button_colors = resolve_highlight_delete_button_colors(theme);
 
   return (
-    <View style={styles.rowCard}>
-      <Text
+    <View
+      style={[
+        styles.rowCard,
+        {
+          backgroundColor: theme.colors.paper,
+          borderColor: theme.colors.line,
+        },
+      ]}
+    >
+      <View
         style={[
-          styles.highlightText,
-          scaled_text_styles.highlightText,
+          styles.highlightWrap,
           {
             backgroundColor: highlight_background_color,
-            color: theme.colors.ink,
           },
         ]}
       >
-        {entry?.text}
-      </Text>
-
-      <View style={styles.rowMeta}>
         <Text
           style={[
-            styles.postLabel,
-            scaled_text_styles.postLabel,
-            { color: theme.colors.ink },
+            styles.highlightText,
+            scaled_text_styles.highlightText,
+            {
+              color: theme.colors.ink,
+            },
           ]}
         >
-          {post_label}
+          {entry?.text}
         </Text>
-        {timestamp ? (
-          <Text
-            style={[
-              styles.timestamp,
-              scaled_text_styles.timestamp,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {timestamp}
-          </Text>
-        ) : null}
       </View>
 
-      <View style={styles.rowActions}>
-        <Pressable
-          accessibilityLabel="New post from highlight"
-          accessibilityRole="button"
-          disabled={is_deleting || !onPostPress}
-          onPress={() => onPostPress?.(entry)}
-          style={({ pressed }) => {
-            return [
-              styles.actionButton,
-              {
-                backgroundColor: theme.colors.buttonGhost,
-                borderColor: theme.colors.line,
-                opacity: is_deleting || !onPostPress ? 0.5 : pressed ? 0.84 : 1,
-              },
-            ];
-          }}
-        >
+      <View style={styles.rowBody}>
+        <View style={styles.rowMeta}>
           <Text
             style={[
-              styles.actionButtonLabel,
-              scaled_text_styles.actionButtonLabel,
-              { color: theme.colors.inkSoft },
+              styles.postLabel,
+              scaled_text_styles.postLabel,
+              { color: theme.colors.ink },
             ]}
           >
-            New Post...
+            {post_label}
           </Text>
-        </Pressable>
+          {timestamp ? (
+            <Text
+              style={[
+                styles.timestamp,
+                scaled_text_styles.timestamp,
+                { color: theme.colors.inkSoft },
+              ]}
+            >
+              {timestamp}
+            </Text>
+          ) : null}
+        </View>
 
-        <Pressable
-          accessibilityLabel={is_copied ? 'Copied highlight text' : 'Copy highlight text'}
-          accessibilityRole="button"
-          disabled={is_deleting}
-          onPress={() => onCopyPress?.(entry)}
-          style={({ pressed }) => {
-            return [
-              styles.actionButton,
-              {
-                backgroundColor: is_copied
-                  ? theme.colors.accentSoft
-                  : theme.colors.buttonGhost,
-                borderColor: theme.colors.line,
-                opacity: is_deleting ? 0.5 : pressed ? 0.84 : 1,
-              },
-            ];
-          }}
-        >
-          <Text
-            style={[
-              styles.actionButtonLabel,
-              scaled_text_styles.actionButtonLabel,
-              {
-                color: is_copied
-                  ? theme.colors.accentStrong
-                  : theme.colors.inkSoft,
-              },
-            ]}
+        <View style={styles.rowActions}>
+          <Pressable
+            accessibilityLabel="New post from highlight"
+            accessibilityRole="button"
+            disabled={is_deleting || !onPostPress}
+            onPress={() => onPostPress?.(entry)}
+            style={({ pressed }) => {
+              return [
+                styles.actionButton,
+                {
+                  backgroundColor: theme.colors.buttonGhost,
+                  borderColor: theme.colors.line,
+                  opacity: is_deleting || !onPostPress ? 0.5 : pressed ? 0.84 : 1,
+                },
+              ];
+            }}
           >
-            {is_copied ? 'Copied' : 'Copy'}
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.actionButtonLabel,
+                scaled_text_styles.actionButtonLabel,
+                { color: theme.colors.inkSoft },
+              ]}
+            >
+              New Post...
+            </Text>
+          </Pressable>
 
-        <Pressable
-          accessibilityLabel="Delete highlight"
-          accessibilityRole="button"
-          disabled={is_deleting}
-          onPress={() => onDeletePress?.(entry)}
-          style={({ pressed }) => {
-            return [
-              styles.actionButton,
-              {
-                backgroundColor: delete_button_colors.backgroundColor,
-                borderColor: delete_button_colors.borderColor,
-                opacity: is_deleting ? 0.5 : pressed ? 0.84 : 1,
-              },
-            ];
-          }}
-        >
-          <Text
-            style={[
-              styles.actionButtonLabel,
-              scaled_text_styles.actionButtonLabel,
-              { color: delete_button_colors.labelColor },
-            ]}
+          <Pressable
+            accessibilityLabel={is_copied ? 'Copied highlight text' : 'Copy highlight text'}
+            accessibilityRole="button"
+            disabled={is_deleting}
+            onPress={() => onCopyPress?.(entry)}
+            style={({ pressed }) => {
+              return [
+                styles.actionButton,
+                {
+                  backgroundColor: is_copied
+                    ? theme.colors.accentSoft
+                    : theme.colors.buttonGhost,
+                  borderColor: theme.colors.line,
+                  opacity: is_deleting ? 0.5 : pressed ? 0.84 : 1,
+                },
+              ];
+            }}
           >
-            {is_deleting ? 'Deleting' : 'Delete'}
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.actionButtonLabel,
+                scaled_text_styles.actionButtonLabel,
+                {
+                  color: is_copied
+                    ? theme.colors.accentStrong
+                    : theme.colors.inkSoft,
+                },
+              ]}
+            >
+              {is_copied ? 'Copied' : 'Copy'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityLabel="Delete highlight"
+            accessibilityRole="button"
+            disabled={is_deleting}
+            onPress={() => onDeletePress?.(entry)}
+            style={({ pressed }) => {
+              return [
+                styles.actionButton,
+                {
+                  backgroundColor: delete_button_colors.backgroundColor,
+                  borderColor: delete_button_colors.borderColor,
+                  opacity: is_deleting ? 0.5 : pressed ? 0.84 : 1,
+                },
+              ];
+            }}
+          >
+            <Text
+              style={[
+                styles.actionButtonLabel,
+                scaled_text_styles.actionButtonLabel,
+                { color: delete_button_colors.labelColor },
+              ]}
+            >
+              {is_deleting ? 'Deleting' : 'Delete'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -169,15 +187,22 @@ export default function HighlightItem({
 
 const styles = StyleSheet.create({
   rowCard: {
-    gap: 8,
-    paddingVertical: 4,
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  highlightWrap: {
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
   highlightText: {
-    alignSelf: 'flex-start',
     fontSize: 15,
     lineHeight: 24,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+  },
+  rowBody: {
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
   rowMeta: {
     gap: 4,
