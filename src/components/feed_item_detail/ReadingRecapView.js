@@ -329,44 +329,49 @@ function RecapEmailSettingsCard({
             >
               Weekly email
             </Text>
-            {!is_expanded ? (
-              <Animated.View
-                entering={RECAP_SETTINGS_ROW_ENTERING}
-                exiting={RECAP_SETTINGS_ROW_EXITING}
-                layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
-              >
-                <RecapDayChip
-                  disabled={is_showing_loading_summary || is_busy}
-                  icon_name="expand-more"
-                  is_compact
-                  is_selected
-                  label={summary_label}
-                  onPress={() => set_is_expanded(true)}
-                  scaled_text_styles={scaled_text_styles}
-                  selection_kind={collapsed_summary_selection_kind}
-                  theme={theme}
-                />
-              </Animated.View>
-            ) : (
-              <Animated.View
-                entering={RECAP_SETTINGS_ROW_ENTERING}
-                exiting={RECAP_SETTINGS_ROW_EXITING}
-                layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
-              >
-                <RecapDayChip
-                  accessibility_label="Collapse weekly email settings"
-                  disabled={is_busy}
-                  icon_name="expand-less"
-                  is_compact
-                  is_selected
-                  label={summary_label}
-                  onPress={() => set_is_expanded(false)}
-                  scaled_text_styles={scaled_text_styles}
-                  selection_kind={expanded_summary_selection_kind}
-                  theme={theme}
-                />
-              </Animated.View>
-            )}
+            <View style={styles.recapSettingsTitleActions}>
+              {is_saving ? (
+                <ActivityIndicator color={theme.colors.accentStrong} size="small" />
+              ) : null}
+              {!is_expanded ? (
+                <Animated.View
+                  entering={RECAP_SETTINGS_ROW_ENTERING}
+                  exiting={RECAP_SETTINGS_ROW_EXITING}
+                  layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
+                >
+                  <RecapDayChip
+                    disabled={is_showing_loading_summary || is_busy}
+                    icon_name="expand-more"
+                    is_compact
+                    is_selected
+                    label={summary_label}
+                    onPress={() => set_is_expanded(true)}
+                    scaled_text_styles={scaled_text_styles}
+                    selection_kind={collapsed_summary_selection_kind}
+                    theme={theme}
+                  />
+                </Animated.View>
+              ) : (
+                <Animated.View
+                  entering={RECAP_SETTINGS_ROW_ENTERING}
+                  exiting={RECAP_SETTINGS_ROW_EXITING}
+                  layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
+                >
+                  <RecapDayChip
+                    accessibility_label="Collapse weekly email settings"
+                    disabled={is_busy}
+                    icon_name="expand-less"
+                    is_compact
+                    is_selected
+                    label={summary_label}
+                    onPress={() => set_is_expanded(false)}
+                    scaled_text_styles={scaled_text_styles}
+                    selection_kind={expanded_summary_selection_kind}
+                    theme={theme}
+                  />
+                </Animated.View>
+              )}
+            </View>
           </Animated.View>
           {is_expanded ? (
             <Text
@@ -380,7 +385,7 @@ function RecapEmailSettingsCard({
             </Text>
           ) : null}
         </View>
-        {is_loading || is_saving ? (
+        {is_loading && !is_saving ? (
           <ActivityIndicator color={theme.colors.accentStrong} size="small" />
         ) : null}
       </View>
@@ -586,13 +591,18 @@ const styles = StyleSheet.create({
   },
   recapSettingsCopy: {
     flex: 1,
-    gap: 8,
+    gap: 13,
   },
   recapSettingsTitleRow: {
     alignItems: "center",
     flexDirection: "row",
     gap: 10,
     justifyContent: "space-between",
+  },
+  recapSettingsTitleActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
   },
   recapSettingsTitle: {
     fontSize: 18,
