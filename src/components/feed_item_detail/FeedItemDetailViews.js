@@ -14,12 +14,6 @@ import { MenuView } from "@react-native-menu/menu";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { observer } from "mobx-react";
-import RenderHtml, {
-  IMGElement,
-  TChildrenRenderer,
-  useIMGElementProps,
-  useTNodeChildrenProps,
-} from "react-native-render-html";
 import { WebView } from "react-native-webview";
 import Animated, {
   FadeInDown,
@@ -30,7 +24,6 @@ import Animated, {
 
 import HighlightItem from "../highlights/HighlightItem";
 import AppStore from "../../stores/App";
-import Feed from "../../stores/Feed";
 import Highlights from "../../stores/Highlights";
 import {
   DEFAULT_TEXT_SCALE,
@@ -46,8 +39,6 @@ import {
   READER_AVATAR_TRANSITION_MS,
   READER_COLUMN_MAX_WIDTH,
   READER_HORIZONTAL_PADDING,
-  READER_HTML_MODELS,
-  READER_IGNORED_DOM_TAGS,
   READER_IMAGE_MODAL_BACKGROUND,
   READER_IMAGE_MODAL_CLOSE_BUTTON_SIZE,
   READER_PANE_BUTTON_HEIGHT,
@@ -56,7 +47,6 @@ import {
   READER_PANE_CONTROL_INSET,
   READER_PANE_CONTROL_RADIUS,
   READER_PANE_LAYOUT_TRANSITION,
-  READER_PARAGRAPH_SPACING,
   READER_REPLY_CONTENT_WIDTH_OFFSET,
   READER_TEXT_SIZE_TRAY_BOTTOM_GAP,
   READER_TEXT_SIZE_TRAY_RADIUS,
@@ -67,45 +57,30 @@ import {
   READER_TITLE_TOP_MARGIN,
   READER_WEBVIEW_CONTENT_MAX_WIDTH,
   READER_WEBVIEW_MIN_HEIGHT,
-  RECAP_EMAIL_DAYS,
-  RECAP_FAVICON_SIZE,
-  RECAP_SETTINGS_LAYOUT_TRANSITION,
-  RECAP_SETTINGS_ROW_ENTERING,
-  RECAP_SETTINGS_ROW_EXITING,
   REPLY_AVATAR_SIZE,
   TEXT_STYLE_NAMES,
-  build_recap_classes_styles,
   create_reader_body_html,
   create_reader_image_viewer_document_html,
   create_reader_post_document_html,
-  create_recap_dom_visitors,
-  decorate_recap_html,
-  extract_recap_photo_items,
-  extract_recap_topic_labels,
-  extract_tnode_text,
-  find_tnode_ancestor_by_tag,
-  find_tnode_image_source,
+  create_reply_document_html,
   format_reader_date,
   format_reply_date,
   get_highlight_count_label,
-  get_recap_day_chip_label,
-  get_recap_day_summary_label,
   get_reply_author_name,
   get_reply_count_label,
   get_source_avatar_initial,
   normalize_http_url,
-  normalize_reader_text,
   open_external_url,
   resolve_host_label,
   resolve_reply_key,
   resolve_reader_text_metrics,
   resolve_reader_text_size_backdrop_color,
   resolve_reader_title,
-  resolve_recap_colors,
   resolve_reply_html,
   sanitize_reader_html,
   with_color_opacity,
 } from "./feedItemDetailUtils";
+import { RecapReaderView } from "./ReadingRecapView";
 import { resolve_reader_image_viewer_payload } from "./readerImagePayload";
 
 const READER_PANE_TABS_ENTERING = FadeInDown.duration(220);
@@ -598,217 +573,131 @@ function ReplyRow({ reply, scaled_text_styles, theme, width = 0 }) {
 }
 
 function ReplyHtml({ html = "", theme, width = 0 }) {
-  const reply_font_size = 15;
-  const reply_line_height = 23;
-
-  return (
-    <RenderHtml
-      baseStyle={{
-        color: theme.colors.inkSoft,
-        fontSize: reply_font_size,
-        lineHeight: reply_line_height,
-      }}
-      contentWidth={Math.max(
-        Math.min(
-          width -
-            READER_HORIZONTAL_PADDING * 2 -
-            READER_REPLY_CONTENT_WIDTH_OFFSET,
-          READER_COLUMN_MAX_WIDTH,
-        ),
+  const [content_height, set_content_height] = React.useState(
+    READER_WEBVIEW_MIN_HEIGHT,
+  );
+  const content_width = Math.max(
+    Math.min(
+      width - READER_HORIZONTAL_PADDING * 2 - READER_REPLY_CONTENT_WIDTH_OFFSET,
+      READER_COLUMN_MAX_WIDTH,
+    ),
+    0,
+  );
+  const resolved_base_url = "https://example.com/";
+  const document_html = React.useMemo(() => {
+    return create_reply_document_html({
+      base_url: resolved_base_url,
+      content_max_width: Math.max(
+        Math.min(content_width, READER_WEBVIEW_CONTENT_MAX_WIDTH),
         0,
-      )}
-      enableExperimentalMarginCollapsing
-      ignoredDomTags={READER_IGNORED_DOM_TAGS}
-      renderersProps={{
-        a: {
-          onPress: (_event, href) => {
-            if (href) {
-              open_external_url(href);
-            }
-          },
-        },
-      }}
-      source={{
-        html,
-      }}
-      tagsStyles={{
-        a: {
-          color: theme.colors.accentStrong,
-          textDecorationLine: "none",
-        },
-        blockquote: {
-          borderLeftColor: theme.colors.line,
-          borderLeftWidth: 3,
-          color: theme.colors.inkSoft,
-          marginLeft: 0,
-          paddingLeft: 12,
-        },
-        body: {
-          color: theme.colors.inkSoft,
-          fontSize: reply_font_size,
-          lineHeight: reply_line_height,
-        },
-        p: {
-          color: theme.colors.inkSoft,
-          fontSize: reply_font_size,
-          lineHeight: reply_line_height,
-          marginBottom: 10,
-          marginTop: 0,
-        },
-      }}
-    />
-  );
-}
-
-const RecapReaderView = observer(function RecapReaderView({
-  onReaderImagePress,
-  scaled_text_styles,
-  theme,
-  width = 0,
-}) {
-  const recap = Feed.active_recap_snapshot();
-  const recap_email_day = Feed.recap_email_day;
-  const is_loading_recap_email_settings = Feed.is_loading_recap_email_settings;
-  const is_saving_recap_email_settings = Feed.is_saving_recap_email_settings;
-  const is_recap_email_enabled = Feed.is_recap_email_enabled();
-  const recap_bookmark_error_message = Feed.recap_bookmark_error_message;
-  const recap_bookmarked_quote_urls = Feed.recap_bookmarked_quote_urls.slice();
-  const bookmarking_recap_quote_url =
-    `${Feed.bookmarking_recap_quote_url || ""}`.trim();
-  const recap_html = sanitize_reader_html(
-    decorate_recap_html(`${recap?.html || ""}`.trim()),
-  );
-  const has_renderable_body = Boolean(recap_html);
-  const recap_dom_visitors = React.useMemo(() => {
-    return create_recap_dom_visitors(theme);
-  }, [theme]);
-  const recap_renderers = React.useMemo(() => {
-    const bookmarked_quote_url_set = new Set(recap_bookmarked_quote_urls);
-
-    return {
-      "recap-card": (props) => {
-        return <RecapCardRenderer {...props} theme={theme} />;
-      },
-      "recap-header-group": (props) => {
-        return <RecapHeaderGroupRenderer {...props} theme={theme} />;
-      },
-      "recap-header": (props) => {
-        return (
-          <RecapHeaderRenderer
-            {...props}
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-          />
-        );
-      },
-      "recap-topics": (props) => {
-        return (
-          <RecapTopicsRenderer
-            {...props}
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-          />
-        );
-      },
-      "recap-photo-strip": (props) => {
-        return (
-          <RecapPhotoStripRenderer
-            {...props}
-            onImagePress={onReaderImagePress}
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-          />
-        );
-      },
-      "recap-quote": (props) => {
-        return (
-          <RecapQuoteRenderer
-            {...props}
-            bookmarked_quote_url_set={bookmarked_quote_url_set}
-            bookmarking_quote_url={bookmarking_recap_quote_url}
-            onBookmarkPress={(bookmark_url) =>
-              Feed.bookmark_recap_quote(bookmark_url)
-            }
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-          />
-        );
-      },
-      img: (props) => {
-        return (
-          <RecapImageRenderer
-            {...props}
-            onImagePress={onReaderImagePress}
-          />
-        );
-      },
-    };
+      ),
+      html,
+      theme,
+    });
   }, [
-    onReaderImagePress,
-    bookmarking_recap_quote_url,
-    recap_bookmarked_quote_urls.join("|"),
-    scaled_text_styles,
-    theme,
+    content_width,
+    html,
+    resolved_base_url,
+    theme.colors.accentStrong,
+    theme.colors.badge,
+    theme.colors.inkSoft,
+    theme.colors.line,
   ]);
+  const webview_source = React.useMemo(() => {
+    return {
+      baseUrl: resolved_base_url,
+      html: document_html,
+    };
+  }, [document_html, resolved_base_url]);
 
   React.useEffect(() => {
-    if (recap) {
-      Feed.load_recap_email_settings();
-    }
-  }, [recap?.requested_at]);
+    set_content_height(READER_WEBVIEW_MIN_HEIGHT);
+  }, [document_html]);
 
-  if (!recap) {
-    return null;
-  }
+  const handle_message = React.useCallback((event) => {
+    const raw_data = `${event?.nativeEvent?.data || ""}`.trim();
+
+    if (!raw_data) {
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(raw_data);
+
+      if (payload?.type === "height") {
+        const next_height = Number(payload?.value);
+
+        if (Number.isFinite(next_height)) {
+          set_content_height(Math.max(Math.ceil(next_height), 1));
+        }
+        return;
+      }
+
+      if (payload?.type === "link") {
+        open_external_url(payload?.href);
+        return;
+      }
+
+      if (payload?.type === "image") {
+        open_external_url(payload?.image_url || payload?.image_src);
+      }
+    } catch {
+      // Ignore malformed bridge events from the embedded document.
+    }
+  }, []);
+
+  const handle_should_start = React.useCallback((request) => {
+    const request_url = `${request?.url || ""}`.trim();
+    const navigation_type = `${request?.navigationType || ""}`
+      .trim()
+      .toLowerCase();
+
+    if (
+      !request_url ||
+      request_url.startsWith("about:") ||
+      request_url.startsWith("data:text/html") ||
+      request_url === resolved_base_url ||
+      (navigation_type && navigation_type !== "click")
+    ) {
+      return true;
+    }
+
+    const normalized_url = normalize_http_url(request_url, {
+      base_url: resolved_base_url,
+    });
+
+    if (!normalized_url) {
+      return false;
+    }
+
+    open_external_url(normalized_url);
+    return false;
+  }, []);
 
   return (
-    <View style={styles.readerColumn}>
-      <View>
-        <RecapEmailSettingsCard
-          is_enabled={is_recap_email_enabled}
-          is_loading={is_loading_recap_email_settings}
-          is_saving={is_saving_recap_email_settings}
-          selected_day={recap_email_day}
-          scaled_text_styles={scaled_text_styles}
-          theme={theme}
-          onSelectDay={(dayofweek) => Feed.update_recap_email_day(dayofweek)}
-        />
-
-        {recap_bookmark_error_message ? (
-          <Text
-            style={[
-              styles.recapBookmarkError,
-              scaled_text_styles.recapBookmarkError,
-              { color: theme.colors.accentStrong },
-            ]}
-          >
-            {recap_bookmark_error_message}
-          </Text>
-        ) : null}
-
-        {has_renderable_body ? (
-          <ReaderHtml
-            classes_styles={build_recap_classes_styles(theme)}
-            custom_element_models={READER_HTML_MODELS}
-            dom_visitors={recap_dom_visitors}
-            html={recap_html}
-            renderers={recap_renderers}
-            theme={theme}
-            width={width}
-          />
-        ) : (
-          <UnavailableBodyCard
-            body="We couldn't render the current recap payload."
-            can_open_original={false}
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-            title="No recap yet."
-          />
-        )}
-      </View>
+    <View style={styles.replyWebViewFrame}>
+      <WebView
+        androidLayerType="hardware"
+        automaticallyAdjustContentInsets={false}
+        bounces={false}
+        javaScriptEnabled
+        onMessage={handle_message}
+        onShouldStartLoadWithRequest={handle_should_start}
+        originWhitelist={["*"]}
+        scrollEnabled={false}
+        setSupportMultipleWindows={false}
+        showsVerticalScrollIndicator={false}
+        source={webview_source}
+        style={[
+          styles.replyWebView,
+          {
+            height: content_height,
+          },
+        ]}
+      />
     </View>
   );
-});
+}
 
 function ReaderTextSizeTray({
   onDismiss,
@@ -1680,718 +1569,6 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
   );
 });
 
-function ReaderHtml({
-  classes_styles,
-  custom_element_models = READER_HTML_MODELS,
-  dom_visitors,
-  html = "",
-  renderers,
-  theme,
-  width = 0,
-}) {
-  const body_font_size = 18;
-  const body_line_height = 29;
-
-  return (
-    <RenderHtml
-      baseStyle={{
-        color: theme.colors.ink,
-        fontSize: body_font_size,
-        lineHeight: body_line_height,
-      }}
-      classesStyles={{
-        lead: {
-          color: theme.colors.inkSoft,
-        },
-        ...classes_styles,
-      }}
-      contentWidth={Math.max(
-        Math.min(
-          width - READER_HORIZONTAL_PADDING * 2,
-          READER_COLUMN_MAX_WIDTH,
-        ),
-        0,
-      )}
-      customHTMLElementModels={custom_element_models}
-      domVisitors={dom_visitors}
-      enableExperimentalMarginCollapsing
-      ignoredDomTags={READER_IGNORED_DOM_TAGS}
-      renderers={renderers}
-      renderersProps={{
-        a: {
-          onPress: (_event, href) => {
-            if (href) {
-              open_external_url(href);
-            }
-          },
-        },
-      }}
-      source={{
-        html,
-      }}
-      tagsStyles={{
-        a: {
-          color: theme.colors.accentStrong,
-          textDecorationLine: "none",
-        },
-        blockquote: {
-          borderLeftColor: theme.colors.line,
-          borderLeftWidth: 3,
-          color: theme.colors.inkSoft,
-          marginLeft: 0,
-          paddingLeft: 16,
-        },
-        body: {
-          color: theme.colors.ink,
-          fontSize: body_font_size,
-          lineHeight: body_line_height,
-        },
-        h1: {
-          color: theme.colors.ink,
-          fontFamily: "Newsreader_600SemiBold",
-          fontSize: 30,
-          lineHeight: 36,
-        },
-        h2: {
-          color: theme.colors.ink,
-          fontFamily: "Newsreader_600SemiBold",
-          fontSize: 26,
-          lineHeight: 32,
-        },
-        h3: {
-          color: theme.colors.ink,
-          fontFamily: "Newsreader_600SemiBold",
-          fontSize: 22,
-          lineHeight: 28,
-        },
-        li: {
-          color: theme.colors.ink,
-          lineHeight: body_line_height,
-        },
-        p: {
-          color: theme.colors.ink,
-          marginBottom: READER_PARAGRAPH_SPACING,
-          marginTop: 0,
-        },
-        pre: {
-          backgroundColor: theme.colors.badge,
-          borderColor: theme.colors.line,
-          borderRadius: 16,
-          borderWidth: 1,
-          color: theme.colors.ink,
-          padding: 16,
-        },
-        ul: {
-          color: theme.colors.ink,
-        },
-        ol: {
-          color: theme.colors.ink,
-        },
-      }}
-    />
-  );
-}
-
-function RecapCardRenderer({ theme, ...props }) {
-  const tchildren_props = useTNodeChildrenProps(props);
-  const recap_colors = resolve_recap_colors(props?.tnode?.attributes, theme);
-
-  return (
-    <View
-      style={[
-        props.style,
-        styles.recapCard,
-        {
-          backgroundColor: recap_colors.background_color || theme.colors.badge,
-          borderColor: recap_colors.border_color || theme.colors.line,
-        },
-      ]}
-    >
-      <TChildrenRenderer {...tchildren_props} />
-    </View>
-  );
-}
-
-function RecapHeaderGroupRenderer({ ...props }) {
-  const tchildren_props = useTNodeChildrenProps(props);
-
-  return (
-    <View style={[props.style, styles.recapHeaderGroup]}>
-      <TChildrenRenderer {...tchildren_props} />
-    </View>
-  );
-}
-
-function RecapHeaderRenderer({ scaled_text_styles, theme, ...props }) {
-  const title = normalize_reader_text(extract_tnode_text(props.tnode));
-  const icon_url = find_tnode_image_source(props.tnode);
-
-  return (
-    <View style={[props.style, styles.recapHeader]}>
-      <RecapFavicon
-        icon_url={icon_url}
-        scaled_text_styles={scaled_text_styles}
-        source={title}
-        theme={theme}
-      />
-      <Text
-        style={[
-          styles.recapHeaderTitle,
-          scaled_text_styles.recapHeaderTitle,
-          { color: theme.colors.ink },
-        ]}
-      >
-        {title}
-      </Text>
-    </View>
-  );
-}
-
-function RecapTopicsRenderer({ scaled_text_styles, ...props }) {
-  const topic_labels = extract_recap_topic_labels(props.tnode);
-  const recap_card = find_tnode_ancestor_by_tag(props.tnode, "recap-card");
-  const recap_colors = resolve_recap_colors(
-    recap_card?.attributes,
-    props.theme,
-  );
-
-  if (topic_labels.length === 0) {
-    const tchildren_props = useTNodeChildrenProps(props);
-
-    return (
-      <View style={[props.style, styles.recapTopics]}>
-        <TChildrenRenderer {...tchildren_props} />
-      </View>
-    );
-  } else {
-    return (
-      <View style={[props.style, styles.recapTopics]}>
-        {topic_labels.map((topic_label) => {
-          return (
-            <View
-              key={topic_label}
-              style={[
-                styles.recapTopicPill,
-                {
-                  backgroundColor:
-                    recap_colors.topics_background_color ||
-                    props.theme.colors.badge,
-                  borderColor:
-                    recap_colors.topics_border_color || props.theme.colors.line,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.recapTopicLabel,
-                  scaled_text_styles.recapTopicLabel,
-                  { color: props.theme.colors.ink },
-                ]}
-              >
-                {topic_label}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-    );
-  }
-}
-
-function RecapPhotoStripRenderer({ scaled_text_styles, ...props }) {
-  const photo_items = extract_recap_photo_items(props.tnode);
-
-  if (photo_items.length === 0) {
-    const tchildren_props = useTNodeChildrenProps(props);
-
-    return (
-      <View style={[props.style, styles.recapPhotoStrip]}>
-        <TChildrenRenderer {...tchildren_props} />
-      </View>
-    );
-  } else {
-    return (
-      <View style={[props.style, styles.recapPhotoStrip]}>
-        {photo_items.map((photo_item) => {
-          return (
-            <RecapPhotoTile
-              href={photo_item.href}
-              image_alt={photo_item.image_alt}
-              image_url={photo_item.image_url}
-              key={photo_item.key}
-              onImagePress={props.onImagePress}
-              scaled_text_styles={scaled_text_styles}
-              theme={props.theme}
-            />
-          );
-        })}
-      </View>
-    );
-  }
-}
-
-function RecapPhotoTile({
-  href = "",
-  image_alt = "",
-  image_url = "",
-  onImagePress,
-  scaled_text_styles,
-  theme,
-}) {
-  const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
-  const accessibility_label = image_alt || "Recap image";
-  const image_payload = React.useMemo(() => {
-    return resolve_reader_image_viewer_payload({
-      image_alt,
-      image_url,
-    });
-  }, [image_alt, image_url]);
-  const handle_press = React.useCallback(() => {
-    if (image_payload && typeof onImagePress === "function") {
-      onImagePress?.(image_payload);
-    } else if (href) {
-      open_external_url(href);
-    }
-  }, [href, image_payload, onImagePress]);
-  const is_pressable = Boolean(
-    (image_payload && typeof onImagePress === "function") || href,
-  );
-  const tile_content = did_fail_to_load ? (
-    <View
-      style={[
-        styles.recapPhotoTileFallback,
-        {
-          backgroundColor: theme.colors.paper,
-          borderColor: theme.colors.line,
-        },
-      ]}
-    >
-      {image_alt ? (
-        <Text
-          numberOfLines={2}
-          style={[
-            styles.recapPhotoTileFallbackLabel,
-            scaled_text_styles.recapPhotoTileFallbackLabel,
-            { color: theme.colors.inkSoft },
-          ]}
-        >
-          {image_alt}
-        </Text>
-      ) : null}
-    </View>
-  ) : (
-    <Image
-      cachePolicy="memory-disk"
-      contentFit="cover"
-      onError={() => set_did_fail_to_load(true)}
-      source={{ uri: image_url }}
-      style={styles.recapPhotoTileImage}
-      transition={READER_AVATAR_TRANSITION_MS}
-    />
-  );
-
-  if (is_pressable) {
-    return (
-      <Pressable
-        accessibilityLabel={accessibility_label}
-        accessibilityRole={image_payload ? "button" : "link"}
-        onPress={handle_press}
-        style={({ pressed }) => {
-          return [
-            styles.recapPhotoTile,
-            {
-              opacity: pressed ? 0.88 : 1,
-            },
-          ];
-        }}
-      >
-        {tile_content}
-      </Pressable>
-    );
-  } else {
-    return (
-      <View
-        accessibilityLabel={accessibility_label}
-        accessibilityRole="image"
-        style={styles.recapPhotoTile}
-      >
-        {tile_content}
-      </View>
-    );
-  }
-}
-
-function RecapImageRenderer({ onImagePress, ...props }) {
-  const image_element_props = useIMGElementProps(props);
-  const image_payload = React.useMemo(() => {
-    return resolve_reader_image_viewer_payload({
-      alt: props?.tnode?.attributes?.alt,
-      src: props?.tnode?.attributes?.src,
-    });
-  }, [props?.tnode?.attributes?.alt, props?.tnode?.attributes?.src]);
-  const handle_press = React.useCallback(() => {
-    if (!image_payload) {
-      return;
-    }
-
-    onImagePress?.(image_payload);
-  }, [image_payload, onImagePress]);
-
-  return (
-    <IMGElement
-      {...image_element_props}
-      onPress={
-        image_payload && typeof onImagePress === "function"
-          ? handle_press
-          : undefined
-      }
-    />
-  );
-}
-
-function RecapQuoteRenderer({
-  bookmarked_quote_url_set,
-  bookmarking_quote_url = "",
-  onBookmarkPress,
-  scaled_text_styles,
-  theme,
-  ...props
-}) {
-  const tchildren_props = useTNodeChildrenProps(props);
-  const bookmark_url = normalize_http_url(
-    props?.tnode?.attributes?.["data-bookmark-url"],
-  );
-  const is_bookmarked = bookmark_url
-    ? bookmarked_quote_url_set.has(bookmark_url)
-    : false;
-  const is_loading = bookmark_url && bookmark_url === bookmarking_quote_url;
-  const label = is_bookmarked
-    ? "Bookmarked"
-    : is_loading
-      ? "Saving..."
-      : "Bookmark";
-
-  return (
-    <View style={styles.recapQuoteRow}>
-      <View style={styles.recapQuoteMain}>
-        <TChildrenRenderer {...tchildren_props} />
-      </View>
-      {bookmark_url ? (
-        <Pressable
-          accessibilityRole="button"
-          disabled={is_bookmarked || is_loading}
-          onPress={() => onBookmarkPress(bookmark_url)}
-          style={({ pressed }) => {
-            return [
-              styles.recapQuoteButton,
-              {
-                backgroundColor: theme.colors.badge,
-                borderColor: theme.colors.line,
-                opacity:
-                  is_bookmarked || is_loading ? 0.72 : pressed ? 0.84 : 1,
-              },
-            ];
-          }}
-        >
-          <Text
-            style={[
-              styles.recapQuoteButtonLabel,
-              scaled_text_styles.recapQuoteButtonLabel,
-              {
-                color: is_bookmarked
-                  ? theme.colors.accentStrong
-                  : theme.colors.inkSoft,
-              },
-            ]}
-          >
-            {label}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
-function RecapFavicon({
-  icon_url = "",
-  scaled_text_styles,
-  source = "",
-  theme,
-}) {
-  const trimmed_icon_url = `${icon_url || ""}`.trim();
-  const [did_fail_to_load, set_did_fail_to_load] = React.useState(false);
-  const [is_image_loaded, set_is_image_loaded] = React.useState(false);
-  const should_show_image = trimmed_icon_url && !did_fail_to_load;
-  const should_show_initial =
-    !trimmed_icon_url || did_fail_to_load || !is_image_loaded;
-  const initial = get_source_avatar_initial(source);
-
-  React.useEffect(() => {
-    set_did_fail_to_load(false);
-    set_is_image_loaded(false);
-  }, [trimmed_icon_url]);
-
-  return (
-    <View
-      style={[
-        styles.recapFaviconFrame,
-        {
-          backgroundColor: theme.colors.paper,
-          borderColor: theme.colors.line,
-          height: RECAP_FAVICON_SIZE,
-          width: RECAP_FAVICON_SIZE,
-        },
-      ]}
-    >
-      {should_show_initial ? (
-        <Text
-          style={[
-            styles.recapFaviconInitial,
-            scaled_text_styles.recapFaviconInitial,
-            { color: theme.colors.accentStrong },
-          ]}
-        >
-          {initial}
-        </Text>
-      ) : null}
-      {should_show_image ? (
-        <Image
-          cachePolicy="memory-disk"
-          contentFit="cover"
-          onError={() => set_did_fail_to_load(true)}
-          onLoad={() => set_is_image_loaded(true)}
-          source={{ uri: trimmed_icon_url }}
-          style={styles.recapFaviconImage}
-          transition={READER_AVATAR_TRANSITION_MS}
-        />
-      ) : null}
-    </View>
-  );
-}
-
-function RecapEmailSettingsCard({
-  is_enabled = false,
-  is_loading = false,
-  is_saving = false,
-  onSelectDay,
-  scaled_text_styles,
-  selected_day = "",
-  theme,
-}) {
-  const [is_expanded, set_is_expanded] = React.useState(false);
-  const is_busy = is_loading || is_saving;
-  const is_showing_loading_summary = is_loading && !is_saving && !selected_day;
-  const summary_label = is_showing_loading_summary
-    ? "Loading..."
-    : is_enabled
-      ? get_recap_day_summary_label(selected_day)
-      : "Off";
-  const summary_selection_kind = is_enabled ? "accent" : "neutral";
-  const helper_copy = "Send Reading Recap in a weekly email on:";
-
-  async function handle_day_selection(next_dayofweek = "") {
-    if (typeof onSelectDay !== "function" || is_busy) {
-      return;
-    }
-
-    if (`${next_dayofweek || ""}`.trim() === `${selected_day || ""}`.trim()) {
-      set_is_expanded(false);
-      return;
-    }
-
-    const did_save = await onSelectDay(next_dayofweek);
-
-    if (did_save) {
-      set_is_expanded(false);
-    }
-  }
-
-  return (
-    <Animated.View
-      style={[
-        styles.recapSettingsCard,
-        {
-          backgroundColor: theme.colors.badge,
-          borderColor: theme.colors.line,
-        },
-      ]}
-      layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
-    >
-      <View style={styles.recapSettingsHeader}>
-        <View style={styles.recapSettingsCopy}>
-          <Animated.View
-            layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
-            style={styles.recapSettingsTitleRow}
-          >
-            <Text
-              style={[
-                styles.recapSettingsTitle,
-                scaled_text_styles.recapSettingsTitle,
-                { color: theme.colors.ink },
-              ]}
-            >
-              Weekly email
-            </Text>
-            {!is_expanded ? (
-              <Animated.View
-                entering={RECAP_SETTINGS_ROW_ENTERING}
-                exiting={RECAP_SETTINGS_ROW_EXITING}
-                layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
-              >
-                <RecapDayChip
-                  disabled={is_showing_loading_summary || is_busy}
-                  icon_name="expand-more"
-                  is_compact
-                  is_selected
-                  label={summary_label}
-                  onPress={() => set_is_expanded(true)}
-                  scaled_text_styles={scaled_text_styles}
-                  selection_kind={summary_selection_kind}
-                  theme={theme}
-                />
-              </Animated.View>
-            ) : null}
-          </Animated.View>
-          {is_expanded ? (
-            <Text
-              style={[
-                styles.recapSettingsBody,
-                scaled_text_styles.recapSettingsBody,
-                { color: theme.colors.inkSoft },
-              ]}
-            >
-              {helper_copy}
-            </Text>
-          ) : null}
-        </View>
-        {is_loading || is_saving ? (
-          <ActivityIndicator color={theme.colors.accentStrong} size="small" />
-        ) : null}
-      </View>
-
-      {is_expanded ? (
-        <Animated.View
-          entering={RECAP_SETTINGS_ROW_ENTERING}
-          exiting={RECAP_SETTINGS_ROW_EXITING}
-          layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
-          style={styles.recapDayWrap}
-        >
-          {RECAP_EMAIL_DAYS.map((dayofweek) => {
-            return (
-              <RecapDayChip
-                disabled={is_busy}
-                is_selected={selected_day === dayofweek}
-                key={dayofweek}
-                label={get_recap_day_chip_label(dayofweek)}
-                onPress={() => handle_day_selection(dayofweek)}
-                scaled_text_styles={scaled_text_styles}
-                selection_kind="accent"
-                theme={theme}
-              />
-            );
-          })}
-
-          <RecapDayChip
-            disabled={is_busy}
-            is_selected={!selected_day}
-            label="Off"
-            onPress={() => handle_day_selection("")}
-            scaled_text_styles={scaled_text_styles}
-            selection_kind="destructive"
-            theme={theme}
-          />
-        </Animated.View>
-      ) : null}
-    </Animated.View>
-  );
-}
-
-function RecapDayChip({
-  disabled = false,
-  icon_name = "",
-  is_compact = false,
-  is_selected = false,
-  label = "",
-  onPress,
-  scaled_text_styles,
-  selection_kind = "accent",
-  theme,
-}) {
-  const uses_accent_selection = is_selected && selection_kind === "accent";
-  const uses_neutral_selection = is_selected && selection_kind === "neutral";
-  const uses_destructive_selection =
-    is_selected && selection_kind === "destructive";
-  const uses_destructive_treatment = selection_kind === "destructive";
-  let background_color = theme.colors.paper;
-  let border_color = theme.colors.line;
-  let label_color = theme.colors.inkSoft;
-
-  if (uses_accent_selection) {
-    background_color = theme.colors.accent;
-    border_color = theme.colors.accent;
-    label_color = theme.colors.white;
-  } else if (uses_neutral_selection) {
-    background_color = theme.colors.paperMuted;
-    border_color = theme.colors.inkSoft;
-    label_color = theme.colors.ink;
-  } else if (uses_destructive_selection) {
-    background_color = theme.isDark
-      ? "rgba(188, 84, 110, 0.28)"
-      : "rgba(166, 47, 73, 0.12)";
-    border_color = theme.isDark
-      ? "rgba(255, 160, 182, 0.4)"
-      : "rgba(166, 47, 73, 0.3)";
-    label_color = theme.isDark ? "#ffb5c6" : "#942c49";
-  } else if (uses_destructive_treatment) {
-    background_color = theme.isDark
-      ? "rgba(188, 84, 110, 0.12)"
-      : "rgba(166, 47, 73, 0.05)";
-    border_color = theme.isDark
-      ? "rgba(255, 160, 182, 0.22)"
-      : "rgba(166, 47, 73, 0.18)";
-    label_color = theme.isDark ? "#f2a6ba" : "#a63b58";
-  }
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => {
-        return [
-          styles.recapDayChip,
-          is_compact ? styles.recapDayChipCompact : null,
-          icon_name ? styles.recapDayChipWithIcon : null,
-          {
-            backgroundColor: background_color,
-            borderColor: border_color,
-            opacity: disabled ? 0.48 : pressed ? 0.84 : 1,
-          },
-        ];
-      }}
-    >
-      <Text
-        style={[
-          styles.recapDayChipLabel,
-          scaled_text_styles.recapDayChipLabel,
-          {
-            color: label_color,
-          },
-        ]}
-      >
-        {label}
-      </Text>
-      {icon_name ? (
-        <MaterialIcons
-          color={label_color}
-          name={icon_name}
-          size={is_compact ? 16 : 18}
-        />
-      ) : null}
-    </Pressable>
-  );
-}
-
 function get_entry_menu_actions({
   entry = null,
   entry_source = "feed",
@@ -2826,6 +2003,13 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 6,
     minWidth: 0,
+  },
+  replyWebViewFrame: {
+    width: "100%",
+  },
+  replyWebView: {
+    backgroundColor: "transparent",
+    width: "100%",
   },
   replyAuthor: {
     fontSize: 14,

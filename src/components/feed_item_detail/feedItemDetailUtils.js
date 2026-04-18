@@ -1,10 +1,5 @@
 import { Linking, Platform } from "react-native";
 import {
-  HTMLContentModel,
-  HTMLElementModel,
-  defaultHTMLElementModels,
-} from "react-native-render-html";
-import {
   FadeInDown,
   FadeOutUp,
   LinearTransition,
@@ -54,50 +49,6 @@ const RECAP_EMAIL_DAYS = [
   "Saturday",
   "Sunday",
 ];
-const READER_IGNORED_DOM_TAGS = [
-  "script",
-  "style",
-  "iframe",
-  "embed",
-  "object",
-  "form",
-  "input",
-  "button",
-  "select",
-  "textarea",
-  "source",
-  "link",
-  "meta",
-];
-const READER_HTML_MODELS = {
-  img: defaultHTMLElementModels.img.extend({
-    contentModel: HTMLContentModel.mixed,
-  }),
-  "recap-card": HTMLElementModel.fromCustomModel({
-    tagName: "recap-card",
-    contentModel: HTMLContentModel.block,
-  }),
-  "recap-header-group": HTMLElementModel.fromCustomModel({
-    tagName: "recap-header-group",
-    contentModel: HTMLContentModel.block,
-  }),
-  "recap-header": HTMLElementModel.fromCustomModel({
-    tagName: "recap-header",
-    contentModel: HTMLContentModel.mixed,
-  }),
-  "recap-topics": HTMLElementModel.fromCustomModel({
-    tagName: "recap-topics",
-    contentModel: HTMLContentModel.block,
-  }),
-  "recap-photo-strip": HTMLElementModel.fromCustomModel({
-    tagName: "recap-photo-strip",
-    contentModel: HTMLContentModel.block,
-  }),
-  "recap-quote": HTMLElementModel.fromCustomModel({
-    tagName: "recap-quote",
-    contentModel: HTMLContentModel.block,
-  }),
-};
 const TEXT_STYLE_NAMES = [
   "sourceLabel",
   "hostLabel",
@@ -238,9 +189,6 @@ function create_reader_post_document_html({
 
     .content {
       box-sizing: border-box;
-      margin-left: auto;
-      margin-right: auto;
-      max-width: ${Math.max(Math.round(content_max_width), 0)}px;
       width: 100%;
     }
 
@@ -350,6 +298,722 @@ function create_reader_post_document_html({
   </div>
   <script>
     ${create_reader_post_bridge_script()}
+  </script>
+</body>
+</html>`;
+}
+
+function create_reader_static_bridge_script(options = {}) {
+  const supports_bookmark_actions =
+    options?.supports_bookmark_actions === true ? "true" : "false";
+  const ignores_header_images =
+    options?.ignores_header_images === true ? "true" : "false";
+
+  return `(function() {
+    if (window.__inkwellStaticBridgeInstalled) {
+      return;
+    }
+
+    window.__inkwellStaticBridgeInstalled = true;
+
+    function postBridgeMessage(type, payload) {
+      if (
+        !window.ReactNativeWebView ||
+        typeof window.ReactNativeWebView.postMessage !== 'function'
+      ) {
+        return;
+      }
+
+      try {
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: type,
+            ...(payload || {}),
+          })
+        );
+      } catch (error) {
+        return;
+      }
+    }
+
+    function currentHeight() {
+      var bodyHeight = document.body ? document.body.scrollHeight : 0;
+      var docHeight = document.documentElement
+        ? document.documentElement.scrollHeight
+        : 0;
+      var content = document.querySelector('.content');
+      var contentHeight = content ? content.scrollHeight : 0;
+      return Math.max(bodyHeight, docHeight, contentHeight, 1);
+    }
+
+    function postHeight() {
+      postBridgeMessage('height', {
+        value: currentHeight(),
+      });
+    }
+
+    function absoluteURL(rawValue) {
+      var value = String(rawValue || '').trim();
+      if (!value) {
+        return '';
+      }
+
+      try {
+        return new URL(value, document.baseURI).toString();
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function imageLikeURL(rawValue) {
+      var value = absoluteURL(rawValue);
+
+      if (!value) {
+        return '';
+      }
+
+      try {
+        var parsedURL = new URL(value);
+
+        if (
+          /\\.(apng|avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i.test(
+            parsedURL.pathname || ''
+          )
+        ) {
+          return value;
+        }
+      } catch (error) {
+        return '';
+      }
+
+      return '';
+    }
+
+    function registerImageObservers() {
+      Array.prototype.forEach.call(document.images || [], function(image) {
+        if (!image) {
+          return;
+        }
+
+        if (!image.complete) {
+          image.addEventListener('load', postHeight);
+          image.addEventListener('error', postHeight);
+        }
+      });
+    }
+
+    document.addEventListener('click', function(event) {
+      if (!event.target || !event.target.closest) {
+        return;
+      }
+
+      if (${supports_bookmark_actions}) {
+        var bookmarkButton = event.target.closest(
+          'button.reading-recap-quote-bookmark-button[data-bookmark-url]'
+        );
+
+        if (bookmarkButton) {
+          var bookmarkURL = absoluteURL(
+            bookmarkButton.getAttribute('data-bookmark-url')
+          );
+
+          if (!bookmarkURL || bookmarkButton.disabled) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          postBridgeMessage('bookmark', {
+            bookmark_url: bookmarkURL,
+          });
+          return;
+        }
+      }
+
+      var image = event.target.closest('img');
+
+      if (image) {
+        if (
+          ${ignores_header_images} &&
+          image.closest('.reading-recap .reading-header h2')
+        ) {
+          return;
+        }
+
+        var imageSrc = absoluteURL(image.currentSrc || image.src);
+
+        if (!imageSrc) {
+          return;
+        }
+
+        var imageLink = image.closest('a[href]');
+        var anchorHref = imageLink
+          ? absoluteURL(imageLink.getAttribute('href'))
+          : '';
+        var imageURL = imageLikeURL(anchorHref) || imageSrc;
+
+        event.preventDefault();
+        event.stopPropagation();
+        postBridgeMessage('image', {
+          image_alt: String(image.getAttribute('alt') || '').trim(),
+          image_src: imageSrc,
+          image_url: imageURL,
+        });
+        return;
+      }
+
+      var link = event.target.closest('a[href]');
+
+      if (!link) {
+        return;
+      }
+
+      var href = absoluteURL(link.getAttribute('href'));
+
+      if (!href) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      postBridgeMessage('link', {
+        href: href,
+      });
+    }, true);
+
+    window.addEventListener('resize', postHeight);
+    window.addEventListener('load', function() {
+      registerImageObservers();
+      postHeight();
+    });
+
+    if (typeof ResizeObserver === 'function') {
+      var resizeObserver = new ResizeObserver(function() {
+        postHeight();
+      });
+
+      if (document.body) {
+        resizeObserver.observe(document.body);
+      }
+
+      var content = document.querySelector('.content');
+
+      if (content) {
+        resizeObserver.observe(content);
+      }
+    }
+
+    setTimeout(postHeight, 0);
+    setTimeout(postHeight, 60);
+    setTimeout(postHeight, 240);
+
+    window.inkwellStaticContent = {
+      postHeight: postHeight,
+    };
+  })();`;
+}
+
+function create_reply_document_html({
+  base_url = "",
+  content_max_width = READER_WEBVIEW_CONTENT_MAX_WIDTH,
+  html = "",
+  theme,
+}) {
+  const resolved_base_url =
+    normalize_http_url(base_url) || "https://example.com/";
+  const text_color = theme?.colors?.inkSoft || "#4d4d4f";
+  const link_color = theme?.colors?.accentStrong || "#0b57d0";
+  const quote_border_color = theme?.colors?.line || "#d2d2d7";
+  const pre_background_color = theme?.colors?.badge || "#f5f5f7";
+  const pre_border_color = theme?.colors?.line || "#d2d2d7";
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+  >
+  <base href="${escape_html_attribute(resolved_base_url)}">
+  <style>
+    :root {
+      --page-background: transparent;
+      --text-color: ${text_color};
+      --link-color: ${link_color};
+      --quote-border-color: ${quote_border_color};
+      --pre-background-color: ${pre_background_color};
+      --pre-border-color: ${pre_border_color};
+    }
+
+    html {
+      background: var(--page-background);
+    }
+
+    body {
+      background: var(--page-background);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .content {
+      box-sizing: border-box;
+      margin-top: 5px;
+      // margin-left: auto;
+      // margin-right: auto;
+      max-width: ${Math.max(Math.round(content_max_width), 0)}px;
+      width: 100%;
+    }
+
+    .reply-content {
+      color: var(--text-color);
+      font-size: 15px;
+      line-height: 23px;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .reply-content:empty {
+      display: none;
+    }
+
+    p, li, td, th, pre, blockquote {
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 23px;
+    }
+
+    p {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    ul, ol {
+      margin-top: 0;
+      margin-bottom: 10px;
+      padding-left: 1.35em;
+    }
+
+    img, video {
+      border-radius: 5px;
+      height: auto;
+      max-width: 100%;
+    }
+
+    blockquote {
+      border-left: 3px solid var(--quote-border-color);
+      margin: 0 0 10px 0;
+      padding-left: 12px;
+    }
+
+    pre {
+      background: var(--pre-background-color);
+      border: 1px solid var(--pre-border-color);
+      border-radius: 12px;
+      box-sizing: border-box;
+      overflow-x: auto;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+
+    a {
+      color: var(--link-color);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <article class="reply-content">${html}</article>
+  </div>
+  <script>
+    ${create_reader_static_bridge_script()}
+  </script>
+</body>
+</html>`;
+}
+
+function create_recap_runtime_script({ is_dark = false } = {}) {
+  const uses_dark_theme = is_dark ? "true" : "false";
+
+  return `(function() {
+    function normalizeRecapColor(rawColor) {
+      var value = String(rawColor || '').trim();
+
+      if (
+        !/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value)
+      ) {
+        return '';
+      }
+
+      var hex = value.slice(1);
+
+      if (hex.length === 3 || hex.length === 4) {
+        return '#' + hex.split('').map(function(character) {
+          return character + character;
+        }).join('');
+      }
+
+      return '#' + hex;
+    }
+
+    function withRecapColorOpacity(colorValue, opacityHex) {
+      var normalizedColor = normalizeRecapColor(colorValue);
+
+      if (!normalizedColor) {
+        return '';
+      }
+
+      var baseColor =
+        normalizedColor.length === 9
+          ? normalizedColor.slice(0, 7)
+          : normalizedColor;
+      var safeOpacity = /^[0-9a-f]{2}$/i.test(String(opacityHex || ''))
+        ? String(opacityHex || '').toLowerCase()
+        : '80';
+
+      return baseColor + safeOpacity;
+    }
+
+    function applyRecapColors() {
+      var isDarkTheme = ${uses_dark_theme};
+      var recapElements = document.querySelectorAll('.reading-recap');
+
+      Array.prototype.forEach.call(recapElements, function(recapElement) {
+        var lightColor = normalizeRecapColor(
+          recapElement.getAttribute('data-color-light')
+        );
+        var darkColor = normalizeRecapColor(
+          recapElement.getAttribute('data-color-dark') ||
+            recapElement.getAttribute('data-color-right')
+        );
+        var baseColor = isDarkTheme
+          ? (darkColor || lightColor)
+          : (lightColor || darkColor);
+
+        if (!baseColor) {
+          return;
+        }
+
+        var backgroundColor = withRecapColorOpacity(
+          baseColor,
+          isDarkTheme ? 'd9' : 'a6'
+        );
+        var borderColor = withRecapColorOpacity(
+          baseColor,
+          isDarkTheme ? 'ff' : 'bf'
+        );
+        var quoteBackgroundColor = withRecapColorOpacity(
+          baseColor,
+          isDarkTheme ? 'ee' : 'cc'
+        );
+        var quoteBorderColor = withRecapColorOpacity(baseColor, 'ff');
+        var topicsBackgroundColor = withRecapColorOpacity(
+          baseColor,
+          isDarkTheme ? 'ff' : 'f0'
+        );
+        var topicsBorderColor = withRecapColorOpacity(baseColor, 'ff');
+
+        if (backgroundColor) {
+          recapElement.style.setProperty('--recap-card-background', backgroundColor);
+        }
+
+        if (borderColor) {
+          recapElement.style.setProperty('--recap-card-border', borderColor);
+        }
+
+        if (quoteBackgroundColor) {
+          recapElement.style.setProperty(
+            '--recap-blockquote-background',
+            quoteBackgroundColor
+          );
+        }
+
+        if (quoteBorderColor) {
+          recapElement.style.setProperty(
+            '--recap-blockquote-border',
+            quoteBorderColor
+          );
+        }
+
+        if (topicsBackgroundColor) {
+          recapElement.style.setProperty(
+            '--recap-topics-background',
+            topicsBackgroundColor
+          );
+        }
+
+        if (topicsBorderColor) {
+          recapElement.style.setProperty(
+            '--recap-topics-border',
+            topicsBorderColor
+          );
+        }
+      });
+    }
+
+    window.addEventListener('load', applyRecapColors);
+    setTimeout(applyRecapColors, 0);
+    setTimeout(applyRecapColors, 60);
+  })();`;
+}
+
+function create_recap_document_html({
+  base_url = "",
+  content_max_width = READER_WEBVIEW_CONTENT_MAX_WIDTH,
+  html = "",
+  theme,
+}) {
+  const resolved_base_url =
+    normalize_http_url(base_url) || "https://example.com/";
+  const text_color = theme?.colors?.ink || "#1d1d1f";
+  const muted_text_color = theme?.colors?.inkSoft || "#6b7280";
+  const link_color = theme?.colors?.accentStrong || "#0b57d0";
+  const card_background_color = theme?.colors?.badge || "#f5f5f7";
+  const border_color = theme?.colors?.line || "#d2d2d7";
+  const button_background_color = theme?.colors?.paper || "#ffffff";
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+  >
+  <base href="${escape_html_attribute(resolved_base_url)}">
+  <style>
+    :root {
+      --page-background: transparent;
+      --recap-text: ${text_color};
+      --recap-muted: ${muted_text_color};
+      --recap-list-text: ${muted_text_color};
+      --recap-link: ${link_color};
+      --recap-card-background: ${card_background_color};
+      --recap-card-border: ${border_color};
+      --recap-topics-background: rgba(0, 0, 0, 0.08);
+      --recap-topics-border: ${border_color};
+      --recap-blockquote-background: ${card_background_color};
+      --recap-blockquote-border: ${border_color};
+      --recap-button-background: ${button_background_color};
+      --recap-button-border: ${border_color};
+    }
+
+    html {
+      background: var(--page-background);
+    }
+
+    body {
+      background: var(--page-background);
+      color: var(--recap-text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .content {
+      box-sizing: border-box;
+      margin-left: auto;
+      margin-right: auto;
+      max-width: ${Math.max(Math.round(content_max_width), 0)}px;
+      width: 100%;
+    }
+
+    .reading-recap {
+      background: var(--recap-card-background);
+      border: 1px solid var(--recap-card-border);
+      border-radius: 24px;
+      box-sizing: border-box;
+      color: var(--recap-text);
+      margin: 0 0 22px 0;
+      overflow: hidden;
+      padding: 18px;
+    }
+
+    .reading-recap .reading-header {
+      align-items: center;
+      column-gap: 10px;
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      row-gap: 8px;
+    }
+
+    .reading-recap .reading-header h2 {
+      align-items: center;
+      color: var(--recap-text);
+      display: flex;
+      flex: 1 1 auto;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 28px;
+      gap: 10px;
+      line-height: 32px;
+      margin: 0;
+      min-width: 0;
+    }
+
+    .reading-recap .reading-header h2 img {
+      border-radius: 999px;
+      flex: 0 0 auto;
+      height: 20px;
+      object-fit: cover;
+      width: 20px;
+    }
+
+    .reading-recap .reading-header .topics {
+      align-items: center;
+      display: flex;
+      flex: 0 1 auto;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+      margin-left: auto;
+    }
+
+    .reading-recap .reading-header .topics span {
+      align-items: center;
+      background: var(--recap-topics-background);
+      border: 1px solid var(--recap-topics-border);
+      border-radius: 999px;
+      display: inline-flex;
+      font-size: 13px;
+      font-weight: 700;
+      justify-content: center;
+      line-height: 16px;
+      min-height: 34px;
+      padding: 6px 14px;
+      white-space: nowrap;
+    }
+
+    .reading-recap p {
+      color: var(--recap-text);
+      font-size: 15px;
+      line-height: 23px;
+      margin: 0 0 18px 0;
+    }
+
+    .reading-recap a {
+      color: var(--recap-link);
+      text-decoration: none;
+    }
+
+    .reading-recap blockquote {
+      background: var(--recap-blockquote-background);
+      border-left: 3px solid var(--recap-blockquote-border);
+      color: var(--recap-text);
+      margin: 0 0 20px 0;
+      padding: 14px 16px;
+    }
+
+    .reading-recap blockquote p:last-child {
+      margin-bottom: 0;
+    }
+
+    .reading-recap ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .reading-recap li {
+      color: var(--recap-list-text);
+      font-size: 15px;
+      line-height: 22px;
+      margin-bottom: 8px;
+    }
+
+    .reading-recap li a {
+      font-weight: 600;
+    }
+
+    .reading-recap-photos {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 2px 0 20px 0 !important;
+    }
+
+    .reading-recap-photos a {
+      border-radius: 14px;
+      display: inline-flex;
+      overflow: hidden;
+    }
+
+    .reading-recap-photos a img {
+      display: block;
+      height: 96px;
+      object-fit: cover;
+      width: 96px;
+    }
+
+    .reading-recap-quote {
+      align-items: flex-start;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .reading-recap-quote-main {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .reading-recap-quote-main p {
+      margin-bottom: 0;
+    }
+
+    .reading-recap-quote-bookmark {
+      display: inline-flex;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .reading-recap-quote-bookmark-button {
+      align-items: center;
+      background: var(--recap-button-background);
+      border: 1px solid var(--recap-button-border);
+      border-radius: 999px;
+      color: var(--recap-muted);
+      display: inline-flex;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      justify-content: center;
+      line-height: 16px;
+      min-height: 34px;
+      padding: 0 12px;
+      white-space: nowrap;
+    }
+
+    .reading-recap-quote-bookmark-button.is-bookmarked {
+      color: var(--recap-link);
+    }
+
+    .reading-recap-quote-bookmark-button:disabled {
+      opacity: 0.72;
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    ${html}
+  </div>
+  <script>
+    ${create_recap_runtime_script({ is_dark: theme?.isDark === true })}
+  </script>
+  <script>
+    ${create_reader_static_bridge_script({
+      ignores_header_images: true,
+      supports_bookmark_actions: true,
+    })}
   </script>
 </body>
 </html>`;
@@ -1117,8 +1781,19 @@ function create_reader_post_bridge_script() {
   })();`;
 }
 
-function decorate_recap_html(markup = "") {
+function decorate_recap_html(markup = "", options = {}) {
   const trimmed_markup = `${markup || ""}`.trim();
+  const bookmarked_quote_url_set = new Set(
+    (Array.isArray(options?.bookmarked_quote_urls)
+      ? options.bookmarked_quote_urls
+      : []
+    )
+      .map((url) => normalize_http_url(url))
+      .filter(Boolean),
+  );
+  const bookmarking_quote_url = normalize_http_url(
+    options?.bookmarking_quote_url,
+  );
 
   if (!trimmed_markup) {
     return "";
@@ -1132,11 +1807,27 @@ function decorate_recap_html(markup = "") {
         quote_markup.match(/\shref\s*=\s*([^\s>"']+)/i);
       const raw_url = href_match?.[2] || href_match?.[1] || "";
       const bookmark_url = normalize_http_url(raw_url);
-      const bookmark_attribute = bookmark_url
-        ? ` data-bookmark-url="${escape_html_attribute(bookmark_url)}"`
+      const is_bookmarked = bookmark_url
+        ? bookmarked_quote_url_set.has(bookmark_url)
+        : false;
+      const is_loading =
+        Boolean(bookmark_url) && bookmark_url === bookmarking_quote_url;
+      const label = is_bookmarked
+        ? "Bookmarked"
+        : is_loading
+          ? "Saving..."
+          : "Bookmark";
+      const button_markup = bookmark_url
+        ? `<span class="reading-recap-quote-bookmark"><button type="button" class="reading-recap-quote-bookmark-button${
+            is_bookmarked ? " is-bookmarked" : ""
+          }${is_loading ? " is-loading" : ""}" data-bookmark-url="${escape_html_attribute(
+            bookmark_url,
+          )}"${
+            is_bookmarked || is_loading ? " disabled" : ""
+          }>${escape_html(label)}</button></span>`
         : "";
 
-      return `<recap-quote${bookmark_attribute}><p>${quote_markup}</p></recap-quote>`;
+      return `<div class="reading-recap-quote"><div class="reading-recap-quote-main"><p>${quote_markup}</p></div>${button_markup}</div>`;
     },
   );
 }
@@ -1212,563 +1903,6 @@ function resolve_entry_source(raw_source = "") {
   } else {
     return "feed";
   }
-}
-
-function build_recap_classes_styles(theme) {
-  return {
-    "recap-summary": {
-      color: theme.colors.inkSoft,
-      fontSize: 15,
-      lineHeight: 23,
-      marginBottom: 18,
-      marginTop: 0,
-    },
-    "recap-topic": {
-      borderWidth: 1,
-      borderRadius: 999,
-      color: theme.colors.ink,
-      fontSize: 11,
-      fontWeight: "700",
-      lineHeight: 14,
-      overflow: "hidden",
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-    },
-    "recap-photo-link": {
-      borderRadius: 14,
-      overflow: "hidden",
-    },
-    "recap-photo-image": {
-      borderRadius: 14,
-      height: 96,
-      width: 96,
-    },
-    "recap-blockquote": {
-      color: theme.colors.ink,
-      marginBottom: 20,
-      marginLeft: 0,
-      marginTop: 0,
-      paddingBottom: 14,
-      paddingLeft: 16,
-      paddingRight: 16,
-      paddingTop: 14,
-    },
-    "recap-posts-label": {
-      color: theme.colors.ink,
-      fontFamily: "Newsreader_600SemiBold",
-      fontSize: 18,
-      lineHeight: 24,
-      marginBottom: 10,
-      marginTop: 4,
-    },
-    "recap-post-list": {
-      marginBottom: 0,
-      marginTop: 0,
-      paddingLeft: 18,
-    },
-    "recap-post-item": {
-      color: theme.colors.inkSoft,
-      fontSize: 15,
-      lineHeight: 22,
-      marginBottom: 8,
-    },
-    "recap-post-link": {
-      color: theme.colors.accentStrong,
-      fontWeight: "600",
-    },
-  };
-}
-
-function create_recap_dom_visitors(theme) {
-  return {
-    onElement(element) {
-      if (!element || !element.attribs) {
-        return;
-      }
-
-      if (is_recap_card_element(element)) {
-        rename_dom_element(element, "recap-card");
-        append_dom_class(element, "recap-card");
-      }
-
-      const recap_element = is_recap_dom_node(element)
-        ? element
-        : find_recap_dom_ancestor(element);
-
-      if (!recap_element) {
-        return;
-      }
-
-      if (has_dom_class_name(element, "reading-header")) {
-        rename_dom_element(element, "recap-header-group");
-      }
-
-      if (element.name === "h2") {
-        rename_dom_element(element, "recap-header");
-      }
-
-      if (has_dom_class_name(element, "topics")) {
-        rename_dom_element(element, "recap-topics");
-      }
-
-      if (
-        element.name === "p" &&
-        has_dom_class_name(element, "reading-recap-photos")
-      ) {
-        rename_dom_element(element, "recap-photo-strip");
-      }
-
-      if (
-        element.name === "a" &&
-        element.parent?.name === "recap-photo-strip"
-      ) {
-        append_dom_class(element, "recap-photo-link");
-      }
-
-      if (
-        element.name === "img" &&
-        element.parent?.name === "a" &&
-        element.parent?.parent?.name === "recap-photo-strip"
-      ) {
-        append_dom_class(element, "recap-photo-image");
-      }
-
-      if (element.name === "span" && element.parent?.name === "recap-topics") {
-        const recap_colors = resolve_recap_colors(
-          recap_element?.attribs,
-          theme,
-        );
-
-        append_dom_class(element, "recap-topic");
-
-        if (recap_colors.topics_background_color) {
-          append_dom_style(
-            element,
-            `background-color: ${recap_colors.topics_background_color};`,
-          );
-        }
-
-        if (recap_colors.topics_border_color) {
-          append_dom_style(
-            element,
-            `border-color: ${recap_colors.topics_border_color};`,
-          );
-        }
-      }
-
-      if (is_recap_summary_paragraph(element)) {
-        append_dom_class(element, "recap-summary");
-      }
-
-      if (is_recap_recent_posts_label(element)) {
-        append_dom_class(element, "recap-posts-label");
-      }
-
-      if (element.name === "blockquote") {
-        const recap_colors = resolve_recap_colors(
-          recap_element?.attribs,
-          theme,
-        );
-
-        append_dom_class(element, "recap-blockquote");
-
-        if (recap_colors.blockquote_background_color) {
-          append_dom_style(
-            element,
-            `background-color: ${recap_colors.blockquote_background_color};`,
-          );
-        }
-
-        if (recap_colors.blockquote_border_color) {
-          append_dom_style(
-            element,
-            `border-left-color: ${recap_colors.blockquote_border_color}; border-left-width: 3px;`,
-          );
-        }
-      }
-
-      if (element.name === "ul" && is_direct_child_of_recap_card(element)) {
-        append_dom_class(element, "recap-post-list");
-      }
-
-      if (
-        element.name === "li" &&
-        element.parent?.name === "ul" &&
-        is_direct_child_of_recap_card(element.parent)
-      ) {
-        append_dom_class(element, "recap-post-item");
-      }
-
-      if (element.name === "a" && is_recap_post_link(element)) {
-        append_dom_class(element, "recap-post-link");
-      }
-    },
-  };
-}
-
-function resolve_recap_colors(attribs = {}, theme) {
-  const light_color = normalize_recap_color(attribs?.["data-color-light"]);
-  const dark_color = normalize_recap_color(
-    attribs?.["data-color-dark"] || attribs?.["data-color-right"],
-  );
-  const recap_base_color = theme.isDark
-    ? dark_color || light_color
-    : light_color || dark_color;
-
-  return {
-    background_color: with_recap_color_opacity(
-      recap_base_color,
-      theme.isDark ? "d9" : "a6",
-    ),
-    border_color: with_recap_color_opacity(
-      recap_base_color,
-      theme.isDark ? "ff" : "bf",
-    ),
-    blockquote_background_color: with_recap_color_opacity(
-      recap_base_color,
-      theme.isDark ? "ee" : "cc",
-    ),
-    blockquote_border_color: with_recap_color_opacity(recap_base_color, "ff"),
-    topics_background_color: with_recap_color_opacity(
-      recap_base_color,
-      theme.isDark ? "ff" : "f0",
-    ),
-    topics_border_color: with_recap_color_opacity(recap_base_color, "ff"),
-  };
-}
-
-function has_dom_class_name(element, class_name = "") {
-  const class_names = `${element?.attribs?.class || ""}`
-    .split(/\s+/)
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  return class_names.includes(class_name);
-}
-
-function is_recap_card_element(element) {
-  if (!element?.attribs) {
-    return false;
-  }
-
-  return Boolean(
-    has_dom_class_name(element, "reading-recap") ||
-      normalize_recap_color(element.attribs?.["data-color-light"]) ||
-      normalize_recap_color(
-        element.attribs?.["data-color-dark"] ||
-          element.attribs?.["data-color-right"],
-      ),
-  );
-}
-
-function is_recap_dom_node(element) {
-  if (!element) {
-    return false;
-  }
-
-  return (
-    element.name === "recap-card" ||
-    has_dom_class_name(element, "reading-recap")
-  );
-}
-
-function find_recap_dom_ancestor(element) {
-  let current_element = element?.parent || null;
-
-  while (current_element) {
-    if (is_recap_dom_node(current_element)) {
-      return current_element;
-    }
-
-    current_element = current_element.parent || null;
-  }
-
-  return null;
-}
-
-function is_direct_child_of_recap_card(element) {
-  return is_recap_dom_node(element?.parent);
-}
-
-function find_previous_dom_tag_sibling(element) {
-  let current_element = element?.prev || null;
-
-  while (current_element) {
-    if (current_element.type === "tag") {
-      return current_element;
-    }
-
-    current_element = current_element.prev || null;
-  }
-
-  return null;
-}
-
-function is_recap_summary_paragraph(element) {
-  if (element?.name !== "p" || !is_direct_child_of_recap_card(element)) {
-    return false;
-  }
-
-  if (
-    has_dom_class_name(element, "reading-recap-photos") ||
-    is_recap_recent_posts_label(element)
-  ) {
-    return false;
-  }
-
-  const previous_tag_sibling = find_previous_dom_tag_sibling(element);
-
-  if (!previous_tag_sibling) {
-    return false;
-  }
-
-  return (
-    previous_tag_sibling.name === "h2" ||
-    previous_tag_sibling.name === "recap-header" ||
-    has_dom_class_name(previous_tag_sibling, "reading-header") ||
-    previous_tag_sibling.name === "recap-header-group"
-  );
-}
-
-function is_recap_recent_posts_label(element) {
-  if (element?.name !== "p" || !is_direct_child_of_recap_card(element)) {
-    return false;
-  }
-
-  return normalize_dom_text_content(element).toLowerCase() === "recent posts:";
-}
-
-function normalize_dom_text_content(element) {
-  return get_dom_text_content(element).replace(/\s+/g, " ").trim();
-}
-
-function get_dom_text_content(element) {
-  if (!element) {
-    return "";
-  }
-
-  if (element.type === "text") {
-    return `${element.data || ""}`;
-  }
-
-  if (!Array.isArray(element.children)) {
-    return "";
-  }
-
-  return element.children.map((child) => get_dom_text_content(child)).join("");
-}
-
-function is_recap_post_link(element) {
-  if (element?.name !== "a" || element.parent?.name !== "li") {
-    return false;
-  }
-
-  return (
-    element.parent?.parent?.name === "ul" &&
-    is_direct_child_of_recap_card(element.parent.parent)
-  );
-}
-
-function rename_dom_element(element, next_name = "") {
-  if (!element || !next_name) {
-    return;
-  }
-
-  element.name = next_name;
-}
-
-function append_dom_class(element, class_name = "") {
-  const existing_class_name = `${element?.attribs?.class || ""}`.trim();
-
-  if (!class_name || has_dom_class_name(element, class_name)) {
-    return;
-  }
-
-  if (existing_class_name) {
-    element.attribs.class = `${existing_class_name} ${class_name}`;
-  } else {
-    element.attribs.class = class_name;
-  }
-}
-
-function append_dom_style(element, next_style = "") {
-  const trimmed_next_style = `${next_style || ""}`.trim();
-
-  if (!trimmed_next_style) {
-    return;
-  }
-
-  const existing_style = `${element?.attribs?.style || ""}`.trim();
-
-  if (!existing_style) {
-    element.attribs.style = trimmed_next_style;
-  } else if (existing_style.endsWith(";")) {
-    element.attribs.style = `${existing_style} ${trimmed_next_style}`;
-  } else {
-    element.attribs.style = `${existing_style}; ${trimmed_next_style}`;
-  }
-}
-
-function extract_tnode_text(tnode) {
-  if (!tnode) {
-    return "";
-  }
-
-  if (tnode.type === "text") {
-    return `${tnode.data || ""}`;
-  }
-
-  return (tnode.children || [])
-    .map((child) => extract_tnode_text(child))
-    .join("");
-}
-
-function extract_recap_topic_labels(tnode) {
-  if (!tnode) {
-    return [];
-  }
-
-  const direct_labels = (tnode.children || [])
-    .map((child) => normalize_reader_text(extract_tnode_text(child)))
-    .filter(Boolean);
-
-  if (direct_labels.length > 0) {
-    return [...new Set(direct_labels)];
-  }
-
-  const fallback_label = normalize_reader_text(extract_tnode_text(tnode));
-
-  if (!fallback_label) {
-    return [];
-  }
-
-  return [fallback_label];
-}
-
-function extract_recap_photo_items(tnode) {
-  if (!tnode) {
-    return [];
-  }
-
-  const photo_items = [];
-  const seen_keys = new Set();
-
-  traverse_tnode_descendants(tnode, (child) => {
-    if (child?.tagName !== "img") {
-      return;
-    }
-
-    const image_url = normalize_http_url(child?.attributes?.src);
-
-    if (!image_url) {
-      return;
-    }
-
-    const photo_link = find_tnode_ancestor_by_tag(child, "a");
-    const href = normalize_http_url(photo_link?.attributes?.href);
-    const image_alt = `${child?.attributes?.alt || ""}`.trim();
-    const key = `${href || image_url || "recap-photo"}-${photo_items.length}`;
-
-    if (seen_keys.has(key)) {
-      return;
-    }
-
-    seen_keys.add(key);
-
-    photo_items.push({
-      href,
-      image_alt,
-      image_url,
-      key,
-    });
-  });
-
-  return photo_items;
-}
-
-function find_tnode_ancestor_by_tag(tnode, tag_name = "") {
-  let current_tnode = tnode?.parent || null;
-
-  while (current_tnode) {
-    if (current_tnode.tagName === tag_name) {
-      return current_tnode;
-    }
-
-    current_tnode = current_tnode.parent || null;
-  }
-
-  return null;
-}
-
-function find_tnode_image_source(tnode) {
-  if (!tnode) {
-    return "";
-  }
-
-  if (tnode.tagName === "img") {
-    return normalize_http_url(tnode.attributes?.src);
-  }
-
-  for (const child of tnode.children || []) {
-    const child_source = find_tnode_image_source(child);
-
-    if (child_source) {
-      return child_source;
-    }
-  }
-
-  return "";
-}
-
-function traverse_tnode_descendants(tnode, on_visit) {
-  if (!tnode || typeof on_visit !== "function") {
-    return;
-  }
-
-  for (const child of tnode.children || []) {
-    on_visit(child);
-    traverse_tnode_descendants(child, on_visit);
-  }
-}
-
-function normalize_recap_color(raw_color = "") {
-  const normalized_color = `${raw_color || ""}`.trim();
-
-  if (
-    !/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(
-      normalized_color,
-    )
-  ) {
-    return "";
-  }
-
-  const hex = normalized_color.slice(1);
-
-  if (hex.length === 3 || hex.length === 4) {
-    return `#${[...hex]
-      .map((character) => `${character}${character}`)
-      .join("")}`;
-  } else {
-    return `#${hex}`;
-  }
-}
-
-function with_recap_color_opacity(color_value = "", opacity_hex = "80") {
-  const normalized_color = normalize_recap_color(color_value);
-
-  if (!normalized_color) {
-    return "";
-  }
-
-  const base_color =
-    normalized_color.length === 9
-      ? normalized_color.slice(0, 7)
-      : normalized_color;
-  const safe_opacity = /^[0-9a-f]{2}$/i.test(`${opacity_hex || ""}`)
-    ? `${opacity_hex}`.toLowerCase()
-    : "80";
-
-  return `${base_color}${safe_opacity}`;
 }
 
 function resolve_reader_title(entry = null) {
@@ -2186,10 +2320,8 @@ export {
   READER_BOTTOM_PADDING,
   READER_COLUMN_MAX_WIDTH,
   READER_HORIZONTAL_PADDING,
-  READER_HTML_MODELS,
   READER_HIGHLIGHT_DARK_BACKGROUND,
   READER_HIGHLIGHT_LIGHT_BACKGROUND,
-  READER_IGNORED_DOM_TAGS,
   READER_IMAGE_MODAL_BACKGROUND,
   READER_IMAGE_MODAL_CLOSE_BUTTON_SIZE,
   READER_IMAGE_MODAL_MAXIMUM_SCALE,
@@ -2218,17 +2350,13 @@ export {
   RECAP_SETTINGS_ROW_EXITING,
   REPLY_AVATAR_SIZE,
   TEXT_STYLE_NAMES,
-  build_recap_classes_styles,
   create_reader_body_html,
+  create_reader_static_bridge_script,
   create_reader_image_viewer_document_html,
   create_reader_post_document_html,
-  create_recap_dom_visitors,
+  create_recap_document_html,
+  create_reply_document_html,
   decorate_recap_html,
-  extract_recap_photo_items,
-  extract_recap_topic_labels,
-  extract_tnode_text,
-  find_tnode_ancestor_by_tag,
-  find_tnode_image_source,
   format_reader_date,
   format_reply_date,
   get_highlight_count_label,
@@ -2251,7 +2379,6 @@ export {
   resolve_reader_text_metrics,
   resolve_reader_text_size_backdrop_color,
   resolve_reader_title,
-  resolve_recap_colors,
   resolve_reply_html,
   sanitize_reader_html,
   with_color_opacity,
