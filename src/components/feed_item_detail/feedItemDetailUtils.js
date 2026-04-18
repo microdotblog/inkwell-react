@@ -805,7 +805,7 @@ function create_recap_document_html({
 
     .reading-recap {
       background: var(--recap-card-background);
-      border-radius: 10px;
+      border-radius: 22px;
       box-sizing: border-box;
       color: var(--recap-text);
       font-size: 17px;
