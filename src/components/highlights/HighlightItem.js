@@ -36,15 +36,15 @@ export default function HighlightItem({
   const post_label = resolve_highlight_post_label(entry);
   const timestamp = format_highlight_date(entry);
   const highlight_background_color = resolve_highlight_background_color(theme);
-  const post_url = normalize_string(entry?.post_url);
+  const can_copy_link = typeof onCopyLinkPress === 'function';
   const menu_actions = React.useMemo(() => {
     return get_highlight_row_actions({
-      can_copy_link: Boolean(post_url),
+      can_copy_link,
       can_post: typeof onPostPress === 'function',
       is_copied,
       theme,
     });
-  }, [is_copied, onPostPress, post_url, theme]);
+  }, [can_copy_link, is_copied, onPostPress, theme]);
   const handle_menu_action = React.useCallback((action_id = '') => {
     if (action_id === 'post') {
       onPostPress?.(entry);
@@ -125,6 +125,10 @@ export default function HighlightItem({
     </View>
   );
 
+  if (is_deleting) {
+    return row_content;
+  }
+
   return (
     <MenuView
       accessibilityLabel={`Options for highlight from ${post_label}`}
@@ -132,7 +136,7 @@ export default function HighlightItem({
       onPressAction={({ nativeEvent }) => {
         handle_menu_action(nativeEvent.event);
       }}
-      shouldOpenOnLongPress={!is_deleting}
+      shouldOpenOnLongPress
       themeVariant={theme?.isDark ? 'dark' : 'light'}
     >
       {row_content}
