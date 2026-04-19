@@ -24,6 +24,7 @@ export default function HighlightItem({
   entry = null,
   is_copied = false,
   is_deleting = false,
+  onCopyLinkPress,
   onCopyPress,
   onDeletePress,
   onPostPress,
@@ -35,19 +36,27 @@ export default function HighlightItem({
   const post_label = resolve_highlight_post_label(entry);
   const timestamp = format_highlight_date(entry);
   const highlight_background_color = resolve_highlight_background_color(theme);
+  const post_url = normalize_string(entry?.post_url);
   const menu_actions = React.useMemo(() => {
     return get_highlight_row_actions({
+      can_copy_link: Boolean(post_url),
       can_post: typeof onPostPress === 'function',
       is_copied,
+      theme,
     });
-  }, [is_copied, onPostPress]);
+  }, [is_copied, onPostPress, post_url, theme]);
   const handle_menu_action = React.useCallback((action_id = '') => {
     if (action_id === 'post') {
       onPostPress?.(entry);
       return;
     }
 
-    if (action_id === 'copy') {
+    if (action_id === 'copy_link') {
+      onCopyLinkPress?.(entry);
+      return;
+    }
+
+    if (action_id === 'copy_text') {
       onCopyPress?.(entry);
       return;
     }
@@ -55,7 +64,7 @@ export default function HighlightItem({
     if (action_id === 'delete') {
       onDeletePress?.(entry);
     }
-  }, [entry, onCopyPress, onDeletePress, onPostPress]);
+  }, [entry, onCopyLinkPress, onCopyPress, onDeletePress, onPostPress]);
 
   const row_content = (
     <View
@@ -245,11 +254,18 @@ function resolve_highlight_background_color(theme) {
   return HIGHLIGHT_LIGHT_BACKGROUND;
 }
 
+function normalize_string(value = '') {
+  return `${value || ''}`.trim();
+}
+
 function get_highlight_row_actions({
+  can_copy_link = false,
   can_post = false,
   is_copied = false,
+  theme,
 }) {
   const actions = [];
+  const icon_color = theme?.colors?.ink;
 
   if (can_post) {
     actions.push({
@@ -257,16 +273,29 @@ function get_highlight_row_actions({
       image: Platform.select({
         ios: 'square.and.pencil',
       }),
+      imageColor: icon_color,
       title: 'New Post...',
     });
   }
 
+  if (can_copy_link) {
+    actions.push({
+      id: 'copy_link',
+      image: Platform.select({
+        ios: 'link',
+      }),
+      imageColor: icon_color,
+      title: 'Copy Link',
+    });
+  }
+
   actions.push({
-    id: 'copy',
+    id: 'copy_text',
     image: Platform.select({
       ios: 'doc.on.doc',
     }),
-    title: is_copied ? 'Copied' : 'Copy',
+    imageColor: icon_color,
+    title: is_copied ? 'Copied Text' : 'Copy Text',
   });
 
   actions.push({
@@ -277,6 +306,7 @@ function get_highlight_row_actions({
     image: Platform.select({
       ios: 'trash',
     }),
+    imageColor: theme?.colors?.danger,
     title: 'Delete',
   });
 
