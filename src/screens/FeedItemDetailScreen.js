@@ -101,6 +101,11 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     detail_mode === "recap" ? 0 : entry ? 0.1 : 1;
   const toast_top_offset = header_height + 10;
   const content_top_padding = 12;
+  const recap_horizontal_padding = 16;
+  const content_horizontal_padding =
+    detail_mode === "recap"
+      ? recap_horizontal_padding
+      : READER_HORIZONTAL_PADDING;
   const [active_pane, set_active_pane] = React.useState("post");
   const [deleting_highlight_id, set_deleting_highlight_id] = React.useState("");
   const [, set_is_loading_replies] = React.useState(false);
@@ -791,7 +796,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           alignItems: "center",
           flexGrow: 1,
           paddingBottom: insets.bottom + READER_BOTTOM_PADDING,
-          paddingHorizontal: READER_HORIZONTAL_PADDING,
+          paddingHorizontal: content_horizontal_padding,
           paddingTop: content_top_padding,
         }}
         showsVerticalScrollIndicator={false}
@@ -821,6 +826,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
         {detail_mode === "recap" && recap ? (
           <RecapReaderView
+            horizontal_padding={recap_horizontal_padding}
             onReaderImagePress={handle_reader_image_press}
             scaled_text_styles={scaled_text_styles}
             theme={theme}

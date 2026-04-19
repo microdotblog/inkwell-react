@@ -25,6 +25,7 @@ import {
 } from "./feedItemDetailUtils";
 
 const RecapReaderView = observer(function RecapReaderView({
+  horizontal_padding = READER_HORIZONTAL_PADDING,
   onReaderImagePress,
   scaled_text_styles,
   theme,
@@ -86,6 +87,7 @@ const RecapReaderView = observer(function RecapReaderView({
             bookmarked_quote_urls={recap_bookmarked_quote_urls}
             bookmarking_quote_url={bookmarking_recap_quote_url}
             html={recap_html}
+            horizontal_padding={horizontal_padding}
             onBookmarkPress={(bookmark_url) => Feed.bookmark_recap_quote(bookmark_url)}
             onImagePress={onReaderImagePress}
             theme={theme}
@@ -108,6 +110,7 @@ function RecapContentWebView({
   bookmarked_quote_urls = [],
   bookmarking_quote_url = "",
   html = "",
+  horizontal_padding = READER_HORIZONTAL_PADDING,
   onBookmarkPress,
   onImagePress,
   theme,
@@ -117,7 +120,7 @@ function RecapContentWebView({
     READER_WEBVIEW_MIN_HEIGHT,
   );
   const content_width = Math.max(
-    Math.min(width - READER_HORIZONTAL_PADDING * 2, READER_COLUMN_MAX_WIDTH),
+    Math.min(width - horizontal_padding * 2, READER_COLUMN_MAX_WIDTH),
     0,
   );
   const normalized_base_url = "https://example.com/";
@@ -129,7 +132,12 @@ function RecapContentWebView({
       Math.round(content_width),
       html.length,
     ].join("-");
-  }, [bookmarked_quote_urls, bookmarking_quote_url, content_width, html.length]);
+  }, [
+    bookmarked_quote_urls,
+    bookmarking_quote_url,
+    content_width,
+    html.length,
+  ]);
   const document_html = React.useMemo(() => {
     return create_recap_document_html({
       base_url: normalized_base_url,
