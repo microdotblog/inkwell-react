@@ -944,7 +944,6 @@ function SearchField({
 }
 
 function SubscriptionRow({
-  isDark = false,
   is_busy = false,
   is_editing = false,
   onCancelRename,
@@ -968,6 +967,10 @@ function SubscriptionRow({
     return get_subscription_row_actions(theme);
   }, [theme]);
   const should_enable_swipe = Platform.OS === 'ios' && !is_busy;
+  const should_show_menu =
+    !is_busy &&
+    row_menu_actions.length > 0 &&
+    typeof onMenuAction === 'function';
 
   const handle_remove_press = React.useCallback(() => {
     swipeable_ref.current?.close?.();
@@ -1101,112 +1104,96 @@ function SubscriptionRow({
     );
   }
 
-  const row_card = (
-    <View
-      style={[
-        styles.rowCard,
-        {
-          backgroundColor: theme.colors.paper,
-          borderColor: theme.colors.line,
-          opacity: is_busy ? 0.64 : 1,
-        },
-      ]}
-    >
-      <View style={styles.subscriptionRow}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={is_busy}
-          onPress={() => onPress?.(subscription)}
-          style={({ pressed }) => {
-            return [
-              styles.subscriptionPressArea,
-              {
-                opacity: pressed ? 0.9 : 1,
-              },
-            ];
-          }}
+  const row_content = (
+    <View style={styles.subscriptionRow}>
+      <SubscriptionAvatar
+        avatar_url={subscription?.avatar_url}
+        scaled_text_styles={scaled_text_styles}
+        source={title}
+        theme={theme}
+      />
+
+      <View style={styles.subscriptionMeta}>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.subscriptionTitle,
+            scaled_text_styles.subscriptionTitle,
+            { color: theme.colors.ink },
+          ]}
         >
-          <SubscriptionAvatar
-            avatar_url={subscription?.avatar_url}
-            scaled_text_styles={scaled_text_styles}
-            source={title}
-            theme={theme}
-          />
-
-          <View style={styles.subscriptionMeta}>
-            <Text
-              numberOfLines={2}
-              style={[
-                styles.subscriptionTitle,
-                scaled_text_styles.subscriptionTitle,
-                { color: theme.colors.ink },
-              ]}
-            >
-              {title}
-            </Text>
-            {supporting_url ? (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.subscriptionSupportingUrl,
-                  scaled_text_styles.subscriptionSupportingUrl,
-                  { color: theme.colors.inkSoft },
-                ]}
-              >
-                {supporting_url}
-              </Text>
-            ) : null}
-            {detail_label ? (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.subscriptionDetailLabel,
-                  scaled_text_styles.subscriptionDetailLabel,
-                  { color: theme.colors.inkSoft },
-                ]}
-              >
-                {detail_label}
-              </Text>
-            ) : null}
-          </View>
-        </Pressable>
-
-        {is_busy ? (
-          <View style={styles.rowActivityWrap}>
-            <ActivityIndicator color={theme.colors.accentStrong} size="small" />
-          </View>
-        ) : (
-          <MenuView
-            accessibilityLabel={`More options for ${title}`}
-            actions={row_menu_actions}
-            onCloseMenu={onMenuClose}
-            onOpenMenu={onMenuOpen}
-            onPressAction={({ nativeEvent }) => {
-              onMenuAction?.(subscription, nativeEvent.event);
-            }}
-            shouldOpenOnLongPress={false}
-            themeVariant={isDark ? 'dark' : 'light'}
+          {title}
+        </Text>
+        {supporting_url ? (
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.subscriptionSupportingUrl,
+              scaled_text_styles.subscriptionSupportingUrl,
+              { color: theme.colors.inkSoft },
+            ]}
           >
-            <View
-              accessibilityRole="button"
-              style={[
-                styles.rowMenuButton,
-                {
-                  backgroundColor: theme.colors.canvas,
-                  borderColor: theme.colors.line,
-                },
-              ]}
-            >
-              <MaterialIcons
-                color={theme.colors.inkSoft}
-                name="more-horiz"
-                size={18}
-              />
-            </View>
-          </MenuView>
-        )}
+            {supporting_url}
+          </Text>
+        ) : null}
+        {detail_label ? (
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.subscriptionDetailLabel,
+              scaled_text_styles.subscriptionDetailLabel,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
+            {detail_label}
+          </Text>
+        ) : null}
       </View>
+
+      {is_busy ? (
+        <View style={styles.rowActivityWrap}>
+          <ActivityIndicator color={theme.colors.accentStrong} size="small" />
+        </View>
+      ) : null}
     </View>
+  );
+
+  const row_card = (
+    <Pressable
+      accessibilityLabel={`Open ${title}`}
+      accessibilityRole="button"
+      disabled={is_busy}
+      onLongPress={should_show_menu ? () => {} : undefined}
+      onPress={() => onPress?.(subscription)}
+      style={({ pressed }) => {
+        return [
+          styles.rowCard,
+          {
+            backgroundColor: theme.colors.paper,
+            borderColor: theme.colors.line,
+            opacity: is_busy ? 0.64 : pressed ? 0.9 : 1,
+          },
+        ];
+      }}
+    >
+      {should_show_menu ? (
+        <MenuView
+          accessibilityLabel={`More options for ${title}`}
+          actions={row_menu_actions}
+          onCloseMenu={onMenuClose}
+          onOpenMenu={onMenuOpen}
+          onPressAction={({ nativeEvent }) => {
+            onMenuAction?.(subscription, nativeEvent.event);
+          }}
+          shouldOpenOnLongPress
+          themeVariant={theme.isDark ? 'dark' : 'light'}
+        >
+          {row_content}
+        </MenuView>
+      ) : (
+        row_content
+      )}
+    </Pressable>
   );
 
   if (!should_enable_swipe) {
