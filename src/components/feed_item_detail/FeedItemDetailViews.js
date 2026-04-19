@@ -1618,15 +1618,9 @@ function get_entry_menu_actions({
   }
 
   actions.push({
-    attributes:
-      bookmark_title === "Unbookmark" && entry_source === "bookmark"
-        ? {
-            destructive: true,
-          }
-        : undefined,
     id: "toggle_bookmark",
     image: Platform.select({
-      ios: "star.fill",
+      ios: "star",
     }),
     imageColor: icon_color,
     title: bookmark_title,

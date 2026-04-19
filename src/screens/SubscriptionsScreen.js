@@ -2,6 +2,7 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated as RNAnimated,
   FlatList,
   Keyboard,
   Platform,
@@ -16,7 +17,10 @@ import { MenuView } from '@react-native-menu/menu';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { RectButton } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SFSymbol } from 'react-native-sfsymbols';
 import Animated, {
   FadeInDown,
   FadeOutUp,
@@ -480,7 +484,10 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
               },
             ]}
           >
-            <AuthCard style={styles.stateCard} theme={theme}>
+            <AuthCard
+              style={[styles.stateCard, styles.stateCardCentered]}
+              theme={theme}
+            >
               <View
                 style={[
                   styles.loadingOrb,
@@ -512,7 +519,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                     { color: theme.colors.inkSoft },
                   ]}
                 >
-                  Your feeds will show up here as soon as Micro.blog responds.
+                  Your current subscribed feeds.
                 </Text>
               </View>
             </AuthCard>
@@ -937,7 +944,6 @@ function SearchField({
 }
 
 function SubscriptionRow({
-  isDark = false,
   is_busy = false,
   is_editing = false,
   onCancelRename,
@@ -956,241 +962,298 @@ function SubscriptionRow({
   const title = resolve_subscription_title(subscription);
   const supporting_url = resolve_subscription_supporting_url(subscription);
   const detail_label = resolve_subscription_detail_label(subscription);
+  const swipeable_ref = React.useRef(null);
   const row_menu_actions = React.useMemo(() => {
     return get_subscription_row_actions(theme);
   }, [theme]);
+  const should_enable_swipe = Platform.OS === 'ios' && !is_busy;
+  const should_show_menu =
+    !is_busy &&
+    row_menu_actions.length > 0 &&
+    typeof onMenuAction === 'function';
+
+  const handle_remove_press = React.useCallback(() => {
+    swipeable_ref.current?.close?.();
+    onMenuAction?.(subscription, 'remove');
+  }, [onMenuAction, subscription]);
 
   if (is_editing) {
     return (
-      <View
-        style={[
-          styles.rowCard,
-          styles.editingCard,
-          {
-            backgroundColor: theme.colors.paper,
-            borderColor: theme.colors.line,
-          },
-        ]}
-      >
-        <View style={styles.rowHeader}>
-          <SubscriptionAvatar
-            avatar_url={subscription?.avatar_url}
-            scaled_text_styles={scaled_text_styles}
-            source={title}
-            theme={theme}
-          />
-          <Text
-            style={[
-              styles.editingLabel,
-              scaled_text_styles.editingLabel,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            Rename subscription
-          </Text>
-        </View>
+      <View style={styles.rowWrap}>
         <View
           style={[
-            styles.editInputWrap,
+            styles.rowCard,
+            styles.editingCard,
             {
-              backgroundColor: theme.colors.canvas,
+              backgroundColor: theme.colors.paper,
               borderColor: theme.colors.line,
             },
           ]}
         >
-          <TextInput
-            autoCapitalize="sentences"
-            autoCorrect={false}
-            autoFocus
-            onChangeText={onChangeRenameValue}
-            onSubmitEditing={onSaveRename}
-            placeholder="Subscription title"
-            placeholderTextColor={theme.colors.inkSoft}
-            returnKeyType="done"
-            selectionColor={theme.colors.accentStrong}
-            style={[
-              styles.editInput,
-              scaled_text_styles.editInput,
-              { color: theme.colors.ink },
-            ]}
-            value={rename_value}
-          />
-        </View>
-        {rename_error_message ? (
-          <Text
-            style={[
-              styles.renameError,
-              scaled_text_styles.renameError,
-              {
-                color: theme.colors.danger,
-              },
-            ]}
-          >
-            {rename_error_message}
-          </Text>
-        ) : null}
-        <View style={styles.editActions}>
-          <Pressable
-            accessibilityRole="button"
-            disabled={is_busy}
-            onPress={onCancelRename}
-            style={({ pressed }) => {
-              return [
-                styles.editActionButton,
-                {
-                  backgroundColor: theme.colors.canvas,
-                  borderColor: theme.colors.line,
-                  opacity: is_busy ? 0.56 : pressed ? 0.84 : 1,
-                },
-              ];
-            }}
-          >
+          <View style={styles.rowHeader}>
+            <SubscriptionAvatar
+              avatar_url={subscription?.avatar_url}
+              scaled_text_styles={scaled_text_styles}
+              source={title}
+              theme={theme}
+            />
             <Text
               style={[
-                styles.editActionButtonLabel,
-                scaled_text_styles.editActionButtonLabel,
+                styles.editingLabel,
+                scaled_text_styles.editingLabel,
                 { color: theme.colors.inkSoft },
               ]}
             >
-              Cancel
+              Rename subscription
             </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            disabled={is_busy}
-            onPress={onSaveRename}
-            style={({ pressed }) => {
-              return [
-                styles.editActionButton,
-                {
-                  backgroundColor: theme.colors.accentSoft,
-                  borderColor: theme.colors.line,
-                  opacity: is_busy ? 0.56 : pressed ? 0.84 : 1,
-                },
-              ];
-            }}
+          </View>
+          <View
+            style={[
+              styles.editInputWrap,
+              {
+                backgroundColor: theme.colors.canvas,
+                borderColor: theme.colors.line,
+              },
+            ]}
           >
+            <TextInput
+              autoCapitalize="sentences"
+              autoCorrect={false}
+              autoFocus
+              onChangeText={onChangeRenameValue}
+              onSubmitEditing={onSaveRename}
+              placeholder="Subscription title"
+              placeholderTextColor={theme.colors.inkSoft}
+              returnKeyType="done"
+              selectionColor={theme.colors.accentStrong}
+              style={[
+                styles.editInput,
+                scaled_text_styles.editInput,
+                { color: theme.colors.ink },
+              ]}
+              value={rename_value}
+            />
+          </View>
+          {rename_error_message ? (
             <Text
               style={[
-                styles.editActionButtonLabel,
-                scaled_text_styles.editActionButtonLabel,
-                { color: theme.colors.accentStrong },
+                styles.renameError,
+                scaled_text_styles.renameError,
+                {
+                  color: theme.colors.danger,
+                },
               ]}
             >
-              Save
+              {rename_error_message}
             </Text>
-          </Pressable>
+          ) : null}
+          <View style={styles.editActions}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={is_busy}
+              onPress={onCancelRename}
+              style={({ pressed }) => {
+                return [
+                  styles.editActionButton,
+                  {
+                    backgroundColor: theme.colors.canvas,
+                    borderColor: theme.colors.line,
+                    opacity: is_busy ? 0.56 : pressed ? 0.84 : 1,
+                  },
+                ];
+              }}
+            >
+              <Text
+                style={[
+                  styles.editActionButtonLabel,
+                  scaled_text_styles.editActionButtonLabel,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
+                Cancel
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={is_busy}
+              onPress={onSaveRename}
+              style={({ pressed }) => {
+                return [
+                  styles.editActionButton,
+                  {
+                    backgroundColor: theme.colors.accentSoft,
+                    borderColor: theme.colors.line,
+                    opacity: is_busy ? 0.56 : pressed ? 0.84 : 1,
+                  },
+                ];
+              }}
+            >
+              <Text
+                style={[
+                  styles.editActionButtonLabel,
+                  scaled_text_styles.editActionButtonLabel,
+                  { color: theme.colors.accentStrong },
+                ]}
+              >
+                Save
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     );
   }
 
-  return (
-    <View
-      style={[
-        styles.rowCard,
-        {
-          backgroundColor: theme.colors.paper,
-          borderColor: theme.colors.line,
-          opacity: is_busy ? 0.64 : 1,
-        },
-      ]}
-    >
-      <View style={styles.subscriptionRow}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={is_busy}
-          onPress={() => onPress?.(subscription)}
-          style={({ pressed }) => {
-            return [
-              styles.subscriptionPressArea,
-              {
-                opacity: pressed ? 0.9 : 1,
-              },
-            ];
-          }}
+  const row_content = (
+    <View style={styles.subscriptionRow}>
+      <SubscriptionAvatar
+        avatar_url={subscription?.avatar_url}
+        scaled_text_styles={scaled_text_styles}
+        source={title}
+        theme={theme}
+      />
+
+      <View style={styles.subscriptionMeta}>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.subscriptionTitle,
+            scaled_text_styles.subscriptionTitle,
+            { color: theme.colors.ink },
+          ]}
         >
-          <SubscriptionAvatar
-            avatar_url={subscription?.avatar_url}
-            scaled_text_styles={scaled_text_styles}
-            source={title}
-            theme={theme}
-          />
-
-          <View style={styles.subscriptionMeta}>
-            <Text
-              numberOfLines={2}
-              style={[
-                styles.subscriptionTitle,
-                scaled_text_styles.subscriptionTitle,
-                { color: theme.colors.ink },
-              ]}
-            >
-              {title}
-            </Text>
-            {supporting_url ? (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.subscriptionSupportingUrl,
-                  scaled_text_styles.subscriptionSupportingUrl,
-                  { color: theme.colors.inkSoft },
-                ]}
-              >
-                {supporting_url}
-              </Text>
-            ) : null}
-            {detail_label ? (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.subscriptionDetailLabel,
-                  scaled_text_styles.subscriptionDetailLabel,
-                  { color: theme.colors.inkSoft },
-                ]}
-              >
-                {detail_label}
-              </Text>
-            ) : null}
-          </View>
-        </Pressable>
-
-        {is_busy ? (
-          <View style={styles.rowActivityWrap}>
-            <ActivityIndicator color={theme.colors.accentStrong} size="small" />
-          </View>
-        ) : (
-          <MenuView
-            accessibilityLabel={`More options for ${title}`}
-            actions={row_menu_actions}
-            onCloseMenu={onMenuClose}
-            onOpenMenu={onMenuOpen}
-            onPressAction={({ nativeEvent }) => {
-              onMenuAction?.(subscription, nativeEvent.event);
-            }}
-            shouldOpenOnLongPress={false}
-            themeVariant={isDark ? 'dark' : 'light'}
+          {title}
+        </Text>
+        {supporting_url ? (
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.subscriptionSupportingUrl,
+              scaled_text_styles.subscriptionSupportingUrl,
+              { color: theme.colors.inkSoft },
+            ]}
           >
-            <View
-              accessibilityRole="button"
-              style={[
-                styles.rowMenuButton,
-                {
-                  backgroundColor: theme.colors.canvas,
-                  borderColor: theme.colors.line,
-                },
-              ]}
-            >
-              <MaterialIcons
-                color={theme.colors.inkSoft}
-                name="more-horiz"
-                size={18}
-              />
-            </View>
-          </MenuView>
-        )}
+            {supporting_url}
+          </Text>
+        ) : null}
+        {detail_label ? (
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.subscriptionDetailLabel,
+              scaled_text_styles.subscriptionDetailLabel,
+              { color: theme.colors.inkSoft },
+            ]}
+          >
+            {detail_label}
+          </Text>
+        ) : null}
       </View>
+
+      {is_busy ? (
+        <View style={styles.rowActivityWrap}>
+          <ActivityIndicator color={theme.colors.accentStrong} size="small" />
+        </View>
+      ) : null}
     </View>
+  );
+
+  const row_card = (
+    <Pressable
+      accessibilityLabel={`Open ${title}`}
+      accessibilityRole="button"
+      disabled={is_busy}
+      onLongPress={should_show_menu ? () => {} : undefined}
+      onPress={() => onPress?.(subscription)}
+      style={({ pressed }) => {
+        return [
+          styles.rowCard,
+          {
+            backgroundColor: theme.colors.paper,
+            borderColor: theme.colors.line,
+            opacity: is_busy ? 0.64 : pressed ? 0.9 : 1,
+          },
+        ];
+      }}
+    >
+      {should_show_menu ? (
+        <MenuView
+          accessibilityLabel={`More options for ${title}`}
+          actions={row_menu_actions}
+          onCloseMenu={onMenuClose}
+          onOpenMenu={onMenuOpen}
+          onPressAction={({ nativeEvent }) => {
+            onMenuAction?.(subscription, nativeEvent.event);
+          }}
+          shouldOpenOnLongPress
+          themeVariant={theme.isDark ? 'dark' : 'light'}
+        >
+          {row_content}
+        </MenuView>
+      ) : (
+        row_content
+      )}
+    </Pressable>
+  );
+
+  if (!should_enable_swipe) {
+    return <View style={styles.rowWrap}>{row_card}</View>;
+  }
+
+  return (
+    <Swipeable
+      ref={swipeable_ref}
+      containerStyle={styles.rowWrap}
+      enableTrackpadTwoFingerGesture={true}
+      friction={1}
+      overshootFriction={8}
+      overshootRight={false}
+      renderRightActions={(progress) => {
+        const action_opacity = progress.interpolate({
+          inputRange: [0, 0.2, 0.85, 1],
+          outputRange: [0, 0, 1, 1],
+          extrapolate: 'clamp',
+        });
+
+        return (
+          <View style={styles.rowSwipeActionsWrap}>
+            <RectButton
+              onPress={handle_remove_press}
+              style={styles.rowSwipeActionButton}
+            >
+              <RNAnimated.View style={{ opacity: action_opacity }}>
+                <View
+                  style={[
+                    styles.rowSwipeActionCircle,
+                    {
+                      backgroundColor: theme.colors.danger,
+                    },
+                  ]}
+                >
+                  {Platform.OS === 'ios' ? (
+                    <SFSymbol
+                      color="#ffffff"
+                      multicolor={false}
+                      name="trash"
+                      style={styles.rowSwipeActionSymbol}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      color="#ffffff"
+                      name="delete-outline"
+                      size={22}
+                    />
+                  )}
+                </View>
+              </RNAnimated.View>
+            </RectButton>
+          </View>
+        );
+      }}
+      rightThreshold={40}
+    >
+      {row_card}
+    </Swipeable>
   );
 }
 
@@ -1542,11 +1605,13 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     minWidth: 34,
   },
+  rowWrap: {
+    marginBottom: 12,
+  },
   rowCard: {
     borderRadius: 22,
     borderWidth: 1,
     gap: 8,
-    marginBottom: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -1562,6 +1627,28 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: 'center',
     width: 34,
+  },
+  rowSwipeActionsWrap: {
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  rowSwipeActionButton: {
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'center',
+    width: 74,
+  },
+  rowSwipeActionCircle: {
+    alignItems: 'center',
+    borderRadius: 22,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  rowSwipeActionSymbol: {
+    height: 20,
+    width: 20,
   },
   safeArea: {
     flex: 1,
@@ -1612,21 +1699,25 @@ const styles = StyleSheet.create({
   stateBody: {
     fontSize: 14,
     lineHeight: 20,
+    textAlign: 'center',
   },
   stateCard: {
     gap: 18,
   },
+  stateCardCentered: {
+    alignItems: 'center',
+  },
   stateCopy: {
+    alignItems: 'center',
     gap: 8,
   },
   stateScreen: {
     flex: 1,
-    justifyContent: 'center',
   },
   stateTitle: {
     fontSize: 18,
-    fontWeight: '700',
     lineHeight: 22,
+    textAlign: 'center',
   },
   statusText: {
     fontSize: 13,

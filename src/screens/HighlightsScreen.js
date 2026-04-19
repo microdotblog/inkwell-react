@@ -2,8 +2,10 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated as RNAnimated,
   FlatList,
   Keyboard,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -16,7 +18,10 @@ import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { observer } from 'mobx-react';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { RectButton } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SFSymbol } from 'react-native-sfsymbols';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
@@ -308,16 +313,23 @@ function HighlightsScreen({ isDark = false }) {
             }
             renderItem={({ item }) => {
               return (
-                <HighlightItem
+                <HighlightSwipeRow
                   entry={item}
-                  is_copied={copied_highlight_id === item.id}
-                  is_deleting={deleting_highlight_id === item.id}
-                  onCopyLinkPress={handle_copy_link_press}
-                  onCopyPress={handle_copy_press}
+                  is_busy={deleting_highlight_id === item.id}
                   onDeletePress={handle_delete_press}
-                  onPostPress={handle_post_press}
                   theme={theme}
-                />
+                >
+                  <HighlightItem
+                    entry={item}
+                    is_copied={copied_highlight_id === item.id}
+                    is_deleting={deleting_highlight_id === item.id}
+                    onCopyLinkPress={handle_copy_link_press}
+                    onCopyPress={handle_copy_press}
+                    onDeletePress={handle_delete_press}
+                    onPostPress={handle_post_press}
+                    theme={theme}
+                  />
+                </HighlightSwipeRow>
               );
             }}
             showsVerticalScrollIndicator={false}
@@ -326,6 +338,79 @@ function HighlightsScreen({ isDark = false }) {
         )}
       </View>
     </View>
+  );
+}
+
+function HighlightSwipeRow({
+  children,
+  entry = null,
+  is_busy = false,
+  onDeletePress,
+  theme,
+}) {
+  const swipeable_ref = React.useRef(null);
+
+  if (Platform.OS !== 'ios' || is_busy) {
+    return <View style={styles.rowWrap}>{children}</View>;
+  }
+
+  return (
+    <Swipeable
+      ref={swipeable_ref}
+      containerStyle={styles.rowWrap}
+      enableTrackpadTwoFingerGesture={true}
+      friction={1}
+      overshootFriction={8}
+      overshootRight={false}
+      renderRightActions={(progress) => {
+        const action_opacity = progress.interpolate({
+          inputRange: [0, 0.2, 0.85, 1],
+          outputRange: [0, 0, 1, 1],
+          extrapolate: 'clamp',
+        });
+
+        return (
+          <View style={styles.rowSwipeActionsWrap}>
+            <RectButton
+              onPress={() => {
+                swipeable_ref.current?.close?.();
+                onDeletePress?.(entry);
+              }}
+              style={styles.rowSwipeActionButton}
+            >
+              <RNAnimated.View style={{ opacity: action_opacity }}>
+                <View
+                  style={[
+                    styles.rowSwipeActionCircle,
+                    {
+                      backgroundColor: theme.colors.danger,
+                    },
+                  ]}
+                >
+                  {Platform.OS === 'ios' ? (
+                    <SFSymbol
+                      color="#ffffff"
+                      multicolor={false}
+                      name="trash"
+                      style={styles.rowSwipeActionSymbol}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      color="#ffffff"
+                      name="delete-outline"
+                      size={22}
+                    />
+                  )}
+                </View>
+              </RNAnimated.View>
+            </RectButton>
+          </View>
+        );
+      }}
+      rightThreshold={40}
+    >
+      {children}
+    </Swipeable>
   );
 }
 
@@ -500,8 +585,11 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
+  rowWrap: {
+    marginBottom: 14,
+  },
   listContent: {
-    gap: 14,
+    paddingBottom: 0,
   },
   listContentEmpty: {
     flexGrow: 1,
@@ -574,6 +662,28 @@ const styles = StyleSheet.create({
     lineHeight: 23,
     maxWidth: 320,
     textAlign: 'center',
+  },
+  rowSwipeActionsWrap: {
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  rowSwipeActionButton: {
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'center',
+    width: 74,
+  },
+  rowSwipeActionCircle: {
+    alignItems: 'center',
+    borderRadius: 22,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  rowSwipeActionSymbol: {
+    height: 20,
+    width: 20,
   },
 });
 
