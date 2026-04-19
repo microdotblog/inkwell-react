@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Animated as RNAnimated,
   FlatList,
   Linking,
   Platform,
@@ -10,7 +11,11 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { MaterialIcons } from '@expo/vector-icons';
+import { SFSymbol } from 'react-native-sfsymbols';
 import { observer } from 'mobx-react';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { RectButton } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
@@ -55,6 +60,7 @@ function BookmarksScreen({ navigation, isDark = false }) {
   const background_intensity = has_bookmarks ? 0.14 : 1;
   const content_top_padding = header_height + LIST_TOP_PADDING;
   const list_bottom_inset = insets.bottom + LIST_BOTTOM_PADDING;
+  const [removing_bookmark_id, set_removing_bookmark_id] = React.useState('');
 
   React.useEffect(() => {
     Bookmarks.load();
@@ -131,13 +137,23 @@ function BookmarksScreen({ navigation, isDark = false }) {
         return;
       }
 
-      const did_delete = await Bookmarks.delete_bookmark(resolved_entry_id);
+      if (removing_bookmark_id === resolved_entry_id) {
+        return;
+      }
 
-      if (did_delete) {
-        AppStore.show_toast('Bookmark removed');
+      set_removing_bookmark_id(resolved_entry_id);
+
+      try {
+        const did_delete = await Bookmarks.delete_bookmark(resolved_entry_id);
+
+        if (did_delete) {
+          AppStore.show_toast('Bookmark removed');
+        }
+      } finally {
+        set_removing_bookmark_id('');
       }
     },
-    [],
+    [removing_bookmark_id],
   );
 
   return (
@@ -245,31 +261,42 @@ function BookmarksScreen({ navigation, isDark = false }) {
                 resolve_bookmark_timeline_entry_content(item);
 
               return (
-                <FeedTimelineCard
-                  accessibility_label={`Open ${timeline_entry_content.display_title}`}
-                  avatar_url={item.avatar_url}
-                  display_title={timeline_entry_content.display_title}
-                  menu_actions={get_bookmark_menu_actions({
-                    entry: item,
-                    theme,
-                  })}
-                  onMenuAction={(menu_action_id) => {
-                    handle_entry_menu_action(item, menu_action_id);
-                  }}
-                  onPress={() => handle_entry_press(item.id)}
-                  row_opacity={timeline_entry_content.row_opacity}
-                  scaled_text_styles={scaled_text_styles}
-                  secondary_source_label={
-                    timeline_entry_content.secondary_source_label
-                  }
-                  show_bookmark_indicator={
-                    timeline_entry_content.show_bookmark_indicator
-                  }
-                  source_label={timeline_entry_content.source_label}
-                  summary={timeline_entry_content.summary}
+                <BookmarkSwipeRow
+                  entry={item}
+                  is_busy={removing_bookmark_id === item.id}
+                  onDeletePress={handle_entry_menu_action}
                   theme={theme}
-                  timestamp={timeline_entry_content.timestamp}
-                />
+                >
+                  <FeedTimelineCard
+                    accessibility_label={`Open ${timeline_entry_content.display_title}`}
+                    avatar_url={item.avatar_url}
+                    display_title={timeline_entry_content.display_title}
+                    menu_actions={get_bookmark_menu_actions({
+                      entry: item,
+                      theme,
+                    })}
+                    onMenuAction={(menu_action_id) => {
+                      handle_entry_menu_action(item, menu_action_id);
+                    }}
+                    onPress={() => handle_entry_press(item.id)}
+                    row_opacity={
+                      removing_bookmark_id === item.id
+                        ? 0.64
+                        : timeline_entry_content.row_opacity
+                    }
+                    scaled_text_styles={scaled_text_styles}
+                    secondary_source_label={
+                      timeline_entry_content.secondary_source_label
+                    }
+                    show_bookmark_indicator={
+                      timeline_entry_content.show_bookmark_indicator
+                    }
+                    source_label={timeline_entry_content.source_label}
+                    summary={timeline_entry_content.summary}
+                    theme={theme}
+                    timestamp={timeline_entry_content.timestamp}
+                  />
+                </BookmarkSwipeRow>
               );
             }}
             showsVerticalScrollIndicator={false}
@@ -278,6 +305,79 @@ function BookmarksScreen({ navigation, isDark = false }) {
         )}
       </View>
     </View>
+  );
+}
+
+function BookmarkSwipeRow({
+  children,
+  entry = null,
+  is_busy = false,
+  onDeletePress,
+  theme,
+}) {
+  const swipeable_ref = React.useRef(null);
+
+  if (Platform.OS !== 'ios' || is_busy) {
+    return <View style={styles.rowWrap}>{children}</View>;
+  }
+
+  return (
+    <Swipeable
+      ref={swipeable_ref}
+      containerStyle={styles.rowWrap}
+      enableTrackpadTwoFingerGesture={true}
+      friction={1}
+      overshootFriction={8}
+      overshootRight={false}
+      renderRightActions={(progress) => {
+        const action_opacity = progress.interpolate({
+          inputRange: [0, 0.2, 0.85, 1],
+          outputRange: [0, 0, 1, 1],
+          extrapolate: 'clamp',
+        });
+
+        return (
+          <View style={styles.rowSwipeActionsWrap}>
+            <RectButton
+              onPress={() => {
+                swipeable_ref.current?.close?.();
+                onDeletePress?.(entry, 'toggle_bookmark');
+              }}
+              style={styles.rowSwipeActionButton}
+            >
+              <RNAnimated.View style={{ opacity: action_opacity }}>
+                <View
+                  style={[
+                    styles.rowSwipeActionCircle,
+                    {
+                      backgroundColor: theme.colors.danger,
+                    },
+                  ]}
+                >
+                  {Platform.OS === 'ios' ? (
+                    <SFSymbol
+                      color="#ffffff"
+                      multicolor={false}
+                      name="trash"
+                      style={styles.rowSwipeActionSymbol}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      color="#ffffff"
+                      name="delete-outline"
+                      size={22}
+                    />
+                  )}
+                </View>
+              </RNAnimated.View>
+            </RectButton>
+          </View>
+        );
+      }}
+      rightThreshold={40}
+    >
+      {children}
+    </Swipeable>
   );
 }
 
@@ -343,8 +443,11 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
+  rowWrap: {
+    marginBottom: 14,
+  },
   listContent: {
-    gap: 14,
+    paddingBottom: 0,
   },
   listContentEmpty: {
     flexGrow: 1,
@@ -394,6 +497,28 @@ const styles = StyleSheet.create({
   rowSourceLabel: {
     fontSize: 15,
     lineHeight: 20,
+  },
+  rowSwipeActionsWrap: {
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  rowSwipeActionButton: {
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'center',
+    width: 74,
+  },
+  rowSwipeActionCircle: {
+    alignItems: 'center',
+    borderRadius: 22,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  rowSwipeActionSymbol: {
+    height: 20,
+    width: 20,
   },
 });
 
