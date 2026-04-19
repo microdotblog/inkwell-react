@@ -1,17 +1,21 @@
 import React from 'react';
 import {
   FlatList,
+  Linking,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { observer } from 'mobx-react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
+import { open_micro_blog_entry_post } from '../components/highlights/highlightPostUtils';
 import RssLoadingView from '../components/loading/RssLoadingView';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import FeedTimelineCard from '../components/timeline/FeedTimelineCard';
@@ -68,6 +72,72 @@ function BookmarksScreen({ navigation, isDark = false }) {
       });
     },
     [navigation],
+  );
+
+  const handle_entry_menu_action = React.useCallback(
+    async (entry = null, menu_action_id = '') => {
+      const resolved_entry_id = `${entry?.id || ''}`.trim();
+      const original_url = `${entry?.url || ''}`.trim();
+
+      if (!resolved_entry_id) {
+        return;
+      }
+
+      if (menu_action_id === 'copy_link') {
+        if (!original_url) {
+          return;
+        }
+
+        try {
+          await Clipboard.setStringAsync(original_url);
+          AppStore.show_toast('Link copied');
+        } catch (error) {
+          console.warn('Failed to copy link', error);
+        }
+        return;
+      }
+
+      if (menu_action_id === 'new_post') {
+        const normalized_post_title = `${entry?.title || ''}`.trim();
+        const did_open = await open_micro_blog_entry_post(entry, {
+          post_has_title:
+            Boolean(normalized_post_title) &&
+            normalized_post_title.toLowerCase() !== 'untitled',
+          post_source: entry?.source,
+          post_title: entry?.title,
+          post_url: original_url,
+        });
+
+        if (!did_open) {
+          AppStore.show_toast('We could not open Micro.blog.');
+        }
+        return;
+      }
+
+      if (menu_action_id === 'open_web') {
+        if (!original_url) {
+          return;
+        }
+
+        try {
+          await Linking.openURL(original_url);
+        } catch (error) {
+          console.warn('Failed to open url', error);
+        }
+        return;
+      }
+
+      if (menu_action_id !== 'toggle_bookmark') {
+        return;
+      }
+
+      const did_delete = await Bookmarks.delete_bookmark(resolved_entry_id);
+
+      if (did_delete) {
+        AppStore.show_toast('Bookmark removed');
+      }
+    },
+    [],
   );
 
   return (
@@ -179,6 +249,13 @@ function BookmarksScreen({ navigation, isDark = false }) {
                   accessibility_label={`Open ${timeline_entry_content.display_title}`}
                   avatar_url={item.avatar_url}
                   display_title={timeline_entry_content.display_title}
+                  menu_actions={get_bookmark_menu_actions({
+                    entry: item,
+                    theme,
+                  })}
+                  onMenuAction={(menu_action_id) => {
+                    handle_entry_menu_action(item, menu_action_id);
+                  }}
                   onPress={() => handle_entry_press(item.id)}
                   row_opacity={timeline_entry_content.row_opacity}
                   scaled_text_styles={scaled_text_styles}
@@ -202,6 +279,58 @@ function BookmarksScreen({ navigation, isDark = false }) {
       </View>
     </View>
   );
+}
+
+function get_bookmark_menu_actions({ entry = null, theme }) {
+  if (!entry) {
+    return [];
+  }
+
+  const icon_color = theme?.colors?.ink;
+  const original_url = `${entry?.url || ''}`.trim();
+  const actions = [];
+
+  if (original_url) {
+    actions.push({
+      id: 'new_post',
+      image: Platform.select({
+        ios: 'square.and.pencil',
+      }),
+      imageColor: icon_color,
+      title: 'New Post...',
+    });
+
+    actions.push({
+      id: 'copy_link',
+      image: Platform.select({
+        ios: 'link',
+      }),
+      imageColor: icon_color,
+      title: 'Copy Link',
+    });
+  }
+
+  actions.push({
+    id: 'toggle_bookmark',
+    image: Platform.select({
+      ios: 'star',
+    }),
+    imageColor: icon_color,
+    title: 'Unbookmark',
+  });
+
+  if (original_url) {
+    actions.push({
+      id: 'open_web',
+      image: Platform.select({
+        ios: 'safari',
+      }),
+      imageColor: icon_color,
+      title: 'Open on Web',
+    });
+  }
+
+  return actions;
 }
 
 const styles = StyleSheet.create({
