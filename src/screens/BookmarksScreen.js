@@ -21,7 +21,7 @@ import Bookmarks from '../stores/Bookmarks';
 import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
-const SCREEN_HORIZONTAL_PADDING = 20;
+const SCREEN_HORIZONTAL_PADDING = 16;
 const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const TEXT_STYLE_NAMES = [

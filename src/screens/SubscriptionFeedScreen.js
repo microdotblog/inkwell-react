@@ -26,7 +26,7 @@ import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
-const SCREEN_HORIZONTAL_PADDING = 20;
+const SCREEN_HORIZONTAL_PADDING = 16;
 const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const FEED_AVATAR_SIZE = 28;
@@ -368,6 +368,7 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
           <View
             style={[
               styles.stateScreen,
+              styles.stateScreenTop,
               {
                 paddingBottom: list_bottom_inset,
                 paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
@@ -375,7 +376,7 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
               },
             ]}
           >
-            <AuthCard style={styles.stateCard} theme={theme}>
+            <AuthCard style={[styles.stateCard, styles.stateCardCentered]} theme={theme}>
               <View
                 style={[
                   styles.loadingOrb,
@@ -390,10 +391,11 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
                   size="small"
                 />
               </View>
-              <View style={styles.stateCopy}>
+              <View style={[styles.stateCopy, styles.stateCopyCentered]}>
                 <Text
                   style={[
                     styles.stateTitle,
+                    styles.stateTextCentered,
                     scaled_text_styles.stateTitle,
                     { color: theme.colors.ink },
                   ]}
@@ -403,11 +405,12 @@ function SubscriptionFeedScreen({ navigation, route, isDark = false }) {
                 <Text
                   style={[
                     styles.stateBody,
+                    styles.stateTextCentered,
                     scaled_text_styles.stateBody,
                     { color: theme.colors.inkSoft },
                   ]}
                 >
-                  Recent posts from this subscription will show up here shortly.
+                  Recent posts from this subscription.
                 </Text>
               </View>
             </AuthCard>
@@ -1166,17 +1169,29 @@ const styles = StyleSheet.create({
   stateCard: {
     gap: 18,
   },
+  stateCardCentered: {
+    alignItems: 'center',
+  },
   stateCopy: {
     gap: 8,
+  },
+  stateCopyCentered: {
+    alignItems: 'center',
   },
   stateScreen: {
     flex: 1,
     justifyContent: 'center',
   },
+  stateScreenTop: {
+    justifyContent: 'flex-start',
+  },
   stateTitle: {
     fontSize: 18,
     fontWeight: '700',
     lineHeight: 22,
+  },
+  stateTextCentered: {
+    textAlign: 'center',
   },
   summaryBadge: {
     alignItems: 'center',

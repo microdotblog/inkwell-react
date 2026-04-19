@@ -28,7 +28,7 @@ import Highlights from '../stores/Highlights';
 import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
-const SCREEN_HORIZONTAL_PADDING = 20;
+const SCREEN_HORIZONTAL_PADDING = 16;
 const LIST_TOP_PADDING = 0;
 const LIST_BOTTOM_PADDING = 28;
 const COPIED_FEEDBACK_DURATION_MS = 1600;
@@ -132,6 +132,23 @@ function HighlightsScreen({ isDark = false }) {
       console.warn('Failed to copy highlight', error);
     }
   }, []);
+
+  const handle_copy_link_press = React.useCallback(async (entry = null) => {
+    const normalized_link = `${entry?.post_url || ''}`.trim();
+
+    if (!normalized_link) {
+      return;
+    }
+
+    try {
+      await Clipboard.setStringAsync(normalized_link);
+      AppStore.show_toast('Link copied', {
+        top_offset: header_height + 10,
+      });
+    } catch (error) {
+      console.warn('Failed to copy highlight link', error);
+    }
+  }, [header_height]);
 
   const handle_delete_press = React.useCallback((entry = null) => {
     const normalized_highlight_id = `${entry?.id || ''}`.trim();
@@ -295,6 +312,7 @@ function HighlightsScreen({ isDark = false }) {
                   entry={item}
                   is_copied={copied_highlight_id === item.id}
                   is_deleting={deleting_highlight_id === item.id}
+                  onCopyLinkPress={handle_copy_link_press}
                   onCopyPress={handle_copy_press}
                   onDeletePress={handle_delete_press}
                   onPostPress={handle_post_press}

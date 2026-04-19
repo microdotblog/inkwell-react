@@ -1033,31 +1033,6 @@ function SubscriptionRow({
           <Pressable
             accessibilityRole="button"
             disabled={is_busy}
-            onPress={onSaveRename}
-            style={({ pressed }) => {
-              return [
-                styles.editActionButton,
-                {
-                  backgroundColor: theme.colors.accentSoft,
-                  borderColor: theme.colors.line,
-                  opacity: is_busy ? 0.56 : pressed ? 0.84 : 1,
-                },
-              ];
-            }}
-          >
-            <Text
-              style={[
-                styles.editActionButtonLabel,
-                scaled_text_styles.editActionButtonLabel,
-                { color: theme.colors.accentStrong },
-              ]}
-            >
-              Save
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            disabled={is_busy}
             onPress={onCancelRename}
             style={({ pressed }) => {
               return [
@@ -1078,6 +1053,31 @@ function SubscriptionRow({
               ]}
             >
               Cancel
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={is_busy}
+            onPress={onSaveRename}
+            style={({ pressed }) => {
+              return [
+                styles.editActionButton,
+                {
+                  backgroundColor: theme.colors.accentSoft,
+                  borderColor: theme.colors.line,
+                  opacity: is_busy ? 0.56 : pressed ? 0.84 : 1,
+                },
+              ];
+            }}
+          >
+            <Text
+              style={[
+                styles.editActionButtonLabel,
+                scaled_text_styles.editActionButtonLabel,
+                { color: theme.colors.accentStrong },
+              ]}
+            >
+              Save
             </Text>
           </Pressable>
         </View>
