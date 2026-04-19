@@ -54,7 +54,7 @@ const SEGMENT_OPTIONS = [
   { key: 'fading', label: 'Fading' },
 ];
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
-const SCREEN_HORIZONTAL_PADDING = 20;
+const SCREEN_HORIZONTAL_PADDING = 16;
 const LIST_TOP_PADDING = 12;
 const SEGMENT_WRAP_MAX_HEIGHT = 50;
 const HEADER_ACCOUNT_BUTTON_SIZE = 40;

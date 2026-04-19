@@ -1,10 +1,11 @@
 import React from 'react';
 import {
-  Pressable,
+  Platform,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { MenuView } from '@react-native-menu/menu';
 
 import { resolve_highlight_post_label } from '../../stores/Highlights';
 import {
@@ -17,7 +18,6 @@ const TEXT_STYLE_NAMES = [
   'highlightText',
   'postLabel',
   'timestamp',
-  'actionButtonLabel',
 ];
 
 export default function HighlightItem({
@@ -35,15 +35,36 @@ export default function HighlightItem({
   const post_label = resolve_highlight_post_label(entry);
   const timestamp = format_highlight_date(entry);
   const highlight_background_color = resolve_highlight_background_color(theme);
-  const delete_button_colors = resolve_highlight_delete_button_colors(theme);
+  const menu_actions = React.useMemo(() => {
+    return get_highlight_row_actions({
+      can_post: typeof onPostPress === 'function',
+      is_copied,
+    });
+  }, [is_copied, onPostPress]);
+  const handle_menu_action = React.useCallback((action_id = '') => {
+    if (action_id === 'post') {
+      onPostPress?.(entry);
+      return;
+    }
 
-  return (
+    if (action_id === 'copy') {
+      onCopyPress?.(entry);
+      return;
+    }
+
+    if (action_id === 'delete') {
+      onDeletePress?.(entry);
+    }
+  }, [entry, onCopyPress, onDeletePress, onPostPress]);
+
+  const row_content = (
     <View
       style={[
         styles.rowCard,
         {
           backgroundColor: theme.colors.paper,
           borderColor: theme.colors.line,
+          opacity: is_deleting ? 0.64 : 1,
         },
       ]}
     >
@@ -91,97 +112,22 @@ export default function HighlightItem({
             </Text>
           ) : null}
         </View>
-
-        <View style={styles.rowActions}>
-          <Pressable
-            accessibilityLabel="New post from highlight"
-            accessibilityRole="button"
-            disabled={is_deleting || !onPostPress}
-            onPress={() => onPostPress?.(entry)}
-            style={({ pressed }) => {
-              return [
-                styles.actionButton,
-                {
-                  backgroundColor: theme.colors.buttonGhost,
-                  borderColor: theme.colors.line,
-                  opacity: is_deleting || !onPostPress ? 0.5 : pressed ? 0.84 : 1,
-                },
-              ];
-            }}
-          >
-            <Text
-              style={[
-                styles.actionButtonLabel,
-                scaled_text_styles.actionButtonLabel,
-                { color: theme.colors.inkSoft },
-              ]}
-            >
-              New Post...
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityLabel={is_copied ? 'Copied highlight text' : 'Copy highlight text'}
-            accessibilityRole="button"
-            disabled={is_deleting}
-            onPress={() => onCopyPress?.(entry)}
-            style={({ pressed }) => {
-              return [
-                styles.actionButton,
-                {
-                  backgroundColor: is_copied
-                    ? theme.colors.accentSoft
-                    : theme.colors.buttonGhost,
-                  borderColor: theme.colors.line,
-                  opacity: is_deleting ? 0.5 : pressed ? 0.84 : 1,
-                },
-              ];
-            }}
-          >
-            <Text
-              style={[
-                styles.actionButtonLabel,
-                scaled_text_styles.actionButtonLabel,
-                {
-                  color: is_copied
-                    ? theme.colors.accentStrong
-                    : theme.colors.inkSoft,
-                },
-              ]}
-            >
-              {is_copied ? 'Copied' : 'Copy'}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityLabel="Delete highlight"
-            accessibilityRole="button"
-            disabled={is_deleting}
-            onPress={() => onDeletePress?.(entry)}
-            style={({ pressed }) => {
-              return [
-                styles.actionButton,
-                {
-                  backgroundColor: delete_button_colors.backgroundColor,
-                  borderColor: delete_button_colors.borderColor,
-                  opacity: is_deleting ? 0.5 : pressed ? 0.84 : 1,
-                },
-              ];
-            }}
-          >
-            <Text
-              style={[
-                styles.actionButtonLabel,
-                scaled_text_styles.actionButtonLabel,
-                { color: delete_button_colors.labelColor },
-              ]}
-            >
-              {is_deleting ? 'Deleting' : 'Delete'}
-            </Text>
-          </Pressable>
-        </View>
       </View>
     </View>
+  );
+
+  return (
+    <MenuView
+      accessibilityLabel={`Options for highlight from ${post_label}`}
+      actions={menu_actions}
+      onPressAction={({ nativeEvent }) => {
+        handle_menu_action(nativeEvent.event);
+      }}
+      shouldOpenOnLongPress={!is_deleting}
+      themeVariant={theme?.isDark ? 'dark' : 'light'}
+    >
+      {row_content}
+    </MenuView>
   );
 }
 
@@ -200,9 +146,10 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   rowBody: {
-    gap: 10,
+    gap: 2,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingTop: 11,
+    paddingBottom: 15,
   },
   rowMeta: {
     gap: 4,
@@ -215,26 +162,6 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 12,
     lineHeight: 16,
-  },
-  rowActions: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 28,
-    minWidth: 56,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  actionButtonLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 14,
   },
 });
 
@@ -318,18 +245,40 @@ function resolve_highlight_background_color(theme) {
   return HIGHLIGHT_LIGHT_BACKGROUND;
 }
 
-function resolve_highlight_delete_button_colors(theme) {
-  if (theme?.isDark) {
-    return {
-      backgroundColor: 'rgba(188, 84, 110, 0.12)',
-      borderColor: 'rgba(255, 160, 182, 0.22)',
-      labelColor: '#f2a6ba',
-    };
+function get_highlight_row_actions({
+  can_post = false,
+  is_copied = false,
+}) {
+  const actions = [];
+
+  if (can_post) {
+    actions.push({
+      id: 'post',
+      image: Platform.select({
+        ios: 'square.and.pencil',
+      }),
+      title: 'New Post...',
+    });
   }
 
-  return {
-    backgroundColor: 'rgba(166, 47, 73, 0.05)',
-    borderColor: 'rgba(166, 47, 73, 0.18)',
-    labelColor: '#a63b58',
-  };
+  actions.push({
+    id: 'copy',
+    image: Platform.select({
+      ios: 'doc.on.doc',
+    }),
+    title: is_copied ? 'Copied' : 'Copy',
+  });
+
+  actions.push({
+    attributes: {
+      destructive: true,
+    },
+    id: 'delete',
+    image: Platform.select({
+      ios: 'trash',
+    }),
+    title: 'Delete',
+  });
+
+  return actions;
 }
