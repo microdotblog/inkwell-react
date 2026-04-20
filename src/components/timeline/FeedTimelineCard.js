@@ -11,6 +11,7 @@ export default function FeedTimelineCard({
   accessibility_label = '',
   avatar_url = '',
   display_title = '',
+  is_unread = false,
   menu_actions = [],
   onMenuAction,
   onMenuClose,
@@ -120,7 +121,7 @@ export default function FeedTimelineCard({
         return [
           styles.rowCard,
           {
-            backgroundColor: theme.colors.paper,
+            backgroundColor: resolve_row_background_color(theme, is_unread),
             borderColor: theme.colors.line,
             opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
           },
@@ -214,6 +215,14 @@ function get_source_avatar_initial(source = '') {
     return initial;
   } else {
     return 'F';
+  }
+}
+
+function resolve_row_background_color(theme, is_unread = false) {
+  if (is_unread) {
+    return theme?.colors?.paperMuted || theme?.colors?.paper;
+  } else {
+    return theme?.colors?.paper;
   }
 }
 

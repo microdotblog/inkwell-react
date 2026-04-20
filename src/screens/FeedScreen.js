@@ -1215,6 +1215,7 @@ function render_content({
               accessibility_label={`Open ${timeline_entry_content.display_title}`}
               avatar_url={item.avatar_url}
               display_title={timeline_entry_content.display_title}
+              is_unread={!item?.is_read}
               menu_actions={get_entry_menu_actions({
                 entry: item,
                 theme,
