@@ -11,6 +11,7 @@ export default function FeedTimelineCard({
   accessibility_label = '',
   avatar_url = '',
   display_title = '',
+  is_unread = false,
   menu_actions = [],
   onMenuAction,
   onMenuClose,
@@ -29,6 +30,7 @@ export default function FeedTimelineCard({
     <View style={styles.rowContentWrap}>
       <FeedSourceAvatar
         avatar_url={avatar_url}
+        row_opacity={row_opacity}
         scaled_text_styles={scaled_text_styles}
         source={source_label}
         theme={theme}
@@ -120,7 +122,7 @@ export default function FeedTimelineCard({
         return [
           styles.rowCard,
           {
-            backgroundColor: theme.colors.paper,
+            backgroundColor: resolve_row_background_color(theme, is_unread),
             borderColor: theme.colors.line,
             opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
           },
@@ -152,6 +154,7 @@ export default function FeedTimelineCard({
 
 function FeedSourceAvatar({
   avatar_url = '',
+  row_opacity = 1,
   scaled_text_styles,
   source = '',
   theme,
@@ -175,6 +178,7 @@ function FeedSourceAvatar({
         styles.sourceAvatarFrame,
         {
           backgroundColor: theme.colors.accentSoft,
+          opacity: resolve_source_avatar_opacity(row_opacity),
         },
       ]}
     >
@@ -214,6 +218,56 @@ function get_source_avatar_initial(source = '') {
     return initial;
   } else {
     return 'F';
+  }
+}
+
+function resolve_row_background_color(theme, is_unread = false) {
+  if (is_unread) {
+    const unread_background_color =
+      theme?.colors?.paperMuted || theme?.colors?.paper;
+
+    if (theme?.isDark) {
+      return unread_background_color;
+    } else {
+      return darken_hex_color(unread_background_color, 0.04);
+    }
+  } else {
+    return theme?.colors?.paper;
+  }
+}
+
+function darken_hex_color(color = '', amount = 0) {
+  const normalized_color = `${color || ''}`.trim();
+  const normalized_amount = Number.isFinite(amount)
+    ? Math.min(Math.max(amount, 0), 1)
+    : 0;
+  const hex_match = normalized_color.match(/^#([0-9a-f]{6})$/i);
+
+  if (!hex_match) {
+    return normalized_color;
+  }
+
+  const hex = hex_match[1];
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+
+  return `#${[red, green, blue]
+    .map((channel) => {
+      const next_channel = Math.round(channel * (1 - normalized_amount));
+
+      return Math.max(0, Math.min(next_channel, 255))
+        .toString(16)
+        .padStart(2, '0');
+    })
+    .join('')}`;
+}
+
+function resolve_source_avatar_opacity(row_opacity = 1) {
+  if (row_opacity < 1) {
+    return 0.72;
+  } else {
+    return 1;
   }
 }
 
