@@ -29,6 +29,21 @@ function resolve_token_sign_in_error_message(error) {
   }
 }
 
+function resolve_verified_session_token(token = '', verify_payload = null) {
+  const verified_token = `${verify_payload?.token || ''}`.trim();
+  const fallback_token = `${token || ''}`.trim();
+
+  return verified_token || fallback_token || null;
+}
+
+function resolve_verify_access_error_message(verify_payload = null) {
+  if (verify_payload?.has_inkwell === false) {
+    return 'Inkwell requires a Micro.blog subscription.';
+  }
+
+  return null;
+}
+
 export function create_auth_store({
   build_micro_blog_auth_url,
   create_oauth_state,
@@ -127,6 +142,17 @@ export function create_auth_store({
           try {
             self.set_loading_phase('verifying');
             const verify_payload = yield verify_micro_blog_token(stored_token);
+            const access_error_message = resolve_verify_access_error_message(verify_payload);
+
+            if (access_error_message) {
+              yield self.clear_invalid_session(access_error_message);
+              return;
+            }
+
+            const verified_token = resolve_verified_session_token(stored_token, verify_payload);
+            if (verified_token && verified_token !== stored_token) {
+              yield tokens.set_user_token(verified_token);
+            }
             self.apply_session_payloads(null, verify_payload);
           } catch (error) {
             if (error?.status === 401 || error?.status === 403) {
@@ -209,7 +235,17 @@ export function create_auth_store({
           yield tokens.hydrate();
 
           const verify_payload = yield verify_micro_blog_token(trimmed_token);
-          yield tokens.set_user_token(trimmed_token);
+          const access_error_message = resolve_verify_access_error_message(verify_payload);
+
+          if (access_error_message) {
+            yield tokens.clear_user_token();
+            self.clear_session_data();
+            self.set_error(access_error_message);
+            return false;
+          }
+
+          const verified_token = resolve_verified_session_token(trimmed_token, verify_payload);
+          yield tokens.set_user_token(verified_token);
           self.apply_session_payloads(null, verify_payload);
           self.clear_error();
           return true;
@@ -253,6 +289,17 @@ export function create_auth_store({
 
           try {
             const verify_payload = yield verify_micro_blog_token(access_token);
+            const access_error_message = resolve_verify_access_error_message(verify_payload);
+
+            if (access_error_message) {
+              yield self.clear_invalid_session(access_error_message);
+              return false;
+            }
+
+            const verified_token = resolve_verified_session_token(access_token, verify_payload);
+            if (verified_token && verified_token !== access_token) {
+              yield tokens.set_user_token(verified_token);
+            }
             self.apply_session_payloads(token_payload, verify_payload);
           } catch (error) {
             if (error?.status === 401 || error?.status === 403) {

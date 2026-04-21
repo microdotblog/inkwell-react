@@ -26,7 +26,7 @@ function build_tokens_double() {
 }
 
 function build_auth_store(overrides = {}) {
-  const tokens = build_tokens_double();
+  const default_tokens = build_tokens_double();
   const dependencies = {
     build_micro_blog_auth_url: mock(() => 'https://micro.blog/auth'),
     exchange_micro_blog_code: mock(async () => ({ access_token: 'oauth-token' })),
@@ -35,7 +35,7 @@ function build_auth_store(overrides = {}) {
     get_micro_blog_redirect_uri: mock(() => 'inkwell://auth/callback'),
     is_micro_blog_callback_url: mock(() => false),
     open_auth_session: mock(async () => ({ type: 'cancel' })),
-    tokens,
+    tokens: default_tokens,
     verify_micro_blog_token: mock(async token => ({
       avatar: 'https://micro.blog/avatar.jpg',
       has_inkwell: true,
@@ -51,20 +51,31 @@ function build_auth_store(overrides = {}) {
   return {
     dependencies,
     store: create_auth_store(dependencies),
-    tokens,
+    tokens: dependencies.tokens,
   };
 }
 
 describe('create_auth_store', () => {
   describe('sign_in_with_token', () => {
-    it('stores a verified token and applies the verified profile', async () => {
+    it('stores the replacement token from verify and applies the verified profile', async () => {
+      const replacement_token = 'session-token-456';
       const { dependencies, store, tokens } = build_auth_store();
+      dependencies.verify_micro_blog_token.mockImplementation(async token => ({
+        avatar: 'https://micro.blog/avatar.jpg',
+        has_inkwell: true,
+        is_premium: true,
+        is_using_ai: false,
+        me: 'https://micro.blog/vincent',
+        token: replacement_token,
+        url: 'https://micro.blog/vincent',
+        username: `verified-${token}`,
+      }));
 
       const did_sign_in = await store.sign_in_with_token('  token-123  ');
 
       expect(did_sign_in).toBe(true);
       expect(dependencies.verify_micro_blog_token).toHaveBeenCalledWith('token-123');
-      expect(tokens.set_user_token).toHaveBeenCalledWith('token-123');
+      expect(tokens.set_user_token).toHaveBeenCalledWith(replacement_token);
       expect(store.profile_name).toBe('verified-token-123');
       expect(store.profile_url).toBe('https://micro.blog/vincent');
       expect(store.profile_photo).toBe('https://micro.blog/avatar.jpg');
@@ -74,6 +85,15 @@ describe('create_auth_store', () => {
       expect(store.error_message).toBe(null);
       expect(store.is_signing_in).toBe(false);
       expect(store.loading_phase).toBe('idle');
+    });
+
+    it('falls back to the submitted token when verify does not return a replacement token', async () => {
+      const { store, tokens } = build_auth_store();
+
+      const did_sign_in = await store.sign_in_with_token('token-123');
+
+      expect(did_sign_in).toBe(true);
+      expect(tokens.set_user_token).toHaveBeenCalledWith('token-123');
     });
 
     it('stores the verified AI flag', async () => {
@@ -114,6 +134,75 @@ describe('create_auth_store', () => {
       expect(store.error_message).toBe('That Micro.blog token is not valid. Please try again.');
       expect(store.is_signing_in).toBe(false);
       expect(store.loading_phase).toBe('idle');
+    });
+
+    it('rejects accounts without Inkwell access', async () => {
+      const { store, tokens } = build_auth_store({
+        verify_micro_blog_token: mock(async () => ({
+          has_inkwell: false,
+          url: 'https://micro.blog/vincent',
+          username: 'vincent',
+        })),
+      });
+
+      const did_sign_in = await store.sign_in_with_token('token-123');
+
+      expect(did_sign_in).toBe(false);
+      expect(tokens.set_user_token).not.toHaveBeenCalled();
+      expect(tokens.clear_user_token).toHaveBeenCalled();
+      expect(store.error_message).toBe('Inkwell requires a Micro.blog subscription.');
+      expect(store.profile_name).toBe(null);
+    });
+  });
+
+  describe('hydrate', () => {
+    it('replaces the stored token when verify returns a newer session token', async () => {
+      const { store, tokens } = build_auth_store({
+        tokens: {
+          ...build_tokens_double(),
+          get_user_token() {
+            return 'stored-token';
+          },
+          has_user_token() {
+            return true;
+          },
+        },
+        verify_micro_blog_token: mock(async () => ({
+          token: 'fresh-token',
+          url: 'https://micro.blog/vincent',
+          username: 'vincent',
+        })),
+      });
+
+      await store.hydrate();
+
+      expect(tokens.set_user_token).toHaveBeenCalledWith('fresh-token');
+      expect(store.profile_name).toBe('vincent');
+    });
+
+    it('clears stored sessions when verify shows Inkwell is unavailable', async () => {
+      const { store, tokens } = build_auth_store({
+        tokens: {
+          ...build_tokens_double(),
+          get_user_token() {
+            return 'stored-token';
+          },
+          has_user_token() {
+            return true;
+          },
+        },
+        verify_micro_blog_token: mock(async () => ({
+          has_inkwell: false,
+          url: 'https://micro.blog/vincent',
+          username: 'vincent',
+        })),
+      });
+
+      await store.hydrate();
+
+      expect(tokens.clear_all).toHaveBeenCalled();
+      expect(store.error_message).toBe('Inkwell requires a Micro.blog subscription.');
+      expect(store.profile_name).toBe(null);
     });
   });
 });
