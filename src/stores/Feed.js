@@ -1,3 +1,5 @@
+import * as Crypto from 'expo-crypto';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Platform, Settings } from 'react-native';
 import { flow, getSnapshot, types } from 'mobx-state-tree';
 
@@ -69,6 +71,10 @@ const RECAP_EMAIL_DAYS = [
   'Sunday',
 ];
 const HIDE_READ_POSTS_SETTINGS_KEY = 'HideReadPosts';
+const FEED_TIMELINE_CACHE_DIRECTORY_NAME = 'inkwell';
+const FEED_TIMELINE_CACHE_FILENAME_PREFIX = 'RecentEntries';
+const FEED_TIMELINE_CACHE_VERSION = 1;
+const FEED_TIMELINE_CACHE_WRITE_DELAY_MS = 240;
 
 const Feed = types
   .model('Feed', {
@@ -87,6 +93,7 @@ const Feed = types
     subscription_feed_error_message: types.maybeNull(types.string),
     is_bootstrapping: types.optional(types.boolean, false),
     has_bootstrapped: types.optional(types.boolean, false),
+    has_restored_cache: types.optional(types.boolean, false),
     error_message: types.maybeNull(types.string),
     active_recap: types.maybeNull(RecapSession),
     is_generating_recap: types.optional(types.boolean, false),
@@ -112,6 +119,7 @@ const Feed = types
     recap_bookmark_request_token: 0,
     subscriptions_request_token: 0,
     subscription_feed_request_token: 0,
+    timeline_cache_persist_timeout_id: null,
   }))
   .actions((self) => ({
     clear_error() {
@@ -149,15 +157,70 @@ const Feed = types
       self.clear_local_bookmark_state();
     },
 
+    clear_timeline_cache_persist_timer() {
+      if (!self.timeline_cache_persist_timeout_id) {
+        return;
+      }
+
+      clearTimeout(self.timeline_cache_persist_timeout_id);
+      self.timeline_cache_persist_timeout_id = null;
+    },
+
+    restore_local_entry_state_from_cache(timeline_cache_payload = null) {
+      const normalized_payload =
+        timeline_cache_payload?.entries &&
+        Array.isArray(timeline_cache_payload.entries)
+          ? timeline_cache_payload
+          : normalize_timeline_cache_payload(timeline_cache_payload);
+
+      self.clear_local_entry_state();
+
+      if (!normalized_payload) {
+        return false;
+      }
+
+      normalized_payload.local_read_entry_ids.forEach((entry_id) => {
+        self.local_read_entry_ids.add(entry_id);
+      });
+      normalized_payload.local_unread_entry_ids.forEach((entry_id) => {
+        self.local_unread_entry_ids.add(entry_id);
+      });
+      normalized_payload.local_bookmarked_entry_ids.forEach((entry_id) => {
+        self.local_bookmarked_entry_ids.add(entry_id);
+      });
+      normalized_payload.local_unbookmarked_entry_ids.forEach((entry_id) => {
+        self.local_unbookmarked_entry_ids.add(entry_id);
+      });
+
+      return true;
+    },
+
+    apply_timeline_cache_payload(timeline_cache_payload = null) {
+      const normalized_payload =
+        normalize_timeline_cache_payload(timeline_cache_payload);
+
+      if (!normalized_payload) {
+        return false;
+      }
+
+      self.restore_local_entry_state_from_cache(normalized_payload);
+      self.timeline_entries.replace(normalized_payload.entries);
+      self.has_restored_cache = true;
+      self.error_message = null;
+      return true;
+    },
+
     reset() {
       self.active_segment = 'today';
       self.is_search_active = false;
       self.search_query = '';
       self.is_bootstrapping = false;
       self.has_bootstrapped = false;
+      self.has_restored_cache = false;
       self.is_loading_subscriptions = false;
       self.subscriptions_error_message = null;
       self.error_message = null;
+      self.clear_timeline_cache_persist_timer();
       self.clear_local_entry_state();
       self.clear_feed_data();
       self.clear_active_recap();
@@ -549,6 +612,95 @@ const Feed = types
       self.timeline_entries.replace(normalized_entries);
       self.is_loading_subscriptions = false;
       self.error_message = null;
+    },
+
+    hydrate_timeline_cache: flow(function* () {
+      if (self.timeline_entries.length > 0) {
+        return true;
+      }
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+        if (!user_token) {
+          return false;
+        }
+
+        const timeline_cache_uri = yield get_timeline_cache_uri(user_token);
+        if (!timeline_cache_uri) {
+          return false;
+        }
+
+        const cache_info = yield FileSystem.getInfoAsync(timeline_cache_uri);
+        if (!cache_info.exists) {
+          return false;
+        }
+
+        const raw_payload = yield FileSystem.readAsStringAsync(timeline_cache_uri);
+        if (!raw_payload) {
+          return false;
+        }
+
+        const parsed_payload = JSON.parse(raw_payload);
+        return self.apply_timeline_cache_payload(parsed_payload);
+      } catch (error) {
+        return false;
+      }
+    }),
+
+    persist_timeline_cache: flow(function* (
+      user_token = Tokens.get_user_token(),
+    ) {
+      const normalized_user_token = normalize_string(user_token);
+
+      if (!normalized_user_token) {
+        return false;
+      }
+
+      const timeline_cache_directory = get_timeline_cache_directory();
+      const timeline_cache_uri = yield get_timeline_cache_uri(
+        normalized_user_token,
+      );
+
+      if (!timeline_cache_directory || !timeline_cache_uri) {
+        return false;
+      }
+
+      try {
+        const directory_info = yield FileSystem.getInfoAsync(
+          timeline_cache_directory,
+        );
+
+        if (!directory_info.exists) {
+          yield FileSystem.makeDirectoryAsync(
+            timeline_cache_directory,
+            { intermediates: true },
+          );
+        }
+
+        const payload = serialize_timeline_cache_payload(self);
+        yield FileSystem.writeAsStringAsync(
+          timeline_cache_uri,
+          JSON.stringify(payload),
+        );
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }),
+
+    schedule_timeline_cache_persist(
+      delay_ms = FEED_TIMELINE_CACHE_WRITE_DELAY_MS,
+    ) {
+      self.clear_timeline_cache_persist_timer();
+
+      self.timeline_cache_persist_timeout_id = setTimeout(() => {
+        self.clear_timeline_cache_persist_timer();
+        self.persist_timeline_cache().catch(() => {
+          // The network-backed timeline can always recover on the next refresh.
+        });
+      }, delay_ms);
     },
 
     upsert_subscription(subscription = null, icons = []) {
@@ -1003,6 +1155,10 @@ const Feed = types
       self.clear_error();
 
       try {
+        if (!self.has_restored_cache && self.timeline_entries.length === 0) {
+          yield self.hydrate_timeline_cache();
+        }
+
         yield Tokens.hydrate();
 
         const user_token = Tokens.get_user_token();
@@ -1065,6 +1221,7 @@ const Feed = types
         );
         self.retry_unsynced_local_reads(unread_entry_ids);
         self.retry_unsynced_local_bookmarks(starred_entry_ids);
+        yield self.persist_timeline_cache(user_token);
         self.has_bootstrapped = true;
         return true;
       } catch (error) {
@@ -1216,6 +1373,7 @@ const Feed = types
       }
 
       self.sync_read_entries(changed_entry_ids);
+      self.schedule_timeline_cache_persist();
       return changed_entry_ids.length;
     },
 
@@ -1227,6 +1385,7 @@ const Feed = types
       }
 
       self.sync_unread_entries([entry_id]);
+      self.schedule_timeline_cache_persist();
       return true;
     },
 
@@ -1238,6 +1397,7 @@ const Feed = types
       }
 
       self.sync_bookmarked_entries([entry_id]);
+      self.schedule_timeline_cache_persist();
       return true;
     },
 
@@ -1250,6 +1410,7 @@ const Feed = types
       }
 
       self.sync_unbookmarked_entries([entry_id]);
+      self.schedule_timeline_cache_persist();
       return true;
     },
 
@@ -1734,6 +1895,116 @@ function normalize_hide_read_posts_setting(value) {
   }
 
   return false;
+}
+
+function serialize_timeline_cache_payload(self) {
+  return {
+    version: FEED_TIMELINE_CACHE_VERSION,
+    cached_at: new Date().toISOString(),
+    entries: self.timeline_entries.map((timeline_entry) => {
+      return getSnapshot(timeline_entry);
+    }),
+    local_read_entry_ids: [...self.local_read_entry_ids],
+    local_unread_entry_ids: [...self.local_unread_entry_ids],
+    local_bookmarked_entry_ids: [...self.local_bookmarked_entry_ids],
+    local_unbookmarked_entry_ids: [...self.local_unbookmarked_entry_ids],
+  };
+}
+
+function normalize_timeline_cache_payload(timeline_cache_payload = null) {
+  let entries = null;
+  let payload = timeline_cache_payload;
+
+  if (Array.isArray(timeline_cache_payload)) {
+    entries = timeline_cache_payload;
+    payload = {};
+  } else if (
+    !timeline_cache_payload ||
+    typeof timeline_cache_payload !== 'object'
+  ) {
+    return null;
+  } else if (Number(payload?.version || 0) !== FEED_TIMELINE_CACHE_VERSION) {
+    return null;
+  } else if (Array.isArray(payload?.entries)) {
+    entries = payload.entries;
+  }
+
+  if (!Array.isArray(entries)) {
+    return null;
+  }
+
+  return {
+    entries: normalize_cached_timeline_entries(entries),
+    local_read_entry_ids: normalize_unique_entry_ids(
+      payload?.local_read_entry_ids,
+    ),
+    local_unread_entry_ids: normalize_unique_entry_ids(
+      payload?.local_unread_entry_ids,
+    ),
+    local_bookmarked_entry_ids: normalize_unique_entry_ids(
+      payload?.local_bookmarked_entry_ids,
+    ),
+    local_unbookmarked_entry_ids: normalize_unique_entry_ids(
+      payload?.local_unbookmarked_entry_ids,
+    ),
+  };
+}
+
+function normalize_cached_timeline_entries(entries = []) {
+  return entries.map((entry, index) => {
+    const published_at = resolve_published_at(entry);
+
+    return {
+      id: normalize_entry_id(entry, index),
+      feed_id: normalize_feed_id(entry),
+      source: normalize_string(entry?.source) || 'Feed',
+      source_url: normalize_string(entry?.source_url),
+      avatar_url: normalize_string(entry?.avatar_url),
+      title: normalize_string(entry?.title),
+      summary: normalize_string(entry?.summary),
+      content: normalize_string(entry?.content),
+      author: normalize_string(entry?.author),
+      url: normalize_string(entry?.url),
+      published_at,
+      is_read: Boolean(entry?.is_read),
+      is_bookmarked: Boolean(entry?.is_bookmarked),
+      age_bucket: get_age_bucket(published_at),
+    };
+  }).sort(compare_timeline_entries_by_published_at);
+}
+
+function get_timeline_cache_directory() {
+  const cache_directory = normalize_string(FileSystem.cacheDirectory);
+
+  if (!cache_directory) {
+    return '';
+  }
+
+  return `${cache_directory}${FEED_TIMELINE_CACHE_DIRECTORY_NAME}`;
+}
+
+async function get_timeline_cache_uri(user_token = '') {
+  const normalized_user_token = normalize_string(user_token);
+  const timeline_cache_directory = get_timeline_cache_directory();
+
+  if (!normalized_user_token || !timeline_cache_directory) {
+    return '';
+  }
+
+  try {
+    const account_key = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      normalized_user_token,
+    );
+
+    if (!account_key) {
+      return '';
+    }
+
+    return `${timeline_cache_directory}/${FEED_TIMELINE_CACHE_FILENAME_PREFIX}-${account_key}.json`;
+  } catch (error) {
+    return '';
+  }
 }
 
 function normalize_subscriptions(subscriptions = [], icons = []) {

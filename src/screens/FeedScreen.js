@@ -283,6 +283,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const profile = Auth.current_profile();
   const is_premium = profile.is_premium;
   const has_bootstrapped = Feed.has_bootstrapped;
+  const has_restored_cache = Feed.has_restored_cache;
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
   const visible_timeline_entries = Feed.visible_timeline_entries();
   const is_fading_locked =
@@ -332,11 +333,15 @@ function FeedScreen({ navigation, isDark = false }) {
   const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
     React.useState(false);
   const is_loading_initial =
-    (Feed.is_bootstrapping && display_timeline_entries.length === 0) ||
-    (!has_bootstrapped &&
-      !error_message &&
-      display_timeline_entries.length === 0);
-  const is_refreshing = Feed.is_bootstrapping && has_bootstrapped;
+    !has_restored_cache &&
+    (
+      (Feed.is_bootstrapping && display_timeline_entries.length === 0) ||
+      (!has_bootstrapped &&
+        !error_message &&
+        display_timeline_entries.length === 0)
+    );
+  const is_refreshing =
+    Feed.is_bootstrapping && (has_bootstrapped || has_restored_cache);
   const scroll_to_top_ref = React.useRef({
     scrollToTop: () => {
       footer_visibility_progress.value = 1;
