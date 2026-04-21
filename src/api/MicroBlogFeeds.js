@@ -48,6 +48,7 @@ export async function create_micro_blog_feed_subscription({
     body: JSON.stringify({
       feed_url: trimmed_feed_url,
     }),
+    redirect: 'manual',
   });
   const response_text = await response.text();
 
@@ -59,6 +60,17 @@ export async function create_micro_blog_feed_subscription({
         response.status,
         'Feeds response parsing failed.',
       ),
+    };
+  }
+
+  if (response.status === 302) {
+    return {
+      kind: 'subscription',
+      subscription: await resolve_existing_subscription_from_redirect_response({
+        response,
+        response_text,
+        token: trimmed_token,
+      }),
     };
   }
 
@@ -925,6 +937,56 @@ function create_request_error(message, status = null, response_text = '') {
   error.status = status;
   error.response_text = response_text;
   return error;
+}
+
+async function resolve_existing_subscription_from_redirect_response({
+  response,
+  response_text = '',
+  token = '',
+} = {}) {
+  if (`${response_text || ''}`.trim()) {
+    return parse_json_response_text(
+      response_text,
+      response?.status,
+      'Feeds response parsing failed.',
+    );
+  }
+
+  const location = response?.headers?.get('Location') || response?.headers?.get('location');
+
+  if (!location) {
+    throw create_request_error(
+      'Feeds response parsing failed.',
+      response?.status,
+      response_text,
+    );
+  }
+
+  const existing_subscription_response = await fetch(
+    new URL(location, `${MICRO_BLOG_FEEDS_BASE_URL}/`),
+    {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  const existing_subscription_response_text =
+    await existing_subscription_response.text();
+
+  if (!existing_subscription_response.ok) {
+    throw create_request_error(
+      'Feeds subscription create request failed.',
+      existing_subscription_response.status,
+      existing_subscription_response_text,
+    );
+  }
+
+  return parse_json_response_text(
+    existing_subscription_response_text,
+    existing_subscription_response.status,
+    'Feeds response parsing failed.',
+  );
 }
 
 function parse_json_response_text(

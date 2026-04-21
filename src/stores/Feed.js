@@ -877,6 +877,18 @@ const Feed = types
           };
         }
 
+        if (
+          find_existing_subscription_for_feed_url(
+            self.subscriptions,
+            normalized_feed_url,
+          )
+        ) {
+          return {
+            ok: false,
+            error_message: 'That feed is already in your subscriptions.',
+          };
+        }
+
         const result = yield create_micro_blog_feed_subscription({
           token: user_token,
           feed_url: normalized_feed_url,
@@ -2363,6 +2375,33 @@ function normalize_unique_entry_ids(entry_ids = []) {
   return [...new Set(entry_ids.map((entry_id) => normalize_string(entry_id)).filter(Boolean))];
 }
 
+function find_existing_subscription_for_feed_url(
+  subscriptions = [],
+  feed_url = '',
+) {
+  const requested_match_keys = build_subscription_url_match_keys(feed_url);
+
+  if (requested_match_keys.size === 0) {
+    return null;
+  }
+
+  return (Array.isArray(subscriptions) ? subscriptions : []).find(
+    (subscription) => {
+      const subscription_match_keys = build_subscription_match_keys(
+        subscription,
+      );
+
+      if (subscription_match_keys.size === 0) {
+        return false;
+      }
+
+      return [...requested_match_keys].some((match_key) => {
+        return subscription_match_keys.has(match_key);
+      });
+    },
+  ) || null;
+}
+
 function resolve_subscription_request_error_message(
   error,
   fallback_message = 'We could not complete that request.',
@@ -2459,4 +2498,89 @@ function collect_error_strings(value) {
   return Object.values(value).flatMap((entry) => {
     return collect_error_strings(entry);
   });
+}
+
+function build_subscription_match_keys(subscription = null) {
+  const match_keys = new Set();
+
+  build_subscription_url_match_keys(subscription?.site_url).forEach(
+    (match_key) => {
+      match_keys.add(match_key);
+    },
+  );
+  build_subscription_url_match_keys(subscription?.feed_url).forEach(
+    (match_key) => {
+      match_keys.add(match_key);
+    },
+  );
+
+  return match_keys;
+}
+
+function build_subscription_url_match_keys(raw_url = '') {
+  const normalized_raw_url = normalize_string(raw_url);
+
+  if (!normalized_raw_url) {
+    return new Set();
+  }
+
+  const match_keys = new Set([
+    normalize_subscription_match_key(normalized_raw_url),
+  ]);
+  const comparable_url = parse_comparable_subscription_url(normalized_raw_url);
+
+  if (!comparable_url) {
+    return match_keys;
+  }
+
+  match_keys.add(
+    normalize_subscription_match_key(
+      `${comparable_url.hostname}${comparable_url.pathname}`,
+    ),
+  );
+
+  if (comparable_url.pathname === '/') {
+    match_keys.add(
+      normalize_subscription_match_key(comparable_url.hostname),
+    );
+  }
+
+  return new Set([...match_keys].filter(Boolean));
+}
+
+function parse_comparable_subscription_url(raw_url = '') {
+  const normalized_raw_url = normalize_string(raw_url);
+
+  if (!normalized_raw_url) {
+    return null;
+  }
+
+  const parse_url = (url) => {
+    const parsed_url = new URL(url);
+    const normalized_pathname =
+      parsed_url.pathname.replace(/\/+$/g, '') || '/';
+
+    return {
+      hostname: parsed_url.hostname.toLowerCase(),
+      pathname: normalized_pathname,
+    };
+  };
+
+  try {
+    return parse_url(normalized_raw_url);
+  } catch (error) {
+    try {
+      return parse_url(`https://${normalized_raw_url}`);
+    } catch (fallback_error) {
+      return null;
+    }
+  }
+}
+
+function normalize_subscription_match_key(value = '') {
+  const normalized_value = normalize_string(value)
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/g, '');
+
+  return normalized_value.toLowerCase();
 }
