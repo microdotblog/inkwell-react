@@ -281,6 +281,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const is_search_active = Feed.is_search_active;
   const search_query = Feed.search_query;
   const profile = Auth.current_profile();
+  const is_using_ai = profile.is_using_ai;
   const is_premium = profile.is_premium;
   const has_bootstrapped = Feed.has_bootstrapped;
   const has_restored_cache = Feed.has_restored_cache;
@@ -646,6 +647,10 @@ function FeedScreen({ navigation, isDark = false }) {
   );
 
   const handle_recap_press = React.useCallback(async () => {
+    if (is_using_ai === false) {
+      return;
+    }
+
     const did_open_recap = await Feed.open_fading_recap();
 
     if (!did_open_recap) {
@@ -655,7 +660,7 @@ function FeedScreen({ navigation, isDark = false }) {
     navigation.navigate('FeedItemDetail', {
       mode: 'recap',
     });
-  }, [navigation]);
+  }, [is_using_ai, navigation]);
 
   const handle_open_micro_blog_plans = React.useCallback(async () => {
     try {
@@ -869,6 +874,7 @@ function FeedScreen({ navigation, isDark = false }) {
             error_message,
             has_any_timeline_entries,
             is_fading_locked,
+            is_using_ai,
             list_ref,
             is_generating_recap,
             on_entry_press: handle_entry_press,
@@ -1030,6 +1036,7 @@ function render_content({
   error_message,
   has_any_timeline_entries,
   is_fading_locked,
+  is_using_ai,
   list_ref,
   is_generating_recap,
   on_entry_press,
@@ -1186,6 +1193,7 @@ function render_content({
             <FeedRecapSummaryCard
               count={visible_timeline_entries.length}
               error_message={recap_error_message}
+              is_ai_enabled={is_using_ai !== false}
               is_loading={is_generating_recap || is_refreshing}
               onPress={on_open_recap}
               scaled_text_styles={scaled_text_styles}
@@ -1385,12 +1393,17 @@ function normalize_http_url(value = '') {
 function FeedRecapSummaryCard({
   count = 0,
   error_message = '',
+  is_ai_enabled = true,
   is_loading = false,
   onPress,
   scaled_text_styles,
   theme,
 }) {
   const summary_label = get_recap_summary_label(count);
+  const is_disabled = is_loading || !is_ai_enabled;
+  const detail_text = is_ai_enabled
+    ? summary_label
+    : 'Enable AI in Micro.blog to access Reading Recap.';
 
   return (
     <View
@@ -1404,50 +1417,59 @@ function FeedRecapSummaryCard({
       ]}
     >
       <View style={styles.recapCopy}>
-        <View style={styles.recapSummaryRow}>
-          <Pressable
-            accessibilityRole="button"
-            disabled={is_loading}
-            onPress={onPress}
-            style={({ pressed }) => {
-              return [
-                styles.recapButton,
-                {
-                  backgroundColor: theme.colors.accentSoft,
-                  borderColor: theme.colors.line,
-                  opacity: is_loading ? 0.72 : pressed ? 0.86 : 1,
-                },
-              ];
-            }}
-          >
-            {is_loading ? (
-              <View style={{ height: 16, justifyContent: 'center' }}>
-                <ActivityIndicator
-                  color={theme.colors.accentStrong}
-                  size="small"
-                />
-              </View>
-            ) : (
-              <Text
-                style={[
-                  styles.recapButtonLabel,
-                  scaled_text_styles.recapButtonLabel,
-                  { color: theme.colors.accentStrong },
-                ]}
-              >
-                Reading Recap
-              </Text>
-            )}
-          </Pressable>
+        <View
+          style={[
+            styles.recapSummaryRow,
+            !is_ai_enabled ? styles.recapSummaryRowTextOnly : null,
+          ]}
+        >
+          {is_ai_enabled ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={is_disabled}
+              onPress={onPress}
+              style={({ pressed }) => {
+                return [
+                  styles.recapButton,
+                  {
+                    backgroundColor: theme.colors.accentSoft,
+                    borderColor: theme.colors.line,
+                    opacity: is_disabled ? 0.72 : pressed ? 0.86 : 1,
+                  },
+                ];
+              }}
+            >
+              {is_loading ? (
+                <View style={{ height: 16, justifyContent: 'center' }}>
+                  <ActivityIndicator
+                    color={theme.colors.accentStrong}
+                    size="small"
+                  />
+                </View>
+              ) : (
+                <Text
+                  style={[
+                    styles.recapButtonLabel,
+                    scaled_text_styles.recapButtonLabel,
+                    { color: theme.colors.accentStrong },
+                  ]}
+                >
+                  Reading Recap
+                </Text>
+              )}
+            </Pressable>
+          ) : null}
           <Text
             style={[
               styles.recapBody,
               scaled_text_styles.recapBody,
-              styles.recapBodyInline,
+              is_ai_enabled
+                ? styles.recapBodyInline
+                : styles.recapBodyStandalone,
               { color: theme.colors.inkSoft },
             ]}
           >
-            {summary_label}
+            {detail_text}
           </Text>
         </View>
         {error_message ? (
@@ -1968,6 +1990,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  recapSummaryRowTextOnly: {
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+  },
   recapBody: {
     fontSize: 15,
     lineHeight: 22,
@@ -1975,6 +2001,10 @@ const styles = StyleSheet.create({
   recapBodyInline: {
     flexShrink: 1,
     textAlign: 'right',
+  },
+  recapBodyStandalone: {
+    textAlign: 'left',
+    width: '100%',
   },
   recapError: {
     fontSize: 14,

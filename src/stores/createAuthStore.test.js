@@ -76,6 +76,25 @@ describe('create_auth_store', () => {
       expect(store.loading_phase).toBe('idle');
     });
 
+    it('stores the verified AI flag', async () => {
+      const { store } = build_auth_store({
+        verify_micro_blog_token: mock(async token => ({
+          avatar: 'https://micro.blog/avatar.jpg',
+          has_inkwell: true,
+          is_premium: true,
+          is_using_ai: true,
+          me: 'https://micro.blog/vincent',
+          url: 'https://micro.blog/vincent',
+          username: `verified-${token}`,
+        })),
+      });
+
+      const did_sign_in = await store.sign_in_with_token('token-123');
+
+      expect(did_sign_in).toBe(true);
+      expect(store.is_using_ai).toBe(true);
+    });
+
     it('rejects an invalid token without persisting it', async () => {
       const invalid_token_error = new Error('Invalid token');
       invalid_token_error.status = 401;
