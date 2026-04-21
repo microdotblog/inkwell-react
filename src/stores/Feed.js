@@ -2368,6 +2368,11 @@ function resolve_subscription_request_error_message(
   fallback_message = 'We could not complete that request.',
 ) {
   const status = Number(error?.status);
+  const normalized_error_text = resolve_subscription_error_text(error);
+
+  if (is_duplicate_subscription_error(status, normalized_error_text)) {
+    return 'That feed is already in your subscriptions.';
+  }
 
   if (status === 401 || status === 403) {
     return 'Your Micro.blog session expired. Please sign in again.';
@@ -2377,9 +2382,81 @@ function resolve_subscription_request_error_message(
     return 'We could not find a feed at that URL.';
   }
 
-  if (status === 409) {
-    return 'That feed is already in your subscriptions.';
+  return fallback_message;
+}
+
+function resolve_subscription_error_text(error = null) {
+  const response_text = normalize_string(error?.response_text);
+
+  if (!response_text) {
+    return '';
   }
 
-  return fallback_message;
+  const parsed_response = parse_json_string(response_text);
+
+  if (parsed_response == null) {
+    return response_text.toLowerCase();
+  }
+
+  return collect_error_strings(parsed_response).join(' ').toLowerCase();
+}
+
+function is_duplicate_subscription_error(status = 0, normalized_error_text = '') {
+  if (status === 409) {
+    return true;
+  }
+
+  if (!normalized_error_text) {
+    return false;
+  }
+
+  return [
+    'already in your subscriptions',
+    'already subscribed',
+    'already exists',
+    'has already been taken',
+    'duplicate',
+  ].some((pattern) => {
+    return normalized_error_text.includes(pattern);
+  });
+}
+
+function parse_json_string(value = '') {
+  const normalized_value = normalize_string(value);
+
+  if (!normalized_value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(normalized_value);
+  } catch (error) {
+    return null;
+  }
+}
+
+function collect_error_strings(value) {
+  if (typeof value === 'string') {
+    const normalized_value = normalize_string(value);
+
+    if (!normalized_value) {
+      return [];
+    }
+
+    return [normalized_value];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => {
+      return collect_error_strings(entry);
+    });
+  }
+
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+
+  return Object.values(value).flatMap((entry) => {
+    return collect_error_strings(entry);
+  });
 }
