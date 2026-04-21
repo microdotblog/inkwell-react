@@ -201,6 +201,11 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
     set_submit_status(null);
   }, []);
 
+  const handle_change_feed_url = React.useCallback((next_feed_url = '') => {
+    set_feed_url(next_feed_url);
+    set_submit_status(null);
+  }, []);
+
   const handle_add_subscription = React.useCallback(
     async (next_feed_url = feed_url) => {
       const normalized_feed_url = normalize_string(next_feed_url);
@@ -248,10 +253,16 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
 
         set_feed_url('');
         set_feed_choices([]);
-        set_submit_status({
-          tone: result?.warning_message ? 'info' : 'success',
-          message: result?.warning_message || 'Subscribed.',
-        });
+
+        if (result?.warning_message) {
+          set_submit_status({
+            tone: 'info',
+            message: result.warning_message,
+          });
+        } else {
+          set_submit_status(null);
+        }
+
         AppStore.show_toast('Subscribed', {
           top_offset: toast_top_offset,
         });
@@ -564,7 +575,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
                 is_search_open={is_search_open}
                 is_submitting={is_submitting}
                 onAddSubscription={handle_add_subscription}
-                onChangeFeedUrl={set_feed_url}
+                onChangeFeedUrl={handle_change_feed_url}
                 onChangeSearchQuery={set_search_query}
                 onCloseComposer={handle_close_composer}
                 onFeedChoicePress={handle_feed_choice_press}
@@ -661,49 +672,51 @@ function SubscriptionsHeader({
         />
       ) : null}
 
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          {!is_search_open ? (
-            <View style={styles.summaryIndicatorSlot}>
-              {is_refreshing ? (
-                <ActivityIndicator
-                  color={theme.colors.accentStrong}
-                  size="small"
-                />
-              ) : null}
-            </View>
-          ) : null}
-          {!is_search_open ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={is_composer_open ? 'Cancel' : 'New Feed'}
-              disabled={is_submitting}
-              onPress={is_composer_open ? onCloseComposer : onOpenComposer}
-              style={({ pressed }) => {
-                return [
-                  styles.addFeedButton,
-                  !is_composer_open && styles.addFeedButtonShape,
-                  {
-                    backgroundColor: !is_composer_open ? theme.colors.accentSoft : 'transparent',
-                    borderColor: !is_composer_open ? theme.colors.line : 'transparent',
-                    opacity: is_submitting ? 0.56 : pressed ? 0.84 : 1,
-                  },
-                ];
-              }}
-            >              
-              <Text
-                style={[
-                  styles.addFeedButtonLabel,
-                  scaled_text_styles.secondaryActionButtonLabel,
-                  { color: is_composer_open ? theme.colors.danger : theme.colors.accentStrong },
-                ]}
+      {!is_composer_open ? (
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            {!is_search_open ? (
+              <View style={styles.summaryIndicatorSlot}>
+                {is_refreshing ? (
+                  <ActivityIndicator
+                    color={theme.colors.accentStrong}
+                    size="small"
+                  />
+                ) : null}
+              </View>
+            ) : null}
+            {!is_search_open ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="New Feed"
+                disabled={is_submitting}
+                onPress={onOpenComposer}
+                style={({ pressed }) => {
+                  return [
+                    styles.addFeedButton,
+                    styles.addFeedButtonShape,
+                    {
+                      backgroundColor: theme.colors.accentSoft,
+                      borderColor: theme.colors.line,
+                      opacity: is_submitting ? 0.56 : pressed ? 0.84 : 1,
+                    },
+                  ];
+                }}
               >
-                {is_composer_open ? 'Cancel' : 'New Feed...'}
-              </Text>
-            </Pressable>
-          ) : null}
+                <Text
+                  style={[
+                    styles.addFeedButtonLabel,
+                    scaled_text_styles.secondaryActionButtonLabel,
+                    { color: theme.colors.accentStrong },
+                  ]}
+                >
+                  New Feed...
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
-      </View>
+      ) : null}
 
       {!is_search_open && is_composer_open ? (
         <Animated.View
@@ -716,12 +729,10 @@ function SubscriptionsHeader({
             add_input_ref={add_input_ref}
             feed_choices={feed_choices}
             feed_url={feed_url}
-            is_open={true}
             is_submitting={is_submitting}
             onChangeFeedUrl={onChangeFeedUrl}
             onClose={onCloseComposer}
             onFeedChoicePress={onFeedChoicePress}
-            onOpen={onOpenComposer}
             onSubmit={onAddSubscription}
             scaled_text_styles={scaled_text_styles}
             status={submit_status}
@@ -760,12 +771,10 @@ function NewFeedComposerCard({
   add_input_ref,
   feed_choices = [],
   feed_url = '',
-  is_open = false,
   is_submitting = false,
   onChangeFeedUrl,
   onClose,
   onFeedChoicePress,
-  onOpen,
   onSubmit,
   scaled_text_styles,
   status = null,
@@ -776,15 +785,41 @@ function NewFeedComposerCard({
   return (
     <AuthCard style={styles.composerCard} theme={theme}>
       <View style={styles.composerStack}>
-        <Text
-          style={[
-            styles.composerTitle,
-            scaled_text_styles.composerTitle,
-            { color: theme.colors.ink },
-          ]}
-        >
-          New Feed...
-        </Text>
+        <View style={styles.composerHeader}>
+          <Text
+            style={[
+              styles.composerTitle,
+              scaled_text_styles.composerTitle,
+              { color: theme.colors.ink },
+            ]}
+          >
+            New Feed...
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            disabled={is_submitting}
+            onPress={onClose}
+            style={({ pressed }) => {
+              return [
+                styles.composerCancelButton,
+                {
+                  opacity: is_submitting ? 0.56 : pressed ? 0.84 : 1,
+                },
+              ];
+            }}
+          >
+            <Text
+              style={[
+                styles.composerCancelLabel,
+                scaled_text_styles.secondaryActionButtonLabel,
+                { color: theme.colors.danger },
+              ]}
+            >
+              Cancel
+            </Text>
+          </Pressable>
+        </View>
         <Text
           style={[
             styles.composerBody,
@@ -1477,7 +1512,18 @@ const styles = StyleSheet.create({
   composerHeader: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 12,
+    justifyContent: 'space-between',
+  },
+  composerCancelButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+    minHeight: 32,
+  },
+  composerCancelLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   composerInputWrap: {
     minHeight: 52,
