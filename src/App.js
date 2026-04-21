@@ -36,6 +36,7 @@ import Highlights from './stores/Highlights';
 import { getAuthTheme } from './theme/authTheme';
 
 WebBrowser.maybeCompleteAuthSession();
+const AUTH_VERIFICATION_LOADER_DELAY_MS = 2000;
 const TOAST_ENTERING = FadeInDown.springify()
   .damping(18)
   .stiffness(220);
@@ -53,8 +54,19 @@ function App() {
   const is_auth_loading = Auth.is_loading();
   const is_feed_bootstrapping = Feed.is_bootstrapping;
   const has_bootstrapped_feed = Feed.has_bootstrapped;
+  const has_checked_timeline_cache = Feed.has_checked_timeline_cache;
+  const is_verifying_session =
+    Auth.loading_phase === 'verifying' &&
+    (is_auth_loading || AppStore.is_hydrating);
+  const [should_show_delayed_verifying_loader, set_should_show_delayed_verifying_loader] =
+    React.useState(false);
   const should_show_auth_loader =
-    Auth.loading_phase !== 'idle' && (is_auth_loading || AppStore.is_hydrating);
+    Auth.loading_phase !== 'idle' &&
+    (is_auth_loading || AppStore.is_hydrating) &&
+    (
+      Auth.loading_phase !== 'verifying' ||
+      should_show_delayed_verifying_loader
+    );
 
   const [fontsLoaded] = useFonts({
     Newsreader_500Medium: require('@expo-google-fonts/newsreader/500Medium/Newsreader_500Medium.ttf'),
@@ -73,6 +85,63 @@ function App() {
   React.useEffect(() => {
     AppStore.set_theme(system_color_scheme);
   }, [system_color_scheme]);
+
+  React.useEffect(() => {
+    if (!is_verifying_session) {
+      set_should_show_delayed_verifying_loader(false);
+      return;
+    }
+
+    const timeout_id = setTimeout(() => {
+      set_should_show_delayed_verifying_loader(true);
+    }, AUTH_VERIFICATION_LOADER_DELAY_MS);
+
+    return () => {
+      clearTimeout(timeout_id);
+    };
+  }, [is_verifying_session]);
+
+  React.useLayoutEffect(() => {
+    let is_cancelled = false;
+
+    async function hydrate_timeline_cache() {
+      await Feed.hydrate_timeline_cache();
+
+      if (is_cancelled) {
+        return;
+      }
+    }
+
+    if (!fontsLoaded) {
+      return () => {
+        is_cancelled = true;
+      };
+    }
+
+    if (!is_signed_in || AppStore.is_hydrating || is_auth_loading) {
+      return () => {
+        is_cancelled = true;
+      };
+    }
+
+    if (has_checked_timeline_cache) {
+      return () => {
+        is_cancelled = true;
+      };
+    }
+
+    hydrate_timeline_cache();
+
+    return () => {
+      is_cancelled = true;
+    };
+  }, [
+    fontsLoaded,
+    has_checked_timeline_cache,
+    is_auth_loading,
+    is_signed_in,
+    AppStore.is_hydrating,
+  ]);
 
   React.useLayoutEffect(() => {
     let is_cancelled = false;
@@ -115,6 +184,12 @@ function App() {
       };
     }
 
+    if (!has_checked_timeline_cache) {
+      return () => {
+        is_cancelled = true;
+      };
+    }
+
     if (is_feed_bootstrapping || has_bootstrapped_feed) {
       return () => {
         is_cancelled = true;
@@ -128,6 +203,7 @@ function App() {
     };
   }, [
     fontsLoaded,
+    has_checked_timeline_cache,
     has_bootstrapped_feed,
     is_auth_loading,
     is_feed_bootstrapping,
@@ -157,6 +233,10 @@ function App() {
                 <ActivityIndicator color={theme.colors.accent} size="large" />
               </View>
             )
+          ) : is_signed_in && !has_checked_timeline_cache ? (
+            <View style={[styles.loadingScreen, { backgroundColor: theme.colors.canvas }]}>
+              <ActivityIndicator color={theme.colors.accent} size="large" />
+            </View>
           ) : should_show_auth_loader ? (
             <RssLoadingScreen isDark={isDark} phase={Auth.loading_phase} />
           ) : is_signed_in ? (

@@ -91,6 +91,7 @@ const Feed = types
     is_loading_subscription_feed: types.optional(types.boolean, false),
     has_loaded_subscription_feed: types.optional(types.boolean, false),
     subscription_feed_error_message: types.maybeNull(types.string),
+    has_checked_timeline_cache: types.optional(types.boolean, false),
     is_bootstrapping: types.optional(types.boolean, false),
     has_bootstrapped: types.optional(types.boolean, false),
     has_restored_cache: types.optional(types.boolean, false),
@@ -214,6 +215,7 @@ const Feed = types
       self.active_segment = 'today';
       self.is_search_active = false;
       self.search_query = '';
+      self.has_checked_timeline_cache = false;
       self.is_bootstrapping = false;
       self.has_bootstrapped = false;
       self.has_restored_cache = false;
@@ -615,11 +617,11 @@ const Feed = types
     },
 
     hydrate_timeline_cache: flow(function* () {
-      if (self.timeline_entries.length > 0) {
-        return true;
-      }
-
       try {
+        if (self.has_checked_timeline_cache) {
+          return self.has_restored_cache;
+        }
+
         yield Tokens.hydrate();
 
         const user_token = Tokens.get_user_token();
@@ -646,6 +648,8 @@ const Feed = types
         return self.apply_timeline_cache_payload(parsed_payload);
       } catch (error) {
         return false;
+      } finally {
+        self.has_checked_timeline_cache = true;
       }
     }),
 
@@ -1155,7 +1159,7 @@ const Feed = types
       self.clear_error();
 
       try {
-        if (!self.has_restored_cache && self.timeline_entries.length === 0) {
+        if (!self.has_checked_timeline_cache) {
           yield self.hydrate_timeline_cache();
         }
 
