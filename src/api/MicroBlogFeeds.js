@@ -803,6 +803,56 @@ export async function create_micro_blog_bookmark({
   }
 }
 
+export async function report_micro_blog_user({
+  token = '',
+  username = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_username = `${username || ''}`.trim();
+
+  if (!trimmed_token) {
+    throw create_request_error('A Micro.blog token is required to report a blog.');
+  }
+
+  if (!trimmed_username) {
+    throw create_request_error('A username is required to report a blog.');
+  }
+
+  const url = new URL('/users/report', `${MICRO_BLOG_FEEDS_BASE_URL}/`);
+  const headers = new Headers({
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const body = new URLSearchParams({
+    username: trimmed_username,
+  });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: body.toString(),
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Micro.blog report request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function delete_micro_blog_bookmark({
   token = '',
   bookmark_id = '',
