@@ -12,7 +12,10 @@ import * as Clipboard from "expo-clipboard";
 import { observer } from "mobx-react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { fetch_micro_blog_conversation_replies } from "../api/MicroBlogFeeds";
+import {
+  fetch_micro_blog_conversation_replies,
+  report_micro_blog_user,
+} from "../api/MicroBlogFeeds";
 import AuthBackground from "../components/auth/AuthBackground";
 import {
   EntryReaderView,
@@ -78,6 +81,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const source_label = `${entry?.source || "Feed"}`.trim() || "Feed";
   const source_url = normalize_http_url(entry?.source_url);
   const original_url = normalize_http_url(entry?.url);
+  const report_blog_username = resolve_report_blog_username({
+    original_url,
+    source_url,
+  });
   const reader_base_url = original_url || source_url;
   const has_entry_body = Boolean(
     sanitize_reader_html(create_reader_body_html(entry), {
@@ -605,6 +612,59 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     [],
   );
 
+  const handle_report_blog = React.useCallback(() => {
+    Alert.alert(
+      undefined,
+      "Report this blog to Micro.blog for a community guidelines violation?",
+      [
+        {
+          style: "cancel",
+          text: "Cancel",
+        },
+        {
+          style: "destructive",
+          text: "Report",
+          onPress: async () => {
+            if (!report_blog_username) {
+              AppStore.show_toast("We could not report this blog.", {
+                top_offset: toast_top_offset,
+              });
+              return;
+            }
+
+            try {
+              await Tokens.hydrate();
+              const user_token = Tokens.get_user_token();
+
+              if (!user_token) {
+                AppStore.show_toast("We could not report this blog.", {
+                  top_offset: toast_top_offset,
+                });
+                return;
+              }
+
+              await report_micro_blog_user({
+                token: user_token,
+                username: report_blog_username,
+              });
+              AppStore.show_toast(
+                "This blog has been reported for review.",
+                {
+                  top_offset: toast_top_offset,
+                },
+              );
+            } catch (error) {
+              console.warn("Failed to report blog", error);
+              AppStore.show_toast("We could not report this blog.", {
+                top_offset: toast_top_offset,
+              });
+            }
+          },
+        },
+      ],
+    );
+  }, [report_blog_username, toast_top_offset]);
+
   const handle_entry_menu_action = React.useCallback(
     async (menu_action_id = "") => {
       if (!has_entry_menu) {
@@ -644,6 +704,11 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
       if (menu_action_id === "open_web") {
         await open_external_url(original_url);
+        return;
+      }
+
+      if (menu_action_id === "report_blog") {
+        handle_report_blog();
         return;
       }
 
@@ -718,6 +783,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       entry?.is_read,
       entry_source,
       handle_copy_link,
+      handle_report_blog,
       has_entry_menu,
       is_entry_bookmarked,
       navigation,
@@ -973,6 +1039,25 @@ function does_highlight_match_identifier(highlight = null, identifier = "") {
     normalized_identifier === highlight_identifier ||
     normalized_identifier === highlight_id
   );
+}
+
+function resolve_report_blog_username({
+  original_url = "",
+  source_url = "",
+} = {}) {
+  const resolved_url = `${source_url || original_url || ""}`.trim();
+
+  if (!resolved_url) {
+    return "";
+  }
+
+  try {
+    return `${new URL(resolved_url).hostname || ""}`
+      .trim()
+      .toLowerCase();
+  } catch (error) {
+    return "";
+  }
 }
 
 export default observer(FeedItemDetailScreen);

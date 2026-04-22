@@ -1646,6 +1646,15 @@ function get_entry_menu_actions({
     });
   }
 
+  actions.push({
+    id: "report_blog",
+    image: Platform.select({
+      ios: "exclamationmark.triangle",
+    }),
+    imageColor: icon_color,
+    title: "Report",
+  });
+
   return actions;
 }
 
