@@ -1,6 +1,7 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
+import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -17,7 +18,6 @@ import Animated, {
 
 import AuthCard from '../components/auth/AuthCard';
 import AuthBackground from '../components/auth/AuthBackground';
-import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
@@ -25,6 +25,9 @@ import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
 const SCREEN_HORIZONTAL_PADDING = 20;
 const CONTENT_TOP_PADDING = 12;
 const AUTH_WAVE_BACKGROUND = require('../../assets/images/auth-wave-background.jpg');
+const MICRO_BLOG_COMMUNITY_GUIDELINES_URL = 'https://help.micro.blog/t/community-guidelines/39';
+const MICRO_BLOG_PRIVACY_POLICY_URL = 'https://help.micro.blog/t/privacy-policy/114';
+const MICRO_BLOG_DELETE_ACCOUNT_URL = 'https://micro.blog/account/delete';
 
 function format_profile_handle(profile_url = '') {
   const trimmed_profile_url = `${profile_url || ''}`.trim();
@@ -158,6 +161,33 @@ function AccountScreenContent({
 }) {
   const header_height = useHeaderHeight();
   const content_top_padding = header_height + CONTENT_TOP_PADDING;
+  const handle_open_micro_blog_browser = React.useCallback(async (url = '', action_label = 'Micro.blog') => {
+    if (!url) {
+      return;
+    }
+
+    try {
+      await WebBrowser.openBrowserAsync(url, {
+        controlsColor: theme.colors.accent,
+        dismissButtonStyle: 'close',
+      });
+    } catch (error) {
+      console.warn(`Failed to open ${action_label}`, error);
+      AppStore.show_toast('We could not open Micro.blog.');
+    }
+  }, [theme.colors.accent]);
+  const handle_open_micro_blog_url = React.useCallback(async (url = '', action_label = 'Micro.blog') => {
+    if (!url) {
+      return;
+    }
+
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      console.warn(`Failed to open ${action_label}`, error);
+      AppStore.show_toast('We could not open Micro.blog.');
+    }
+  }, []);
   const avatar_fallback_style = useAnimatedStyle(() => {
     if (!transition_theme) {
       return {
@@ -249,6 +279,50 @@ function AccountScreenContent({
           </AuthCard>
 
           <AuthCard style={styles.card} theme={theme}>
+            <View style={styles.preferenceStack}>
+              <View style={styles.preferenceCopy}>
+                <Text
+                  style={[
+                    styles.preferenceBody,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  Inkwell is powered by Micro.blog and follows the Micro.blog guidelines and terms of service.
+                </Text>
+              </View>
+
+              <View style={styles.linkStack}>
+                <SettingsLinkButton
+                  label="Community Guidelines"
+                  onPress={() => handle_open_micro_blog_browser(
+                    MICRO_BLOG_COMMUNITY_GUIDELINES_URL,
+                    'Community Guidelines',
+                  )}
+                  theme={theme}
+                />
+                <SettingsLinkButton
+                  label="Privacy Policy"
+                  onPress={() => handle_open_micro_blog_browser(
+                    MICRO_BLOG_PRIVACY_POLICY_URL,
+                    'Privacy Policy',
+                  )}
+                  theme={theme}
+                />
+              </View>
+
+              <SettingsLinkButton
+                label="Delete Account..."
+                onPress={() => handle_open_micro_blog_url(
+                  MICRO_BLOG_DELETE_ACCOUNT_URL,
+                  'Delete Account',
+                )}
+                label_color={theme.colors.danger}
+                theme={theme}
+              />
+            </View>
+          </AuthCard>
+
+          <AuthCard style={styles.card} theme={theme}>
             <View style={styles.accountCardStack}>
               <View style={styles.profileRow}>
                 {profile_photo ? (
@@ -284,21 +358,65 @@ function AccountScreenContent({
                     </Text>
                   </Text>
                 </View>
-              </View>
 
-              <PrimaryButton
-                label="Sign out"
-                onPress={Auth.sign_out}
-                variant="ghost"
-                disabled={is_busy}
-                theme={theme}
-                textStyle={{ color: theme.colors.danger }}
-              />
+                <SettingsLinkButton
+                  accessibility_role="button"
+                  compact
+                  disabled={is_busy}
+                  label="Sign Out"
+                  onPress={Auth.sign_out}
+                  show_chevron={false}
+                  theme={theme}
+                />
+              </View>
             </View>
           </AuthCard>
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function SettingsLinkButton({
+  accessibility_role = 'link',
+  compact = false,
+  disabled = false,
+  label = '',
+  label_color = null,
+  onPress,
+  show_chevron = true,
+  theme,
+}) {
+  return (
+    <Pressable
+      accessibilityRole={accessibility_role}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.linkButton,
+        compact ? styles.linkButtonCompact : null,
+        {
+          backgroundColor: theme.colors.buttonGhost,
+          borderColor: theme.colors.line,
+        },
+        disabled ? styles.disabledButton : null,
+        pressed ? styles.pressedLinkButton : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.linkButtonLabel,
+          compact ? styles.linkButtonLabelCompact : null,
+          { color: label_color || theme.colors.ink },
+        ]}
+      >
+        {label}
+      </Text>
+      {show_chevron ? (
+        <MaterialIcons color={theme.colors.inkSoft} name="chevron-right" size={20} />
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -579,6 +697,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+  },
+  linkStack: {
+    gap: 10,
+  },
+  linkButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  linkButtonCompact: {
+    flexShrink: 0,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  pressedLinkButton: {
+    opacity: 0.84,
+  },
+  disabledButton: {
+    opacity: 0.58,
+  },
+  linkButtonLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  linkButtonLabelCompact: {
+    flex: 0,
   },
   palettePressable: {
     minHeight: 50,

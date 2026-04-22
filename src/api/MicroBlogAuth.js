@@ -20,6 +20,7 @@ export function build_micro_blog_auth_url({
   client_id = MICRO_BLOG_CLIENT_ID,
 } = {}) {
   const params = new URLSearchParams({
+    inkwell: 1,
     client_id,
     scope: MICRO_BLOG_SCOPE,
     state,
