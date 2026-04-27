@@ -287,6 +287,32 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     set_active_pane("replies");
   }, [reply_count]);
 
+  const handle_reply_profile_press = React.useCallback(
+    (profile_payload = {}) => {
+      const username = `${profile_payload?.username || ""}`
+        .trim()
+        .replace(/^@+/, "");
+
+      if (!username) {
+        return;
+      }
+
+      const params = {
+        avatar_url: `${profile_payload?.avatar_url || ""}`.trim(),
+        display_name: `${profile_payload?.display_name || ""}`.trim(),
+        profile_url: normalize_http_url(profile_payload?.profile_url),
+        username,
+      };
+
+      if (typeof navigation.push === "function") {
+        navigation.push("UserProfile", params);
+      } else {
+        navigation.navigate("UserProfile", params);
+      }
+    },
+    [navigation],
+  );
+
   const handle_highlights_pane_press = React.useCallback(() => {
     if (highlight_count === 0) {
       return;
@@ -877,6 +903,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             onPostHighlight={handle_post_highlight}
             onPressHighlightsPane={handle_highlights_pane_press}
             onPressPostPane={handle_post_pane_press}
+            onPressReplyProfile={handle_reply_profile_press}
             onPressRepliesPane={handle_replies_pane_press}
             onReaderActiveHighlightChange={handle_reader_active_highlight_change}
             onReaderImagePress={handle_reader_image_press}

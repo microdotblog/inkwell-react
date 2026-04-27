@@ -10,6 +10,7 @@ import FeedScreen from '../screens/FeedScreen';
 import HighlightsScreen from '../screens/HighlightsScreen';
 import SubscriptionFeedScreen from '../screens/SubscriptionFeedScreen';
 import SubscriptionsScreen from '../screens/SubscriptionsScreen';
+import UserProfileScreen from '../screens/UserProfileScreen';
 import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
@@ -153,6 +154,20 @@ function SignedInTabs({ isDark = false }) {
       >
         {(screen_props) => (
           <FeedItemDetailScreen
+            {...screen_props}
+            isDark={isDark}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen
+        name="UserProfile"
+        options={{
+          ...feed_item_detail_header_options,
+          title: '',
+        }}
+      >
+        {(screen_props) => (
+          <UserProfileScreen
             {...screen_props}
             isDark={isDark}
           />
