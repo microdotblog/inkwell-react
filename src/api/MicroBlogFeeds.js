@@ -517,6 +517,41 @@ export async function fetch_micro_blog_conversation_replies({
   }
 }
 
+export async function fetch_micro_blog_user_profile({
+  username = '',
+} = {}) {
+  const trimmed_username = `${username || ''}`.trim().replace(/^@+/, '');
+
+  if (!trimmed_username) {
+    throw create_request_error('A username is required to load a profile.');
+  }
+
+  const url = new URL(
+    `/posts/${encodeURIComponent(trimmed_username)}`,
+    `${MICRO_BLOG_FEEDS_BASE_URL}/`,
+  );
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Micro.blog profile request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  return parse_json_response_text(
+    response_text,
+    response.status,
+    'Micro.blog profile response parsing failed.',
+  );
+}
+
 export async function mark_micro_blog_feed_entries_read({
   token = '',
   entry_ids = [],
@@ -837,6 +872,58 @@ export async function report_micro_blog_user({
   if (!response.ok) {
     throw create_request_error(
       'Micro.blog report request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    return null;
+  }
+}
+
+export async function block_micro_blog_user({
+  token = '',
+  username = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const trimmed_username = `${username || ''}`.trim().replace(/^@+/, '');
+
+  if (!trimmed_token) {
+    throw create_request_error('A Micro.blog token is required to block a user.');
+  }
+
+  if (!trimmed_username) {
+    throw create_request_error('A username is required to block a user.');
+  }
+
+  const params = new URLSearchParams({
+    username: trimmed_username,
+    is_hiding_other_replies: 'true',
+  });
+  const url = new URL(
+    `/users/mute?${params.toString()}`,
+    `${MICRO_BLOG_FEEDS_BASE_URL}/`,
+  );
+  const headers = new Headers({
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Micro.blog block request failed.',
       response.status,
       response_text,
     );

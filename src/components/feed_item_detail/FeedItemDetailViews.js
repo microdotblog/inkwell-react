@@ -98,6 +98,7 @@ const EntryReaderView = observer(function EntryReaderView({
   onCopyHighlight,
   onDeleteHighlight,
   onPostHighlight,
+  onPressReplyProfile,
   onReaderActiveHighlightChange,
   onReaderImagePress,
   onPressHighlightsPane,
@@ -253,6 +254,7 @@ const EntryReaderView = observer(function EntryReaderView({
       >
         {active_pane === "replies" ? (
           <RepliesListView
+            onPressProfile={onPressReplyProfile}
             replies={replies}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
@@ -482,6 +484,7 @@ function ReaderPaneButton({
 }
 
 function RepliesListView({
+  onPressProfile,
   replies = [],
   scaled_text_styles,
   theme,
@@ -493,6 +496,7 @@ function RepliesListView({
         return (
           <ReplyRow
             key={resolve_reply_key(reply, index)}
+            onPressProfile={onPressProfile}
             reply={reply}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
@@ -532,20 +536,54 @@ function HighlightsListView({
   );
 }
 
-function ReplyRow({ reply, scaled_text_styles, theme, width = 0 }) {
+function ReplyRow({
+  onPressProfile,
+  reply,
+  scaled_text_styles,
+  theme,
+  width = 0,
+}) {
   const author_name = get_reply_author_name(reply);
   const author_url = normalize_http_url(reply?.author?.url);
+  const profile_username = resolve_reply_profile_username(reply);
   const formatted_date = format_reply_date(reply?.date_published);
   const reply_html = resolve_reply_html(reply);
+  const can_open_profile = Boolean(profile_username && onPressProfile);
+  const avatar = (
+    <FeedDetailAvatar
+      avatar_url={reply?.author?.avatar}
+      size={REPLY_AVATAR_SIZE}
+      source={author_name}
+      theme={theme}
+    />
+  );
 
   return (
     <View style={styles.replyRow}>
-      <FeedDetailAvatar
-        avatar_url={reply?.author?.avatar}
-        size={REPLY_AVATAR_SIZE}
-        source={author_name}
-        theme={theme}
-      />
+      {can_open_profile ? (
+        <Pressable
+          accessibilityLabel={`Open @${profile_username} profile`}
+          accessibilityRole="button"
+          hitSlop={6}
+          onPress={() => {
+            onPressProfile?.({
+              avatar_url: `${reply?.author?.avatar || ""}`.trim(),
+              display_name: author_name,
+              profile_url: author_url,
+              username: profile_username,
+            });
+          }}
+          style={({ pressed }) => {
+            return {
+              opacity: pressed ? 0.78 : 1,
+            };
+          }}
+        >
+          {avatar}
+        </Pressable>
+      ) : (
+        avatar
+      )}
       <View style={styles.replyBody}>
         <MetaLink
           color={theme.colors.ink}
@@ -570,6 +608,39 @@ function ReplyRow({ reply, scaled_text_styles, theme, width = 0 }) {
       </View>
     </View>
   );
+}
+
+function resolve_reply_profile_username(reply = null) {
+  const micro_blog_username = `${reply?.author?._microblog?.username || ""}`
+    .trim()
+    .replace(/^@+/, "");
+
+  if (micro_blog_username) {
+    return micro_blog_username;
+  }
+
+  const author_url = normalize_http_url(reply?.author?.url);
+
+  if (!author_url) {
+    return "";
+  }
+
+  try {
+    const parsed_url = new URL(author_url);
+    const hostname = `${parsed_url.hostname || ""}`.toLowerCase();
+
+    if (hostname !== "micro.blog" && hostname !== "www.micro.blog") {
+      return "";
+    }
+
+    const username = `${parsed_url.pathname || ""}`
+      .split("/")
+      .filter(Boolean)[0];
+
+    return `${username || ""}`.replace(/^@+/, "");
+  } catch {
+    return "";
+  }
 }
 
 function ReplyHtml({ html = "", theme, width = 0 }) {
@@ -1659,6 +1730,7 @@ function get_entry_menu_actions({
 }
 
 function HeaderEntryMenuButton({
+  accessibility_label = "Open post actions",
   is_dark = false,
   menu_actions = [],
   onMenuAction,
@@ -1672,7 +1744,7 @@ function HeaderEntryMenuButton({
 
   return (
     <MenuView
-      accessibilityLabel="Open post actions"
+      accessibilityLabel={accessibility_label}
       actions={menu_actions}
       onCloseMenu={onMenuClose}
       onOpenMenu={onMenuOpen}
@@ -2466,6 +2538,7 @@ const styles = StyleSheet.create({
 
 export {
   EntryReaderView,
+  FeedDetailAvatar,
   HeaderEntryMenuButton,
   ReaderHighlightAction,
   ReaderImageViewerModal,
