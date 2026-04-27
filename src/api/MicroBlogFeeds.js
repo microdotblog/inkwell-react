@@ -905,10 +905,9 @@ export async function block_micro_blog_user({
 
   const params = new URLSearchParams({
     username: trimmed_username,
-    is_hiding_other_replies: 'true',
   });
   const url = new URL(
-    `/users/mute?${params.toString()}`,
+    `/users/block?${params.toString()}`,
     `${MICRO_BLOG_FEEDS_BASE_URL}/`,
   );
   const headers = new Headers({
