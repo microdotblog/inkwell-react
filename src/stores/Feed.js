@@ -341,7 +341,7 @@ const Feed = types
         return false;
       }
 
-      const summary_entries = self.visible_timeline_entries();
+      const summary_entries = self.fading_recap_timeline_entries();
       const entry_ids = normalize_unique_entry_ids(
         summary_entries.map((timeline_entry) => {
           return timeline_entry?.id;
@@ -1655,7 +1655,7 @@ const Feed = types
         return false;
       }
 
-      return self.visible_timeline_entries().length > 0;
+      return self.fading_recap_timeline_entries().length > 0;
     },
 
     active_recap_snapshot() {
@@ -1686,6 +1686,16 @@ const Feed = types
       }
 
       return self.recap_bookmarked_quote_urls.includes(normalized_bookmark_url);
+    },
+
+    fading_recap_timeline_entries() {
+      return self.timeline_entries
+        .filter((timeline_entry) => {
+          return SEGMENT_BUCKETS.fading.includes(timeline_entry.age_bucket);
+        })
+        .map((timeline_entry) => {
+          return getSnapshot(timeline_entry);
+        });
     },
 
     visible_timeline_entries() {
