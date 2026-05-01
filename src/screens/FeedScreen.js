@@ -287,6 +287,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const has_restored_cache = Feed.has_restored_cache;
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
   const visible_timeline_entries = Feed.visible_timeline_entries();
+  const recap_timeline_entries = Feed.fading_recap_timeline_entries();
   const is_fading_locked =
     active_segment === 'fading' && is_premium === false;
   const display_timeline_entries = is_fading_locked
@@ -885,6 +886,7 @@ function FeedScreen({ navigation, isDark = false }) {
             on_open_recap: handle_recap_press,
             search_query,
             recap_error_message,
+            recap_timeline_entries,
             search_results_spacer_style,
             visible_timeline_entries: display_timeline_entries,
             scaled_text_styles,
@@ -1047,6 +1049,7 @@ function render_content({
   on_open_recap,
   search_query,
   recap_error_message,
+  recap_timeline_entries,
   search_results_spacer_style,
   scaled_text_styles,
   visible_timeline_entries,
@@ -1188,10 +1191,10 @@ function render_content({
           should_show_recap_card({
             active_segment,
             is_search_active,
-            visible_timeline_entries,
+            recap_timeline_entries,
           }) ? (
             <FeedRecapSummaryCard
-              count={visible_timeline_entries.length}
+              count={recap_timeline_entries.length}
               error_message={recap_error_message}
               is_ai_enabled={is_using_ai !== false}
               is_loading={is_generating_recap || is_refreshing}
@@ -1716,13 +1719,13 @@ function get_empty_state_body(
 function should_show_recap_card({
   active_segment = 'today',
   is_search_active = false,
-  visible_timeline_entries = [],
+  recap_timeline_entries = [],
 }) {
   if (active_segment !== 'fading' || is_search_active) {
     return false;
   }
 
-  return visible_timeline_entries.length > 0;
+  return recap_timeline_entries.length > 0;
 }
 
 function get_recap_summary_label(count = 0) {
