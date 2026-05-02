@@ -243,9 +243,7 @@ function get_entry_menu_actions({ entry = null, theme }) {
 
   actions.push({
     id: 'toggle_read',
-    image: Platform.select({
-      ios: entry?.is_read ? 'circle' : 'button.programmable',
-    }),
+    image: get_entry_read_action_image(entry),
     imageColor: icon_color,
     title: read_title,
   });
@@ -1283,6 +1281,8 @@ function FeedEntrySwipeRow({
 }) {
   const swipeable_ref = React.useRef(null);
   const action_title = entry?.is_read ? 'Mark as Unread' : 'Mark as Read';
+  const ios_symbol_name = get_entry_read_action_image(entry);
+  const android_icon_name = get_entry_read_action_material_icon_name(entry);
 
   if (Platform.OS === 'web') {
     return children;
@@ -1331,13 +1331,13 @@ function FeedEntrySwipeRow({
                     <SFSymbol
                       color="#ffffff"
                       multicolor={false}
-                      name="eye"
+                      name={ios_symbol_name}
                       style={styles.rowSwipeActionSymbol}
                     />
                   ) : (
                     <MaterialIcons
                       color="#ffffff"
-                      name="visibility"
+                      name={android_icon_name}
                       size={22}
                     />
                   )}
@@ -1847,6 +1847,20 @@ function get_mark_all_as_read_toast_message(marked_entry_count = 0) {
   }
 
   return `Marked ${normalized_count} posts as read`;
+}
+
+function get_entry_read_action_image(entry = null) {
+  return Platform.select({
+    ios: entry?.is_read ? 'circle' : 'button.programmable',
+  });
+}
+
+function get_entry_read_action_material_icon_name(entry = null) {
+  if (entry?.is_read) {
+    return 'radio-button-unchecked';
+  } else {
+    return 'radio-button-checked';
+  }
 }
 
 const styles = StyleSheet.create({
