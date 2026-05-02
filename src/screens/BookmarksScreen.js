@@ -316,6 +316,7 @@ function BookmarkSwipeRow({
   theme,
 }) {
   const swipeable_ref = React.useRef(null);
+  const [is_action_pressed, set_is_action_pressed] = React.useState(false);
 
   if (Platform.OS !== 'ios' || is_busy) {
     return <View style={styles.rowWrap}>{children}</View>;
@@ -339,11 +340,16 @@ function BookmarkSwipeRow({
         return (
           <View style={styles.rowSwipeActionsWrap}>
             <RectButton
+              activeOpacity={1}
+              onActiveStateChange={set_is_action_pressed}
               onPress={() => {
                 swipeable_ref.current?.close?.();
+                set_is_action_pressed(false);
                 onDeletePress?.(entry, 'toggle_bookmark');
               }}
+              rippleColor="transparent"
               style={styles.rowSwipeActionButton}
+              underlayColor="transparent"
             >
               <RNAnimated.View style={{ opacity: action_opacity }}>
                 <View
@@ -354,6 +360,9 @@ function BookmarkSwipeRow({
                     },
                   ]}
                 >
+                  {is_action_pressed ? (
+                    <View style={styles.rowSwipeActionCirclePressed} />
+                  ) : null}
                   {Platform.OS === 'ios' ? (
                     <SFSymbol
                       color="#ffffff"
@@ -515,6 +524,11 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     width: 44,
+  },
+  rowSwipeActionCirclePressed: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+    borderRadius: 22,
   },
   rowSwipeActionSymbol: {
     height: 20,

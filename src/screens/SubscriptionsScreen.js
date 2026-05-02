@@ -998,6 +998,7 @@ function SubscriptionRow({
   const supporting_url = resolve_subscription_supporting_url(subscription);
   const detail_label = resolve_subscription_detail_label(subscription);
   const swipeable_ref = React.useRef(null);
+  const [is_action_pressed, set_is_action_pressed] = React.useState(false);
   const row_menu_actions = React.useMemo(() => {
     return get_subscription_row_actions(theme);
   }, [theme]);
@@ -1009,6 +1010,7 @@ function SubscriptionRow({
 
   const handle_remove_press = React.useCallback(() => {
     swipeable_ref.current?.close?.();
+    set_is_action_pressed(false);
     onMenuAction?.(subscription, 'remove');
   }, [onMenuAction, subscription]);
 
@@ -1253,8 +1255,12 @@ function SubscriptionRow({
         return (
           <View style={styles.rowSwipeActionsWrap}>
             <RectButton
+              activeOpacity={1}
+              onActiveStateChange={set_is_action_pressed}
               onPress={handle_remove_press}
+              rippleColor="transparent"
               style={styles.rowSwipeActionButton}
+              underlayColor="transparent"
             >
               <RNAnimated.View style={{ opacity: action_opacity }}>
                 <View
@@ -1265,6 +1271,9 @@ function SubscriptionRow({
                     },
                   ]}
                 >
+                  {is_action_pressed ? (
+                    <View style={styles.rowSwipeActionCirclePressed} />
+                  ) : null}
                   {Platform.OS === 'ios' ? (
                     <SFSymbol
                       color="#ffffff"
@@ -1691,6 +1700,11 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     width: 44,
+  },
+  rowSwipeActionCirclePressed: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+    borderRadius: 22,
   },
   rowSwipeActionSymbol: {
     height: 20,

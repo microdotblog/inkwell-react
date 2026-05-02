@@ -1280,6 +1280,7 @@ function FeedEntrySwipeRow({
   theme,
 }) {
   const swipeable_ref = React.useRef(null);
+  const [is_action_pressed, set_is_action_pressed] = React.useState(false);
   const action_title = entry?.is_read ? 'Mark as Unread' : 'Mark as Read';
   const ios_symbol_name = get_entry_read_action_image(entry);
   const android_icon_name = get_entry_read_action_material_icon_name(entry);
@@ -1307,11 +1308,16 @@ function FeedEntrySwipeRow({
             <RectButton
               accessibilityLabel={action_title}
               accessibilityRole="button"
+              activeOpacity={1}
+              onActiveStateChange={set_is_action_pressed}
               onPress={() => {
                 swipeable_ref.current?.close?.();
+                set_is_action_pressed(false);
                 onToggleReadPress?.(entry, 'toggle_read');
               }}
+              rippleColor="transparent"
               style={styles.rowSwipeActionButton}
+              underlayColor="transparent"
             >
               <RNAnimated.View
                 style={[
@@ -1327,6 +1333,9 @@ function FeedEntrySwipeRow({
                     },
                   ]}
                 >
+                  {is_action_pressed ? (
+                    <View style={styles.rowSwipeActionCirclePressed} />
+                  ) : null}
                   {Platform.OS === 'ios' ? (
                     <SFSymbol
                       color="#ffffff"
@@ -2102,6 +2111,11 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     width: 44,
+  },
+  rowSwipeActionCirclePressed: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+    borderRadius: 22,
   },
   rowSwipeActionSymbol: {
     height: 22,
