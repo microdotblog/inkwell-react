@@ -86,11 +86,19 @@ export async function create_micro_blog_feed_subscription({
   };
 }
 
-export async function fetch_micro_blog_feed_entries({ token = '' } = {}) {
+export async function fetch_micro_blog_feed_entries({
+  token = '',
+  existing_entry_ids = [],
+} = {}) {
   const trimmed_token = `${token || ''}`.trim();
   const per_page = 50;
   const entries = [];
   const oldest_timeline_midnight = get_oldest_timeline_midnight();
+  const existing_entry_id_set = new Set(
+    normalize_entry_payload_ids(existing_entry_ids).map((entry_id) => {
+      return `${entry_id || ''}`.trim();
+    }),
+  );
   let page = 1;
   let has_more = true;
 
@@ -107,6 +115,19 @@ export async function fetch_micro_blog_feed_entries({ token = '' } = {}) {
     );
 
     if (!Array.isArray(page_entries) || page_entries.length === 0) {
+      break;
+    }
+
+    const page_entry_ids = page_entries
+      .map((entry, index) => {
+        return normalize_micro_blog_entry_id(entry, index);
+      })
+      .filter(Boolean);
+
+    if (
+      page_entry_ids.length > 0 &&
+      page_entry_ids.every((entry_id) => existing_entry_id_set.has(entry_id))
+    ) {
       break;
     }
 
@@ -1100,4 +1121,21 @@ function normalize_entry_payload_ids(entry_ids = []) {
       }
     })
     .filter(Boolean);
+}
+
+function normalize_micro_blog_entry_id(entry = null, index = 0) {
+  const id = entry?.id;
+  if (id != null) {
+    const trimmed_id = `${id}`.trim();
+    if (trimmed_id) {
+      return trimmed_id;
+    }
+  }
+
+  const raw_url = `${entry?.url || ''}`.trim();
+  if (raw_url) {
+    return raw_url;
+  }
+
+  return `entry-${index + 1}`;
 }

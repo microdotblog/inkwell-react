@@ -70,11 +70,15 @@ const RECAP_EMAIL_DAYS = [
   'Saturday',
   'Sunday',
 ];
+const FEED_DAY_MS = 24 * 60 * 60 * 1000;
+const FEED_TIMELINE_WINDOW_DAYS = 7;
 const HIDE_READ_POSTS_SETTINGS_KEY = 'HideReadPosts';
 const FEED_TIMELINE_CACHE_DIRECTORY_NAME = 'inkwell';
 const FEED_TIMELINE_CACHE_FILENAME_PREFIX = 'RecentEntries';
+const FEED_ICONS_CACHE_FILENAME = 'Icons.json';
 const FEED_TIMELINE_CACHE_VERSION = 1;
 const FEED_TIMELINE_CACHE_WRITE_DELAY_MS = 240;
+const FEED_ICONS_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const Feed = types
   .model('Feed', {
@@ -808,15 +812,19 @@ const Feed = types
           self.reset();
           return false;
         }
+        const existing_subscriptions = self.subscriptions.map((subscription) => {
+          return getSnapshot(subscription);
+        });
 
-        const [subscriptions_result, icons_result] = yield Promise.allSettled([
-          fetch_micro_blog_feed_subscriptions({ token: user_token }),
-          fetch_micro_blog_feed_icons({ token: user_token }),
-        ]);
+        const subscriptions_result = yield fetch_micro_blog_feed_subscriptions({
+          token: user_token,
+        });
 
-        if (subscriptions_result.status !== 'fulfilled') {
-          throw subscriptions_result.reason;
-        }
+        const icons = yield resolve_feed_icons_for_subscriptions({
+          existing_subscriptions,
+          subscriptions: subscriptions_result,
+          token: user_token,
+        });
 
         const current_user_token = Tokens.get_user_token();
         if (current_user_token !== user_token) {
@@ -830,10 +838,7 @@ const Feed = types
           return false;
         }
 
-        const icons =
-          icons_result.status === 'fulfilled' ? icons_result.value : [];
-
-        self.apply_subscriptions(subscriptions_result.value, icons);
+        self.apply_subscriptions(subscriptions_result, icons);
         return true;
       } catch (error) {
         if (self.subscriptions_request_token === request_token) {
@@ -903,12 +908,12 @@ const Feed = types
         }
 
         const created_subscription = result?.subscription || null;
+        const did_refresh = yield self.refresh_subscriptions();
 
-        if (created_subscription) {
+        if (!did_refresh && created_subscription) {
           self.upsert_subscription(created_subscription);
         }
 
-        const did_refresh = yield self.refresh_subscriptions();
         self.refresh_timeline_in_background();
 
         return {
@@ -1182,19 +1187,29 @@ const Feed = types
           self.reset();
           return false;
         }
+        const existing_entry_ids = self.timeline_entries.map((entry) => {
+          return entry.id;
+        });
+        const existing_entries = self.timeline_entries.map((entry) => {
+          return getSnapshot(entry);
+        });
+        const existing_subscriptions = self.subscriptions.map((subscription) => {
+          return getSnapshot(subscription);
+        });
 
         const [
           subscriptions_result,
           unread_entry_ids_result,
           starred_entry_ids_result,
           entries_result,
-          icons_result,
         ] = yield Promise.allSettled([
           fetch_micro_blog_feed_subscriptions({ token: user_token }),
           fetch_micro_blog_feed_unread_entry_ids({ token: user_token }),
           fetch_micro_blog_feed_starred_entry_ids({ token: user_token }),
-          fetch_micro_blog_feed_entries({ token: user_token }),
-          fetch_micro_blog_feed_icons({ token: user_token }),
+          fetch_micro_blog_feed_entries({
+            token: user_token,
+            existing_entry_ids,
+          }),
         ]);
 
         if (subscriptions_result.status !== 'fulfilled') {
@@ -1216,9 +1231,15 @@ const Feed = types
         const subscriptions = subscriptions_result.value;
         const unread_entry_ids = unread_entry_ids_result.value;
         const starred_entry_ids = starred_entry_ids_result.value;
-        const entries = entries_result.value;
-        const icons =
-          icons_result.status === 'fulfilled' ? icons_result.value : [];
+        const entries = merge_timeline_entry_payloads(
+          existing_entries,
+          entries_result.value,
+        );
+        const icons = yield resolve_feed_icons_for_subscriptions({
+          existing_subscriptions,
+          subscriptions,
+          token: user_token,
+        });
 
         const current_user_token = Tokens.get_user_token();
         if (current_user_token !== user_token) {
@@ -1977,26 +1998,31 @@ function normalize_timeline_cache_payload(timeline_cache_payload = null) {
 }
 
 function normalize_cached_timeline_entries(entries = []) {
-  return entries.map((entry, index) => {
-    const published_at = resolve_published_at(entry);
+  return entries
+    .map((entry, index) => {
+      const published_at = resolve_published_at(entry);
 
-    return {
-      id: normalize_entry_id(entry, index),
-      feed_id: normalize_feed_id(entry),
-      source: normalize_string(entry?.source) || 'Feed',
-      source_url: normalize_string(entry?.source_url),
-      avatar_url: normalize_string(entry?.avatar_url),
-      title: normalize_string(entry?.title),
-      summary: normalize_string(entry?.summary),
-      content: normalize_string(entry?.content),
-      author: normalize_string(entry?.author),
-      url: normalize_string(entry?.url),
-      published_at,
-      is_read: Boolean(entry?.is_read),
-      is_bookmarked: Boolean(entry?.is_bookmarked),
-      age_bucket: get_age_bucket(published_at),
-    };
-  }).sort(compare_timeline_entries_by_published_at);
+      return {
+        id: normalize_entry_id(entry, index),
+        feed_id: normalize_feed_id(entry),
+        source: normalize_string(entry?.source) || 'Feed',
+        source_url: normalize_string(entry?.source_url),
+        avatar_url: normalize_string(entry?.avatar_url),
+        title: normalize_string(entry?.title),
+        summary: normalize_string(entry?.summary),
+        content: normalize_string(entry?.content),
+        author: normalize_string(entry?.author),
+        url: normalize_string(entry?.url),
+        published_at,
+        is_read: Boolean(entry?.is_read),
+        is_bookmarked: Boolean(entry?.is_bookmarked),
+        age_bucket: get_age_bucket(published_at),
+      };
+    })
+    .filter((entry) => {
+      return is_inside_timeline_window(entry.published_at);
+    })
+    .sort(compare_timeline_entries_by_published_at);
 }
 
 function get_timeline_cache_directory() {
@@ -2033,6 +2059,220 @@ async function get_timeline_cache_uri(user_token = '') {
   }
 }
 
+async function resolve_feed_icons_for_subscriptions({
+  existing_subscriptions = [],
+  subscriptions = [],
+  token = '',
+} = {}) {
+  const cached_icons_result = await load_cached_feed_icons();
+  let icons = cached_icons_result.icons;
+
+  if (
+    !should_fetch_feed_icons_for_subscriptions({
+      did_expire: cached_icons_result.did_expire,
+      existing_subscriptions,
+      icons,
+      known_hosts: cached_icons_result.known_hosts,
+      subscriptions,
+    })
+  ) {
+    return icons;
+  }
+
+  try {
+    icons = normalize_feed_icons(
+      await fetch_micro_blog_feed_icons({ token }),
+    );
+    await persist_cached_feed_icons(icons, subscriptions);
+  } catch (error) {
+    if (cached_icons_result.did_expire) {
+      icons = [];
+    }
+  }
+
+  return icons;
+}
+
+async function load_cached_feed_icons() {
+  const icons_cache_uri = get_feed_icons_cache_uri();
+
+  if (!icons_cache_uri) {
+    return {
+      did_expire: false,
+      icons: [],
+      known_hosts: [],
+    };
+  }
+
+  try {
+    const cache_info = await FileSystem.getInfoAsync(icons_cache_uri);
+    if (!cache_info.exists) {
+      return {
+        did_expire: false,
+        icons: [],
+        known_hosts: [],
+      };
+    }
+
+    if (is_file_cache_expired(cache_info, FEED_ICONS_CACHE_MAX_AGE_MS)) {
+      await FileSystem.deleteAsync(icons_cache_uri, { idempotent: true });
+      return {
+        did_expire: true,
+        icons: [],
+        known_hosts: [],
+      };
+    }
+
+    const raw_payload = await FileSystem.readAsStringAsync(icons_cache_uri);
+    const parsed_payload = JSON.parse(raw_payload);
+    if (is_feed_icon_cache_payload_expired(parsed_payload)) {
+      await FileSystem.deleteAsync(icons_cache_uri, { idempotent: true });
+      return {
+        did_expire: true,
+        icons: [],
+        known_hosts: [],
+      };
+    }
+
+    const icons = normalize_feed_icons_from_cache_payload(parsed_payload);
+
+    return {
+      did_expire: false,
+      icons,
+      known_hosts: normalize_feed_icon_hosts_from_cache_payload(
+        parsed_payload,
+        icons,
+      ),
+    };
+  } catch (error) {
+    try {
+      await FileSystem.deleteAsync(icons_cache_uri, { idempotent: true });
+    } catch (delete_error) {
+      // A corrupt icon cache should not block feed syncing.
+    }
+
+    return {
+      did_expire: false,
+      icons: [],
+      known_hosts: [],
+    };
+  }
+}
+
+async function persist_cached_feed_icons(icons = [], subscriptions = []) {
+  const icons_cache_directory = get_timeline_cache_directory();
+  const icons_cache_uri = get_feed_icons_cache_uri();
+
+  if (!icons_cache_directory || !icons_cache_uri) {
+    return false;
+  }
+
+  try {
+    const directory_info = await FileSystem.getInfoAsync(icons_cache_directory);
+    if (!directory_info.exists) {
+      await FileSystem.makeDirectoryAsync(
+        icons_cache_directory,
+        { intermediates: true },
+      );
+    }
+
+    const payload = {
+      cached_at: new Date().toISOString(),
+      hosts: collect_subscription_icon_hosts(subscriptions),
+      icons: normalize_feed_icons(icons),
+      version: 1,
+    };
+
+    await FileSystem.writeAsStringAsync(
+      icons_cache_uri,
+      JSON.stringify(payload),
+    );
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function get_feed_icons_cache_uri() {
+  const cache_directory = get_timeline_cache_directory();
+
+  if (!cache_directory) {
+    return '';
+  }
+
+  return `${cache_directory}/${FEED_ICONS_CACHE_FILENAME}`;
+}
+
+function is_file_cache_expired(cache_info = null, max_age_ms = 0) {
+  const modification_time = Number(cache_info?.modificationTime);
+
+  if (!Number.isFinite(modification_time)) {
+    return false;
+  }
+
+  const modification_time_ms =
+    modification_time > 1000000000000
+      ? modification_time
+      : modification_time * 1000;
+
+  return Date.now() - modification_time_ms > max_age_ms;
+}
+
+function is_feed_icon_cache_payload_expired(payload = null) {
+  const cached_at = normalize_string(payload?.cached_at);
+  const cached_at_time = new Date(cached_at).getTime();
+
+  if (Number.isNaN(cached_at_time)) {
+    return false;
+  }
+
+  return Date.now() - cached_at_time > FEED_ICONS_CACHE_MAX_AGE_MS;
+}
+
+function should_fetch_feed_icons_for_subscriptions({
+  did_expire = false,
+  existing_subscriptions = [],
+  icons = [],
+  known_hosts = [],
+  subscriptions = [],
+} = {}) {
+  if (!Array.isArray(subscriptions) || subscriptions.length === 0) {
+    return false;
+  }
+
+  if (did_expire) {
+    return true;
+  }
+
+  const existing_subscription_ids =
+    build_subscription_identity_set(existing_subscriptions);
+  const icon_map = build_icon_map(icons);
+  const known_host_set = new Set(
+    (Array.isArray(known_hosts) ? known_hosts : [])
+      .map((host) => {
+        return normalize_icon_host(host);
+      })
+      .filter(Boolean),
+  );
+
+  return subscriptions.some((subscription) => {
+    if (subscription_has_embedded_avatar(subscription)) {
+      return false;
+    }
+
+    if (existing_subscription_ids.has(get_subscription_identity(subscription))) {
+      return false;
+    }
+
+    const host = get_subscription_host(subscription);
+    if (!host) {
+      return false;
+    }
+
+    return !icon_map.has(host) && !known_host_set.has(host);
+  });
+}
+
 function normalize_subscriptions(subscriptions = [], icons = []) {
   if (!Array.isArray(subscriptions)) {
     return [];
@@ -2050,6 +2290,74 @@ function normalize_subscriptions(subscriptions = [], icons = []) {
       avatar_url: resolve_subscription_avatar(subscription, icon_map),
     };
   });
+}
+
+function normalize_feed_icons(icons = []) {
+  if (Array.isArray(icons)) {
+    return icons
+      .map((icon) => {
+        return {
+          host: normalize_icon_host(icon?.host),
+          url: normalize_string(icon?.url),
+        };
+      })
+      .filter((icon) => {
+        return icon.host && icon.url;
+      });
+  }
+
+  if (!icons || typeof icons !== 'object') {
+    return [];
+  }
+
+  return Object.entries(icons)
+    .map(([host, url]) => {
+      return {
+        host: normalize_icon_host(host),
+        url: normalize_string(url),
+      };
+    })
+    .filter((icon) => {
+      return icon.host && icon.url;
+    });
+}
+
+function normalize_feed_icons_from_cache_payload(payload = null) {
+  if (Array.isArray(payload)) {
+    return normalize_feed_icons(payload);
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return [];
+  }
+
+  if (Array.isArray(payload.icons)) {
+    return normalize_feed_icons(payload.icons);
+  }
+
+  return normalize_feed_icons(payload);
+}
+
+function normalize_feed_icon_hosts_from_cache_payload(
+  payload = null,
+  icons = [],
+) {
+  const hosts = new Set(
+    normalize_feed_icons(icons).map((icon) => {
+      return icon.host;
+    }),
+  );
+
+  if (payload && typeof payload === 'object' && Array.isArray(payload.hosts)) {
+    payload.hosts.forEach((host) => {
+      const normalized_host = normalize_icon_host(host);
+      if (normalized_host) {
+        hosts.add(normalized_host);
+      }
+    });
+  }
+
+  return [...hosts];
 }
 
 function normalize_timeline_entries(
@@ -2082,38 +2390,42 @@ function normalize_timeline_entries(
     ),
   );
 
-  const normalized_entries = entries.map((entry, index) => {
-    const normalized_id = normalize_entry_id(entry, index);
-    const subscription = subscription_map.get(normalize_feed_id(entry));
-    const published_at = resolve_published_at(entry);
+  const normalized_entries = entries
+    .map((entry, index) => {
+      const normalized_id = normalize_entry_id(entry, index);
+      const subscription = subscription_map.get(normalize_feed_id(entry));
+      const published_at = resolve_published_at(entry);
 
-    return {
-      id: normalized_id,
-      feed_id: normalize_feed_id(entry, subscription),
-      source: resolve_source(subscription),
-      source_url: resolve_source_url(subscription),
-      avatar_url: resolve_avatar_url(subscription),
-      title: normalize_string(entry?.title),
-      summary: normalize_string(entry?.summary),
-      content: normalize_string(entry?.content),
-      author: normalize_string(entry?.author),
-      url: normalize_string(entry?.url),
-      published_at,
-      is_read: resolve_entry_read_state(
-        normalized_id,
-        unread_set,
-        local_read_entry_ids,
-        local_unread_entry_ids,
-      ),
-      is_bookmarked: resolve_entry_bookmark_state(
-        normalized_id,
-        starred_set,
-        local_bookmarked_entry_ids,
-        local_unbookmarked_entry_ids,
-      ),
-      age_bucket: get_age_bucket(published_at),
-    };
-  });
+      return {
+        id: normalized_id,
+        feed_id: normalize_feed_id(entry, subscription),
+        source: resolve_source(subscription),
+        source_url: resolve_source_url(subscription),
+        avatar_url: resolve_avatar_url(subscription),
+        title: normalize_string(entry?.title),
+        summary: normalize_string(entry?.summary),
+        content: normalize_string(entry?.content),
+        author: normalize_string(entry?.author),
+        url: normalize_string(entry?.url),
+        published_at,
+        is_read: resolve_entry_read_state(
+          normalized_id,
+          unread_set,
+          local_read_entry_ids,
+          local_unread_entry_ids,
+        ),
+        is_bookmarked: resolve_entry_bookmark_state(
+          normalized_id,
+          starred_set,
+          local_bookmarked_entry_ids,
+          local_unbookmarked_entry_ids,
+        ),
+        age_bucket: get_age_bucket(published_at),
+      };
+    })
+    .filter((entry) => {
+      return is_inside_timeline_window(entry.published_at);
+    });
 
   normalized_entries.sort((left, right) => {
     const left_time = new Date(left.published_at).getTime();
@@ -2153,20 +2465,105 @@ function build_subscription_map(subscriptions = []) {
 }
 
 function build_icon_map(icons = []) {
-  if (!Array.isArray(icons)) {
-    return new Map();
-  }
-
-  const icon_pairs = icons
+  const icon_pairs = normalize_feed_icons(icons)
     .map((icon) => {
       return [
-        normalize_string(icon?.host).toLowerCase(),
+        normalize_icon_host(icon?.host),
         normalize_string(icon?.url),
       ];
     })
     .filter(([host, url]) => host && url);
 
   return new Map(icon_pairs);
+}
+
+function merge_timeline_entry_payloads(
+  cached_entries = [],
+  remote_entries = [],
+) {
+  const entry_map = new Map();
+
+  normalize_timeline_entry_payload_array(cached_entries).forEach(
+    (entry, index) => {
+      const entry_id = normalize_entry_id(entry, index);
+      if (entry_id) {
+        entry_map.set(entry_id, entry);
+      }
+    },
+  );
+
+  normalize_timeline_entry_payload_array(remote_entries).forEach(
+    (entry, index) => {
+      const entry_id = normalize_entry_id(entry, index);
+      if (entry_id) {
+        entry_map.set(entry_id, entry);
+      }
+    },
+  );
+
+  return [...entry_map.values()];
+}
+
+function normalize_timeline_entry_payload_array(entries = []) {
+  if (Array.isArray(entries)) {
+    return entries.filter((entry) => {
+      return entry && typeof entry === 'object';
+    });
+  }
+
+  return [];
+}
+
+function build_subscription_identity_set(subscriptions = []) {
+  return new Set(
+    (Array.isArray(subscriptions) ? subscriptions : [])
+      .map((subscription) => {
+        return get_subscription_identity(subscription);
+      })
+      .filter(Boolean),
+  );
+}
+
+function get_subscription_identity(subscription = null) {
+  const id = normalize_subscription_id(subscription);
+
+  if (id) {
+    return `id:${id}`;
+  }
+
+  const feed_id = normalize_feed_id(subscription);
+
+  if (feed_id) {
+    return `feed:${feed_id}`;
+  }
+
+  const host = get_subscription_host(subscription);
+
+  if (host) {
+    return `host:${host}`;
+  }
+
+  return '';
+}
+
+function subscription_has_embedded_avatar(subscription = null) {
+  return Boolean(
+    normalize_string(subscription?.avatar_url) ||
+    normalize_string(subscription?.json_feed?.icon) ||
+    normalize_string(subscription?.json_feed?.favicon),
+  );
+}
+
+function collect_subscription_icon_hosts(subscriptions = []) {
+  return [
+    ...new Set(
+      (Array.isArray(subscriptions) ? subscriptions : [])
+        .map((subscription) => {
+          return get_subscription_host(subscription);
+        })
+        .filter(Boolean),
+    ),
+  ];
 }
 
 function normalize_subscription_id(subscription = null) {
@@ -2220,6 +2617,20 @@ function normalize_feed_id(source = null, fallback_subscription = null) {
 
 function normalize_string(value = '') {
   return `${value || ''}`.trim();
+}
+
+function normalize_icon_host(host = '') {
+  let normalized_host = normalize_string(host).toLowerCase();
+
+  if (normalized_host.startsWith('www.')) {
+    normalized_host = normalized_host.slice(4);
+  }
+
+  if (normalized_host.endsWith('.')) {
+    normalized_host = normalized_host.slice(0, -1);
+  }
+
+  return normalized_host;
 }
 
 function resolve_avatar_url(subscription = null) {
@@ -2290,10 +2701,10 @@ function get_subscription_host(subscription = null) {
   }
 
   try {
-    return new URL(raw_url).hostname.toLowerCase();
+    return normalize_icon_host(new URL(raw_url).hostname);
   } catch (error) {
     try {
-      return new URL(`https://${raw_url}`).hostname.toLowerCase();
+      return normalize_icon_host(new URL(`https://${raw_url}`).hostname);
     } catch (fallback_error) {
       return '';
     }
@@ -2375,6 +2786,29 @@ function get_age_bucket(iso_date = '') {
   const bucket = Math.min(Math.max(diff_days, 0), 6) + 1;
 
   return `day-${bucket}`;
+}
+
+function is_inside_timeline_window(iso_date = '') {
+  const date = new Date(iso_date);
+  if (Number.isNaN(date.getTime())) {
+    return true;
+  }
+
+  const now = new Date();
+  const today_midnight = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const entry_midnight = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  );
+  const oldest_timeline_midnight =
+    today_midnight.getTime() - (FEED_TIMELINE_WINDOW_DAYS - 1) * FEED_DAY_MS;
+
+  return entry_midnight.getTime() >= oldest_timeline_midnight;
 }
 
 function normalize_unique_entry_ids(entry_ids = []) {
