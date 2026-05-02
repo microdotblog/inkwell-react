@@ -405,6 +405,15 @@ function ReaderPaneTabs({
       width: active_pane_width.value,
     };
   }, []);
+  const active_pane_pill_style = theme.isDark
+    ? {
+        backgroundColor: theme.colors.buttonGhost,
+        borderWidth: 0,
+      }
+    : {
+        backgroundColor: theme.colors.paper,
+        borderColor: theme.colors.line,
+      };
 
   return (
     <Animated.View
@@ -426,10 +435,7 @@ function ReaderPaneTabs({
           pointerEvents="none"
           style={[
             styles.readerPaneActivePill,
-            {
-              backgroundColor: theme.colors.paper,
-              borderColor: theme.colors.line,
-            },
+            active_pane_pill_style,
             active_pane_style,
           ]}
         />
