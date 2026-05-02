@@ -794,7 +794,6 @@ function ReaderTextSizeTray({
   onValueChange,
   safe_area_bottom = 0,
   slider_index = 0,
-  text_scale = DEFAULT_TEXT_SCALE,
   theme,
   visible = false,
 }) {
@@ -914,14 +913,6 @@ function ReaderTextSizeTray({
               >
                 Text size
               </Text>
-              <Text
-                style={[
-                  styles.readerTextSizeTrayValue,
-                  { color: theme.colors.accentStrong },
-                ]}
-              >
-                {formatTextScaleLabel(text_scale)}
-              </Text>
             </View>
           </View>
 
@@ -962,28 +953,6 @@ function ReaderTextSizeTray({
               >
                 {formatTextScaleLabel(MAX_TEXT_SCALE)}
               </Text>
-            </View>
-            <View style={styles.readerTextSizeSliderStepDotsRow}>
-              {Array.from({ length: TEXT_SCALE_PRESET_COUNT }).map(
-                (_, index) => {
-                  const is_active = index === slider_index;
-
-                  return (
-                    <View
-                      key={`reader-text-scale-step-${index}`}
-                      style={[
-                        styles.readerTextSizeSliderStepDot,
-                        {
-                          backgroundColor: is_active
-                            ? theme.colors.accentStrong
-                            : theme.colors.line,
-                          opacity: is_active ? 1 : 0.72,
-                        },
-                      ]}
-                    />
-                  );
-                },
-              )}
             </View>
           </View>
         </View>
@@ -2527,14 +2496,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   readerTextSizeTrayTitle: {
-    fontFamily: "Newsreader_600SemiBold",
-    fontSize: 28,
-    lineHeight: 32,
-  },
-  readerTextSizeTrayValue: {
-    fontSize: 15,
+    fontSize: 22,
     fontWeight: "700",
-    lineHeight: 20,
+    lineHeight: 28,
   },
   readerTextSizeSliderWrap: {
     marginTop: 10,
@@ -2548,17 +2512,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     lineHeight: 16,
-  },
-  readerTextSizeSliderStepDotsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
-    paddingHorizontal: 4,
-  },
-  readerTextSizeSliderStepDot: {
-    borderRadius: 3,
-    height: 6,
-    width: 6,
   },
   avatarFrame: {
     alignItems: "center",
