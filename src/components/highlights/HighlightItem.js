@@ -70,6 +70,7 @@ export default function HighlightItem({
     <View
       style={[
         styles.rowCard,
+        theme?.isDark ? styles.rowCardDark : null,
         {
           backgroundColor: theme.colors.paper,
           borderColor: theme.colors.line,
@@ -80,6 +81,7 @@ export default function HighlightItem({
       <View
         style={[
           styles.highlightWrap,
+          theme?.isDark ? styles.highlightWrapDark : null,
           {
             backgroundColor: highlight_background_color,
           },
@@ -150,9 +152,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
+  rowCardDark: {
+    padding: 1,
+  },
   highlightWrap: {
     paddingHorizontal: 18,
     paddingVertical: 16,
+  },
+  highlightWrapDark: {
+    borderTopLeftRadius: 23,
+    borderTopRightRadius: 23,
+    overflow: 'hidden',
   },
   highlightText: {
     fontSize: 15,
