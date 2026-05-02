@@ -1292,6 +1292,7 @@ function FeedEntrySwipeRow({
   return (
     <Swipeable
       ref={swipeable_ref}
+      containerStyle={styles.rowSwipeContainer}
       enableTrackpadTwoFingerGesture={true}
       friction={1}
       overshootFriction={8}
@@ -1367,7 +1368,7 @@ function FeedEntrySwipeRow({
       }}
       rightThreshold={40}
     >
-      {children}
+      <View style={styles.rowSwipeContent}>{children}</View>
     </Swipeable>
   );
 }
@@ -2094,6 +2095,12 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     justifyContent: 'center',
     marginLeft: 12,
+  },
+  rowSwipeContainer: {
+    marginHorizontal: -SCREEN_HORIZONTAL_PADDING,
+  },
+  rowSwipeContent: {
+    paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
   },
   rowSwipeActionButton: {
     alignItems: 'center',
