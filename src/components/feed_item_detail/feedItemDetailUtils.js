@@ -55,6 +55,7 @@ const TEXT_STYLE_NAMES = [
   "feedDetailSeparator",
   "dateLabel",
   "title",
+  "authorLabel",
   "recapBody",
   "readerPaneButtonLabel",
   "replyAuthor",

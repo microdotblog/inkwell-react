@@ -116,6 +116,7 @@ const EntryReaderView = observer(function EntryReaderView({
   const resolved_entry_id = `${entry?.id || ""}`.trim();
   const source_label = `${entry?.source || "Feed"}`.trim() || "Feed";
   const reader_title = resolve_reader_title(entry);
+  const author_label = resolve_entry_author_label(entry, source_label);
   const formatted_date = format_reader_date(entry?.published_at);
   const source_url = normalize_http_url(entry?.source_url);
   const original_url = normalize_http_url(entry?.url);
@@ -228,6 +229,17 @@ const EntryReaderView = observer(function EntryReaderView({
             >
               {reader_title}
             </Text>
+            {author_label ? (
+              <Text
+                style={[
+                  styles.authorLabel,
+                  scaled_text_styles.authorLabel,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
+                {author_label}
+              </Text>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -1781,6 +1793,25 @@ function MetaLink({ color, label, onPress, style }) {
   }
 }
 
+function resolve_entry_author_label(entry = null, source_label = "") {
+  const author = normalize_reader_label(entry?.author);
+  const source = normalize_reader_label(source_label);
+
+  if (!author) {
+    return "";
+  }
+
+  if (author.toLowerCase() === source.toLowerCase()) {
+    return "";
+  }
+
+  return author;
+}
+
+function normalize_reader_label(value = "") {
+  return `${value || ""}`.trim().replace(/\s+/g, " ");
+}
+
 function UnavailableScreen({
   body = "",
   scaled_text_styles,
@@ -1958,7 +1989,7 @@ const styles = StyleSheet.create({
   },
   masthead: {
     borderBottomWidth: 1,
-    paddingBottom: 20,
+    paddingBottom: 16,
     paddingTop: Platform.OS === "ios" ? 0 : 10,
   },
   feedHeaderRow: {
@@ -2001,6 +2032,11 @@ const styles = StyleSheet.create({
     // fontFamily: "Newsreader_600SemiBold",
     fontSize: READER_TITLE_FONT_SIZE,
     lineHeight: READER_TITLE_LINE_HEIGHT,
+  },
+  authorLabel: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 8,
   },
   titleWrap: {
     marginTop: READER_TITLE_TOP_MARGIN,
