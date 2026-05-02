@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Animated as RNAnimated,
   FlatList,
   Keyboard,
   Linking,
@@ -15,10 +16,13 @@ import {
 import { MenuView } from '@react-native-menu/menu';
 import { useFocusEffect, useScrollToTop } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { SFSymbol } from 'react-native-sfsymbols';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { observer } from 'mobx-react';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { RectButton } from 'react-native-gesture-handler';
 import {
   KeyboardStickyView,
   useReanimatedKeyboardAnimation,
@@ -1227,34 +1231,40 @@ function render_content({
             resolve_feed_timeline_entry_content(item);
 
           return (
-            <FeedTimelineCard
-              accessibility_label={`Open ${timeline_entry_content.display_title}`}
-              avatar_url={item.avatar_url}
-              display_title={timeline_entry_content.display_title}
-              is_unread={!item?.is_read}
-              menu_actions={get_entry_menu_actions({
-                entry: item,
-                theme,
-              })}
-              onMenuAction={(menu_action_id) => {
-                on_entry_menu_action?.(item, menu_action_id);
-              }}
-              onMenuClose={on_entry_menu_close}
-              onMenuOpen={on_entry_menu_open}
-              onPress={() => on_entry_press?.(item.id)}
-              row_opacity={timeline_entry_content.row_opacity}
-              scaled_text_styles={scaled_text_styles}
-              secondary_source_label={
-                timeline_entry_content.secondary_source_label
-              }
-              show_bookmark_indicator={
-                timeline_entry_content.show_bookmark_indicator
-              }
-              source_label={timeline_entry_content.source_label}
-              summary={timeline_entry_content.summary}
+            <FeedEntrySwipeRow
+              entry={item}
+              onToggleReadPress={on_entry_menu_action}
               theme={theme}
-              timestamp={timeline_entry_content.timestamp}
-            />
+            >
+              <FeedTimelineCard
+                accessibility_label={`Open ${timeline_entry_content.display_title}`}
+                avatar_url={item.avatar_url}
+                display_title={timeline_entry_content.display_title}
+                is_unread={!item?.is_read}
+                menu_actions={get_entry_menu_actions({
+                  entry: item,
+                  theme,
+                })}
+                onMenuAction={(menu_action_id) => {
+                  on_entry_menu_action?.(item, menu_action_id);
+                }}
+                onMenuClose={on_entry_menu_close}
+                onMenuOpen={on_entry_menu_open}
+                onPress={() => on_entry_press?.(item.id)}
+                row_opacity={timeline_entry_content.row_opacity}
+                scaled_text_styles={scaled_text_styles}
+                secondary_source_label={
+                  timeline_entry_content.secondary_source_label
+                }
+                show_bookmark_indicator={
+                  timeline_entry_content.show_bookmark_indicator
+                }
+                source_label={timeline_entry_content.source_label}
+                summary={timeline_entry_content.summary}
+                theme={theme}
+                timestamp={timeline_entry_content.timestamp}
+              />
+            </FeedEntrySwipeRow>
           );
         }}
         scrollEventThrottle={16}
@@ -1263,6 +1273,94 @@ function render_content({
       />
     );
   }
+}
+
+function FeedEntrySwipeRow({
+  children,
+  entry = null,
+  onToggleReadPress,
+  theme,
+}) {
+  const swipeable_ref = React.useRef(null);
+  const action_title = entry?.is_read ? 'Mark as Unread' : 'Mark as Read';
+
+  if (Platform.OS === 'web') {
+    return children;
+  }
+
+  return (
+    <Swipeable
+      ref={swipeable_ref}
+      enableTrackpadTwoFingerGesture={true}
+      friction={1}
+      overshootFriction={8}
+      overshootRight={false}
+      renderRightActions={(progress) => {
+        const action_opacity = progress.interpolate({
+          inputRange: [0, 0.2, 0.85, 1],
+          outputRange: [0, 0, 1, 1],
+          extrapolate: 'clamp',
+        });
+
+        return (
+          <View style={styles.rowSwipeActionsWrap}>
+            <RectButton
+              accessibilityLabel={action_title}
+              accessibilityRole="button"
+              onPress={() => {
+                swipeable_ref.current?.close?.();
+                onToggleReadPress?.(entry, 'toggle_read');
+              }}
+              style={styles.rowSwipeActionButton}
+            >
+              <RNAnimated.View
+                style={[
+                  styles.rowSwipeActionContent,
+                  { opacity: action_opacity },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.rowSwipeActionCircle,
+                    {
+                      backgroundColor: resolve_read_swipe_action_color(theme),
+                    },
+                  ]}
+                >
+                  {Platform.OS === 'ios' ? (
+                    <SFSymbol
+                      color="#ffffff"
+                      multicolor={false}
+                      name="eye"
+                      style={styles.rowSwipeActionSymbol}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      color="#ffffff"
+                      name="visibility"
+                      size={22}
+                    />
+                  )}
+                </View>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.rowSwipeActionLabel,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  {action_title}
+                </Text>
+              </RNAnimated.View>
+            </RectButton>
+          </View>
+        );
+      }}
+      rightThreshold={40}
+    >
+      {children}
+    </Swipeable>
+  );
 }
 
 function FeedFooterControlsRow({
@@ -1969,6 +2067,37 @@ const styles = StyleSheet.create({
   listContentEmpty: {
     flexGrow: 1,
   },
+  rowSwipeActionsWrap: {
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  rowSwipeActionButton: {
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'center',
+    width: 112,
+  },
+  rowSwipeActionContent: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  rowSwipeActionCircle: {
+    alignItems: 'center',
+    borderRadius: 22,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  rowSwipeActionSymbol: {
+    height: 22,
+    width: 22,
+  },
+  rowSwipeActionLabel: {
+    fontSize: 13,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
   recapCard: {
     borderWidth: 1,
     borderRadius: 24,
@@ -2071,6 +2200,14 @@ function resolve_top_status_scrim_color(theme, platform = Platform.OS) {
 
 function resolve_recap_card_background_color(theme) {
   return theme?.colors?.badge || theme?.colors?.paper || '#ffffff';
+}
+
+function resolve_read_swipe_action_color(theme) {
+  if (theme?.isDark) {
+    return '#777a82';
+  } else {
+    return '#8e8e93';
+  }
 }
 
 function with_color_opacity(color_value = '', opacity = 1) {
