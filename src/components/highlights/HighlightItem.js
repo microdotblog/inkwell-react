@@ -13,7 +13,6 @@ import {
 } from '../../theme/textScale';
 
 const HIGHLIGHT_LIGHT_BACKGROUND = '#FFF9D6';
-const HIGHLIGHT_DARK_BACKGROUND = '#D98C3A';
 const TEXT_STYLE_NAMES = [
   'highlightText',
   'postLabel',
@@ -36,6 +35,7 @@ export default function HighlightItem({
   const post_label = resolve_highlight_post_label(entry);
   const timestamp = format_highlight_date(entry);
   const highlight_background_color = resolve_highlight_background_color(theme);
+  const highlight_text_color = resolve_highlight_text_color(theme);
   const can_copy_link = typeof onCopyLinkPress === 'function';
   const menu_actions = React.useMemo(() => {
     return get_highlight_row_actions({
@@ -90,7 +90,7 @@ export default function HighlightItem({
             styles.highlightText,
             scaled_text_styles.highlightText,
             {
-              color: theme.colors.ink,
+              color: highlight_text_color,
             },
           ]}
         >
@@ -251,11 +251,15 @@ function parse_date(raw_value = '') {
 }
 
 function resolve_highlight_background_color(theme) {
+  return HIGHLIGHT_LIGHT_BACKGROUND;
+}
+
+function resolve_highlight_text_color(theme) {
   if (theme?.isDark) {
-    return HIGHLIGHT_DARK_BACKGROUND;
+    return '#000000';
   }
 
-  return HIGHLIGHT_LIGHT_BACKGROUND;
+  return theme?.colors?.ink;
 }
 
 function normalize_string(value = '') {
