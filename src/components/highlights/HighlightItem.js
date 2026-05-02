@@ -13,6 +13,8 @@ import {
 } from '../../theme/textScale';
 
 const HIGHLIGHT_LIGHT_BACKGROUND = '#FFF9D6';
+const HIGHLIGHT_DARK_BACKGROUND = '#2D2B18';
+const HIGHLIGHT_DARK_TEXT = '#FFF0A6';
 const TEXT_STYLE_NAMES = [
   'highlightText',
   'postLabel',
@@ -261,12 +263,16 @@ function parse_date(raw_value = '') {
 }
 
 function resolve_highlight_background_color(theme) {
+  if (theme?.isDark) {
+    return HIGHLIGHT_DARK_BACKGROUND;
+  }
+
   return HIGHLIGHT_LIGHT_BACKGROUND;
 }
 
 function resolve_highlight_text_color(theme) {
   if (theme?.isDark) {
-    return '#000000';
+    return HIGHLIGHT_DARK_TEXT;
   }
 
   return theme?.colors?.ink;
