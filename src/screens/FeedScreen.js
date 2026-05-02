@@ -147,7 +147,7 @@ function get_profile_menu_actions(
     id: 'mark_all_as_read',
     title: 'Mark All as Read',
     image: Platform.select({
-      ios: 'button.programmable',
+      ios: 'circle',
     }),
     imageColor: icon_color,
   };
@@ -1347,7 +1347,7 @@ function FeedEntrySwipeRow({
                     <MaterialIcons
                       color="#ffffff"
                       name={android_icon_name}
-                      size={22}
+                      size={24}
                     />
                   )}
                 </View>
@@ -1860,15 +1860,15 @@ function get_mark_all_as_read_toast_message(marked_entry_count = 0) {
 
 function get_entry_read_action_image(entry = null) {
   return Platform.select({
-    ios: entry?.is_read ? 'circle' : 'button.programmable',
+    ios: entry?.is_read ? 'button.programmable' : 'circle',
   });
 }
 
 function get_entry_read_action_material_icon_name(entry = null) {
   if (entry?.is_read) {
-    return 'radio-button-unchecked';
+    return 'smart-button';
   } else {
-    return 'radio-button-checked';
+    return 'radio-button-unchecked';
   }
 }
 
@@ -2118,8 +2118,8 @@ const styles = StyleSheet.create({
     borderRadius: 22,
   },
   rowSwipeActionSymbol: {
-    height: 22,
-    width: 22,
+    height: 24,
+    width: 24,
   },
   rowSwipeActionLabel: {
     fontSize: 13,
@@ -2232,9 +2232,9 @@ function resolve_recap_card_background_color(theme) {
 
 function resolve_read_swipe_action_color(theme) {
   if (theme?.isDark) {
-    return '#777a82';
+    return '#888b92';
   } else {
-    return '#8e8e93';
+    return '#a2a2a8';
   }
 }
 
