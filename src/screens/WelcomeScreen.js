@@ -11,7 +11,9 @@ import {
   View,
 } from 'react-native';
 import { observer } from 'mobx-react';
+import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
 import Animated, {
   FadeInUp,
   Easing,
@@ -39,6 +41,19 @@ const TEXT_STYLE_NAMES = [
   'modalError',
 ];
 const MICRO_BLOG_LOGO = require('../assets/mb_logo.png');
+const MICRO_BLOG_TERMS_OF_SERVICE_URL = 'https://help.micro.blog/t/terms-of-service/113';
+const MICRO_BLOG_COMMUNITY_GUIDELINES_URL = 'https://help.micro.blog/t/community-guidelines/39';
+const MICRO_BLOG_PRIVACY_POLICY_URL = 'https://help.micro.blog/t/privacy-policy/114';
+
+function color_with_opacity(color = '', opacity = 0.25) {
+  const rgba_match = color.match(/^rgba\((.+),\s*[\d.]+\)$/);
+
+  if (rgba_match) {
+    return `rgba(${rgba_match[1]}, ${opacity})`;
+  }
+
+  return color;
+}
 
 function TokenSignInModal({
   error_message = null,
@@ -233,6 +248,22 @@ function WelcomeScreen({ isDark = false }) {
     }
   }
 
+  async function open_micro_blog_url(url = '', action_label = 'Micro.blog') {
+    if (!url) {
+      return;
+    }
+
+    try {
+      await WebBrowser.openBrowserAsync(url, {
+        controlsColor: theme.colors.accent,
+        dismissButtonStyle: 'close',
+      });
+    } catch (error) {
+      console.warn(`Failed to open ${action_label}`, error);
+      AppStore.show_toast('We could not open Micro.blog.');
+    }
+  }
+
   const footer_error_message = is_token_modal_visible ? null : error_message;
   const modal_error_message = is_token_modal_visible ? error_message : null;
 
@@ -270,6 +301,44 @@ function WelcomeScreen({ isDark = false }) {
 
           <View style={styles.footer}>
             <Animated.View pointerEvents="box-none" style={[styles.actionWrap, actionAnimatedStyle]}>
+              <View style={styles.agreementWrap}>
+                <Text
+                  style={[
+                    styles.agreementText,
+                    { color: theme.colors.inkSoft },
+                  ]}
+                >
+                  By continuing, you agree to the Micro.blog terms of service and community guidelines.
+                </Text>
+
+                <View style={styles.linkStack}>
+                  <WelcomeLinkButton
+                    label="Terms of service"
+                    onPress={() => open_micro_blog_url(
+                      MICRO_BLOG_TERMS_OF_SERVICE_URL,
+                      'Terms of service',
+                    )}
+                    theme={theme}
+                  />
+                  <WelcomeLinkButton
+                    label="Community guidelines"
+                    onPress={() => open_micro_blog_url(
+                      MICRO_BLOG_COMMUNITY_GUIDELINES_URL,
+                      'Community guidelines',
+                    )}
+                    theme={theme}
+                  />
+                  <WelcomeLinkButton
+                    label="Privacy policy"
+                    onPress={() => open_micro_blog_url(
+                      MICRO_BLOG_PRIVACY_POLICY_URL,
+                      'Privacy policy',
+                    )}
+                    theme={theme}
+                  />
+                </View>
+              </View>
+
               {footer_error_message ? (
                 <Text
                   style={[
@@ -306,6 +375,31 @@ function WelcomeScreen({ isDark = false }) {
         visible={is_token_modal_visible}
       />
     </View>
+  );
+}
+
+function WelcomeLinkButton({
+  label = '',
+  onPress,
+  theme,
+}) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.linkButton,
+        {
+          backgroundColor: color_with_opacity(theme.colors.buttonGhost, 0.25),
+        },
+        pressed ? styles.pressedLinkButton : null,
+      ]}
+    >
+      <Text style={[styles.linkButtonLabel, { color: theme.colors.ink }]}>
+        {label}
+      </Text>
+      <MaterialIcons color={theme.colors.inkSoft} name="chevron-right" size={18} />
+    </Pressable>
   );
 }
 
@@ -352,6 +446,36 @@ const styles = StyleSheet.create({
   actionWrap: {
     gap: 12,
     width: '100%',
+  },
+  agreementWrap: {
+    gap: 12,
+    marginBottom: 8,
+  },
+  agreementText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  linkStack: {
+    gap: 8,
+  },
+  linkButton: {
+    minHeight: 40,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  pressedLinkButton: {
+    opacity: 0.84,
+  },
+  linkButtonLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 17,
   },
   primaryButton: {
     width: '100%',
