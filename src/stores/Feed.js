@@ -812,16 +812,11 @@ const Feed = types
           self.reset();
           return false;
         }
-        const existing_subscriptions = self.subscriptions.map((subscription) => {
-          return getSnapshot(subscription);
-        });
-
         const subscriptions_result = yield fetch_micro_blog_feed_subscriptions({
           token: user_token,
         });
 
         const icons = yield resolve_feed_icons_for_subscriptions({
-          existing_subscriptions,
           subscriptions: subscriptions_result,
           token: user_token,
         });
@@ -1193,10 +1188,6 @@ const Feed = types
         const existing_entries = self.timeline_entries.map((entry) => {
           return getSnapshot(entry);
         });
-        const existing_subscriptions = self.subscriptions.map((subscription) => {
-          return getSnapshot(subscription);
-        });
-
         const [
           subscriptions_result,
           unread_entry_ids_result,
@@ -1236,7 +1227,6 @@ const Feed = types
           entries_result.value,
         );
         const icons = yield resolve_feed_icons_for_subscriptions({
-          existing_subscriptions,
           subscriptions,
           token: user_token,
         });
@@ -2060,7 +2050,6 @@ async function get_timeline_cache_uri(user_token = '') {
 }
 
 async function resolve_feed_icons_for_subscriptions({
-  existing_subscriptions = [],
   subscriptions = [],
   token = '',
 } = {}) {
@@ -2070,7 +2059,6 @@ async function resolve_feed_icons_for_subscriptions({
   if (
     !should_fetch_feed_icons_for_subscriptions({
       did_expire: cached_icons_result.did_expire,
-      existing_subscriptions,
       icons,
       known_hosts: cached_icons_result.known_hosts,
       subscriptions,
@@ -2231,7 +2219,6 @@ function is_feed_icon_cache_payload_expired(payload = null) {
 
 function should_fetch_feed_icons_for_subscriptions({
   did_expire = false,
-  existing_subscriptions = [],
   icons = [],
   known_hosts = [],
   subscriptions = [],
@@ -2244,8 +2231,6 @@ function should_fetch_feed_icons_for_subscriptions({
     return true;
   }
 
-  const existing_subscription_ids =
-    build_subscription_identity_set(existing_subscriptions);
   const icon_map = build_icon_map(icons);
   const known_host_set = new Set(
     (Array.isArray(known_hosts) ? known_hosts : [])
@@ -2260,16 +2245,16 @@ function should_fetch_feed_icons_for_subscriptions({
       return false;
     }
 
-    if (existing_subscription_ids.has(get_subscription_identity(subscription))) {
-      return false;
-    }
-
     const host = get_subscription_host(subscription);
     if (!host) {
       return false;
     }
 
-    return !icon_map.has(host) && !known_host_set.has(host);
+    if (icon_map.has(host) || known_host_set.has(host)) {
+      return false;
+    }
+
+    return true;
   });
 }
 
@@ -2512,38 +2497,6 @@ function normalize_timeline_entry_payload_array(entries = []) {
   }
 
   return [];
-}
-
-function build_subscription_identity_set(subscriptions = []) {
-  return new Set(
-    (Array.isArray(subscriptions) ? subscriptions : [])
-      .map((subscription) => {
-        return get_subscription_identity(subscription);
-      })
-      .filter(Boolean),
-  );
-}
-
-function get_subscription_identity(subscription = null) {
-  const id = normalize_subscription_id(subscription);
-
-  if (id) {
-    return `id:${id}`;
-  }
-
-  const feed_id = normalize_feed_id(subscription);
-
-  if (feed_id) {
-    return `feed:${feed_id}`;
-  }
-
-  const host = get_subscription_host(subscription);
-
-  if (host) {
-    return `host:${host}`;
-  }
-
-  return '';
 }
 
 function subscription_has_embedded_avatar(subscription = null) {
