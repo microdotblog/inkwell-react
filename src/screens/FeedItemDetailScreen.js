@@ -983,7 +983,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
                   {
                     is_disabled: is_creating_highlight,
                     is_loading: is_opening_reader_post,
-                    label: "New post...",
+                    label: "New Post...",
                     loading_label: "Opening...",
                     onPress: handle_create_post_from_selection,
                   },

@@ -116,6 +116,7 @@ const EntryReaderView = observer(function EntryReaderView({
   const resolved_entry_id = `${entry?.id || ""}`.trim();
   const source_label = `${entry?.source || "Feed"}`.trim() || "Feed";
   const reader_title = resolve_reader_title(entry);
+  const author_label = resolve_entry_author_label(entry, source_label);
   const formatted_date = format_reader_date(entry?.published_at);
   const source_url = normalize_http_url(entry?.source_url);
   const original_url = normalize_http_url(entry?.url);
@@ -228,6 +229,17 @@ const EntryReaderView = observer(function EntryReaderView({
             >
               {reader_title}
             </Text>
+            {author_label ? (
+              <Text
+                style={[
+                  styles.authorLabel,
+                  scaled_text_styles.authorLabel,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
+                {author_label}
+              </Text>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -393,6 +405,15 @@ function ReaderPaneTabs({
       width: active_pane_width.value,
     };
   }, []);
+  const active_pane_pill_style = theme.isDark
+    ? {
+        backgroundColor: theme.colors.buttonGhost,
+        borderWidth: 0,
+      }
+    : {
+        backgroundColor: theme.colors.paper,
+        borderColor: theme.colors.line,
+      };
 
   return (
     <Animated.View
@@ -414,10 +435,7 @@ function ReaderPaneTabs({
           pointerEvents="none"
           style={[
             styles.readerPaneActivePill,
-            {
-              backgroundColor: theme.colors.paper,
-              borderColor: theme.colors.line,
-            },
+            active_pane_pill_style,
             active_pane_style,
           ]}
         />
@@ -776,7 +794,6 @@ function ReaderTextSizeTray({
   onValueChange,
   safe_area_bottom = 0,
   slider_index = 0,
-  text_scale = DEFAULT_TEXT_SCALE,
   theme,
   visible = false,
 }) {
@@ -896,14 +913,6 @@ function ReaderTextSizeTray({
               >
                 Text size
               </Text>
-              <Text
-                style={[
-                  styles.readerTextSizeTrayValue,
-                  { color: theme.colors.accentStrong },
-                ]}
-              >
-                {formatTextScaleLabel(text_scale)}
-              </Text>
             </View>
           </View>
 
@@ -944,28 +953,6 @@ function ReaderTextSizeTray({
               >
                 {formatTextScaleLabel(MAX_TEXT_SCALE)}
               </Text>
-            </View>
-            <View style={styles.readerTextSizeSliderStepDotsRow}>
-              {Array.from({ length: TEXT_SCALE_PRESET_COUNT }).map(
-                (_, index) => {
-                  const is_active = index === slider_index;
-
-                  return (
-                    <View
-                      key={`reader-text-scale-step-${index}`}
-                      style={[
-                        styles.readerTextSizeSliderStepDot,
-                        {
-                          backgroundColor: is_active
-                            ? theme.colors.accentStrong
-                            : theme.colors.line,
-                          opacity: is_active ? 1 : 0.72,
-                        },
-                      ]}
-                    />
-                  );
-                },
-              )}
             </View>
           </View>
         </View>
@@ -1781,6 +1768,25 @@ function MetaLink({ color, label, onPress, style }) {
   }
 }
 
+function resolve_entry_author_label(entry = null, source_label = "") {
+  const author = normalize_reader_label(entry?.author);
+  const source = normalize_reader_label(source_label);
+
+  if (!author) {
+    return "";
+  }
+
+  if (author.toLowerCase() === source.toLowerCase()) {
+    return "";
+  }
+
+  return author;
+}
+
+function normalize_reader_label(value = "") {
+  return `${value || ""}`.trim().replace(/\s+/g, " ");
+}
+
 function UnavailableScreen({
   body = "",
   scaled_text_styles,
@@ -1958,7 +1964,7 @@ const styles = StyleSheet.create({
   },
   masthead: {
     borderBottomWidth: 1,
-    paddingBottom: 20,
+    paddingBottom: 16,
     paddingTop: Platform.OS === "ios" ? 0 : 10,
   },
   feedHeaderRow: {
@@ -2001,6 +2007,11 @@ const styles = StyleSheet.create({
     // fontFamily: "Newsreader_600SemiBold",
     fontSize: READER_TITLE_FONT_SIZE,
     lineHeight: READER_TITLE_LINE_HEIGHT,
+  },
+  authorLabel: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 8,
   },
   titleWrap: {
     marginTop: READER_TITLE_TOP_MARGIN,
@@ -2485,14 +2496,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   readerTextSizeTrayTitle: {
-    fontFamily: "Newsreader_600SemiBold",
-    fontSize: 28,
-    lineHeight: 32,
-  },
-  readerTextSizeTrayValue: {
-    fontSize: 15,
+    fontSize: 22,
     fontWeight: "700",
-    lineHeight: 20,
+    lineHeight: 28,
   },
   readerTextSizeSliderWrap: {
     marginTop: 10,
@@ -2506,17 +2512,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     lineHeight: 16,
-  },
-  readerTextSizeSliderStepDotsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
-    paddingHorizontal: 4,
-  },
-  readerTextSizeSliderStepDot: {
-    borderRadius: 3,
-    height: 6,
-    width: 6,
   },
   avatarFrame: {
     alignItems: "center",

@@ -448,15 +448,15 @@ function resolve_toast_icon_name(toast_message = '') {
 
   if (normalized_toast_message.includes('unread')) {
     return {
-      android: 'radio-button-unchecked',
-      ios: 'circle',
+      android: 'smart-button',
+      ios: 'button.programmable',
     };
   }
 
   if (normalized_toast_message.includes('read')) {
     return {
-      android: 'smart-button',
-      ios: 'button.programmable',
+      android: 'radio-button-unchecked',
+      ios: 'circle',
     };
   }
 

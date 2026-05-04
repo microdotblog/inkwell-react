@@ -13,7 +13,8 @@ import {
 } from '../../theme/textScale';
 
 const HIGHLIGHT_LIGHT_BACKGROUND = '#FFF9D6';
-const HIGHLIGHT_DARK_BACKGROUND = '#D98C3A';
+const HIGHLIGHT_DARK_BACKGROUND = '#2D2B18';
+const HIGHLIGHT_DARK_TEXT = '#FFF0A6';
 const TEXT_STYLE_NAMES = [
   'highlightText',
   'postLabel',
@@ -36,6 +37,7 @@ export default function HighlightItem({
   const post_label = resolve_highlight_post_label(entry);
   const timestamp = format_highlight_date(entry);
   const highlight_background_color = resolve_highlight_background_color(theme);
+  const highlight_text_color = resolve_highlight_text_color(theme);
   const can_copy_link = typeof onCopyLinkPress === 'function';
   const menu_actions = React.useMemo(() => {
     return get_highlight_row_actions({
@@ -70,6 +72,7 @@ export default function HighlightItem({
     <View
       style={[
         styles.rowCard,
+        theme?.isDark ? styles.rowCardDark : null,
         {
           backgroundColor: theme.colors.paper,
           borderColor: theme.colors.line,
@@ -80,6 +83,7 @@ export default function HighlightItem({
       <View
         style={[
           styles.highlightWrap,
+          theme?.isDark ? styles.highlightWrapDark : null,
           {
             backgroundColor: highlight_background_color,
           },
@@ -90,7 +94,7 @@ export default function HighlightItem({
             styles.highlightText,
             scaled_text_styles.highlightText,
             {
-              color: theme.colors.ink,
+              color: highlight_text_color,
             },
           ]}
         >
@@ -150,9 +154,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
+  rowCardDark: {
+    padding: 1,
+  },
   highlightWrap: {
     paddingHorizontal: 18,
     paddingVertical: 16,
+  },
+  highlightWrapDark: {
+    borderTopLeftRadius: 23,
+    borderTopRightRadius: 23,
+    overflow: 'hidden',
   },
   highlightText: {
     fontSize: 15,
@@ -256,6 +268,14 @@ function resolve_highlight_background_color(theme) {
   }
 
   return HIGHLIGHT_LIGHT_BACKGROUND;
+}
+
+function resolve_highlight_text_color(theme) {
+  if (theme?.isDark) {
+    return HIGHLIGHT_DARK_TEXT;
+  }
+
+  return theme?.colors?.ink;
 }
 
 function normalize_string(value = '') {
