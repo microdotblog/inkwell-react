@@ -129,6 +129,7 @@ function IOSSubscriptionContent({
   const subscription_product = subscriptions.find((product) => {
     return product.id === INKWELL_MONTHLY_PRODUCT_ID;
   });
+  const price_label = format_subscription_price(subscription_product);
   const is_store_loading =
     connected &&
     !subscription_product &&
@@ -220,7 +221,7 @@ function IOSSubscriptionContent({
               { color: theme.colors.ink },
             ]}
           >
-            $5/month
+            {price_label}
           </Text>
           <Text
             style={[
@@ -335,6 +336,31 @@ function is_user_cancelled_purchase(error = null) {
     code.includes('user-cancel') ||
     message.includes('cancel')
   );
+}
+
+function format_subscription_price(subscription_product = null) {
+  const display_price = `${subscription_product?.displayPrice || ''}`.trim();
+
+  if (!display_price) {
+    return 'Loading price...';
+  }
+
+  const period_number = `${subscription_product?.subscriptionPeriodNumberIOS || ''}`.trim();
+  const period_unit = `${subscription_product?.subscriptionPeriodUnitIOS || ''}`.trim();
+
+  if (period_unit === 'month' && (!period_number || period_number === '1')) {
+    return `${display_price}/month`;
+  }
+
+  if (period_unit && period_unit !== 'empty') {
+    if (!period_number || period_number === '1') {
+      return `${display_price}/${period_unit}`;
+    }
+
+    return `${display_price}/${period_number} ${period_unit}s`;
+  }
+
+  return display_price;
 }
 
 const styles = StyleSheet.create({
