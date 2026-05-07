@@ -26,6 +26,7 @@ import {
 import * as WebBrowser from 'expo-web-browser';
 
 import SignedInTabs from './navigation/SignedInTabs';
+import InAppPurchaseScreen from './screens/InAppPurchaseScreen';
 import RssLoadingScreen from './screens/RssLoadingScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
 import Auth from './stores/Auth';
@@ -52,6 +53,7 @@ function App() {
   const toast_top_offset = AppStore.toast_top_offset;
   const is_signed_in = Auth.is_signed_in();
   const is_auth_loading = Auth.is_loading();
+  const needs_inkwell_subscription = is_signed_in && Auth.has_inkwell === false;
   const is_feed_bootstrapping = Feed.is_bootstrapping;
   const has_bootstrapped_feed = Feed.has_bootstrapped;
   const has_checked_timeline_cache = Feed.has_checked_timeline_cache;
@@ -118,7 +120,12 @@ function App() {
       };
     }
 
-    if (!is_signed_in || AppStore.is_hydrating || is_auth_loading) {
+    if (
+      !is_signed_in ||
+      needs_inkwell_subscription ||
+      AppStore.is_hydrating ||
+      is_auth_loading
+    ) {
       return () => {
         is_cancelled = true;
       };
@@ -140,6 +147,7 @@ function App() {
     has_checked_timeline_cache,
     is_auth_loading,
     is_signed_in,
+    needs_inkwell_subscription,
     AppStore.is_hydrating,
   ]);
 
@@ -169,7 +177,7 @@ function App() {
       };
     }
 
-    if (!is_signed_in) {
+    if (!is_signed_in || needs_inkwell_subscription) {
       Bookmarks.reset();
       Feed.reset();
       Highlights.reset();
@@ -208,6 +216,7 @@ function App() {
     is_auth_loading,
     is_feed_bootstrapping,
     is_signed_in,
+    needs_inkwell_subscription,
     AppStore.is_hydrating,
   ]);
 
@@ -233,6 +242,8 @@ function App() {
                 <ActivityIndicator color={theme.colors.accent} size="large" />
               </View>
             )
+          ) : needs_inkwell_subscription ? (
+            <InAppPurchaseScreen isDark={isDark} />
           ) : is_signed_in && !has_checked_timeline_cache ? (
             <View style={[styles.loadingScreen, { backgroundColor: theme.colors.canvas }]}>
               <ActivityIndicator color={theme.colors.accent} size="large" />

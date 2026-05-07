@@ -10,7 +10,8 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
-      "expo-image"
+      "expo-image",
+      "expo-iap"
     ],
     "android": {
       "package": "blog.micro.inkwell",

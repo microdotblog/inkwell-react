@@ -136,7 +136,7 @@ describe('create_auth_store', () => {
       expect(store.loading_phase).toBe('idle');
     });
 
-    it('rejects accounts without Inkwell access', async () => {
+    it('stores accounts without Inkwell access so the app can show the subscription screen', async () => {
       const { store, tokens } = build_auth_store({
         verify_micro_blog_token: mock(async () => ({
           has_inkwell: false,
@@ -147,11 +147,12 @@ describe('create_auth_store', () => {
 
       const did_sign_in = await store.sign_in_with_token('token-123');
 
-      expect(did_sign_in).toBe(false);
-      expect(tokens.set_user_token).not.toHaveBeenCalled();
-      expect(tokens.clear_user_token).toHaveBeenCalled();
-      expect(store.error_message).toBe('Inkwell requires a Micro.blog subscription.');
-      expect(store.profile_name).toBe(null);
+      expect(did_sign_in).toBe(true);
+      expect(tokens.set_user_token).toHaveBeenCalledWith('token-123');
+      expect(tokens.clear_user_token).not.toHaveBeenCalled();
+      expect(store.error_message).toBe(null);
+      expect(store.profile_name).toBe('vincent');
+      expect(store.has_inkwell).toBe(false);
     });
   });
 
@@ -180,7 +181,7 @@ describe('create_auth_store', () => {
       expect(store.profile_name).toBe('vincent');
     });
 
-    it('clears stored sessions when verify shows Inkwell is unavailable', async () => {
+    it('keeps stored sessions when verify shows Inkwell is unavailable', async () => {
       const { store, tokens } = build_auth_store({
         tokens: {
           ...build_tokens_double(),
@@ -200,9 +201,39 @@ describe('create_auth_store', () => {
 
       await store.hydrate();
 
-      expect(tokens.clear_all).toHaveBeenCalled();
-      expect(store.error_message).toBe('Inkwell requires a Micro.blog subscription.');
-      expect(store.profile_name).toBe(null);
+      expect(tokens.clear_all).not.toHaveBeenCalled();
+      expect(store.error_message).toBe(null);
+      expect(store.profile_name).toBe('vincent');
+      expect(store.has_inkwell).toBe(false);
+    });
+  });
+
+  describe('refresh_verified_session', () => {
+    it('refreshes the current token and applies the latest access flag', async () => {
+      const { store, tokens } = build_auth_store({
+        tokens: {
+          ...build_tokens_double(),
+          get_user_token() {
+            return 'stored-token';
+          },
+          has_user_token() {
+            return true;
+          },
+        },
+        verify_micro_blog_token: mock(async () => ({
+          has_inkwell: true,
+          token: 'fresh-token',
+          url: 'https://micro.blog/vincent',
+          username: 'vincent',
+        })),
+      });
+
+      const did_refresh = await store.refresh_verified_session();
+
+      expect(did_refresh).toBe(true);
+      expect(tokens.set_user_token).toHaveBeenCalledWith('fresh-token');
+      expect(store.profile_name).toBe('vincent');
+      expect(store.has_inkwell).toBe(true);
     });
   });
 });

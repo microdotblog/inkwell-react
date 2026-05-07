@@ -1,5 +1,7 @@
 import { flow, types } from 'mobx-state-tree';
 
+const FORCE_HAS_INKWELL_FALSE_FOR_TESTING = true;
+
 function normalize_micro_blog_session(token_payload = null, verify_payload = null) {
   const profile = token_payload?.profile || {};
 
@@ -13,7 +15,9 @@ function normalize_micro_blog_session(token_payload = null, verify_payload = nul
     me: `${token_payload?.me || verify_payload?.me || profile?.url || ''}`.trim() || null,
     token_scope: `${token_payload?.scope || ''}`.trim() || null,
     has_inkwell:
-      typeof verify_payload?.has_inkwell === 'boolean' ? verify_payload.has_inkwell : null,
+      FORCE_HAS_INKWELL_FALSE_FOR_TESTING
+        ? false
+        : typeof verify_payload?.has_inkwell === 'boolean' ? verify_payload.has_inkwell : null,
     is_premium:
       typeof verify_payload?.is_premium === 'boolean' ? verify_payload.is_premium : null,
     is_using_ai:
@@ -34,14 +38,6 @@ function resolve_verified_session_token(token = '', verify_payload = null) {
   const fallback_token = `${token || ''}`.trim();
 
   return verified_token || fallback_token || null;
-}
-
-function resolve_verify_access_error_message(verify_payload = null) {
-  if (verify_payload?.has_inkwell === false) {
-    return 'Inkwell requires a Micro.blog subscription.';
-  }
-
-  return null;
 }
 
 export function create_auth_store({
@@ -113,6 +109,24 @@ export function create_auth_store({
         self.is_using_ai = next_session.is_using_ai;
       },
 
+      refresh_verified_session: flow(function* () {
+        const stored_token = tokens.get_user_token();
+        if (!stored_token) {
+          self.clear_session_data();
+          return false;
+        }
+
+        const verify_payload = yield verify_micro_blog_token(stored_token);
+        const verified_token = resolve_verified_session_token(stored_token, verify_payload);
+
+        if (verified_token && verified_token !== stored_token) {
+          yield tokens.set_user_token(verified_token);
+        }
+
+        self.apply_session_payloads(null, verify_payload);
+        return true;
+      }),
+
       hydrate: flow(function* () {
         if (self.is_hydrating) {
           return;
@@ -141,19 +155,7 @@ export function create_auth_store({
 
           try {
             self.set_loading_phase('verifying');
-            const verify_payload = yield verify_micro_blog_token(stored_token);
-            const access_error_message = resolve_verify_access_error_message(verify_payload);
-
-            if (access_error_message) {
-              yield self.clear_invalid_session(access_error_message);
-              return;
-            }
-
-            const verified_token = resolve_verified_session_token(stored_token, verify_payload);
-            if (verified_token && verified_token !== stored_token) {
-              yield tokens.set_user_token(verified_token);
-            }
-            self.apply_session_payloads(null, verify_payload);
+            yield self.refresh_verified_session();
           } catch (error) {
             if (error?.status === 401 || error?.status === 403) {
               yield self.clear_invalid_session('Your Micro.blog session expired. Please sign in again.');
@@ -235,15 +237,6 @@ export function create_auth_store({
           yield tokens.hydrate();
 
           const verify_payload = yield verify_micro_blog_token(trimmed_token);
-          const access_error_message = resolve_verify_access_error_message(verify_payload);
-
-          if (access_error_message) {
-            yield tokens.clear_user_token();
-            self.clear_session_data();
-            self.set_error(access_error_message);
-            return false;
-          }
-
           const verified_token = resolve_verified_session_token(trimmed_token, verify_payload);
           yield tokens.set_user_token(verified_token);
           self.apply_session_payloads(null, verify_payload);
@@ -289,13 +282,6 @@ export function create_auth_store({
 
           try {
             const verify_payload = yield verify_micro_blog_token(access_token);
-            const access_error_message = resolve_verify_access_error_message(verify_payload);
-
-            if (access_error_message) {
-              yield self.clear_invalid_session(access_error_message);
-              return false;
-            }
-
             const verified_token = resolve_verified_session_token(access_token, verify_payload);
             if (verified_token && verified_token !== access_token) {
               yield tokens.set_user_token(verified_token);
