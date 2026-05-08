@@ -28,6 +28,7 @@ import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
+import { APPLE_SECTION_313 } from '../config';
 import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
@@ -294,8 +295,12 @@ function WelcomeScreen({ isDark = false }) {
               ]}
             >
               Inkwell is a feed reader that syncs with Micro.blog.
-              {'\n\n'}
-              Make highlights to remember passages later or to blog quotes from them.
+              {!APPLE_SECTION_313 ? (
+                <>
+                  {'\n\n'}
+                  Make highlights to remember passages later or to blog quotes from them.
+                </>
+              ) : null}
             </Text>
           </Animated.View>
 

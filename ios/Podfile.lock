@@ -1572,8 +1572,6 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-render-html (6.3.4):
-    - React-Core
   - react-native-safe-area-context (5.6.2):
     - hermes-engine
     - RCTRequired
@@ -2384,7 +2382,6 @@ DEPENDENCIES:
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - react-native-keyboard-controller (from `../node_modules/react-native-keyboard-controller`)
   - "react-native-menu (from `../node_modules/@react-native-menu/menu`)"
-  - react-native-render-html (from `../node_modules/react-native-render-html`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-sfsymbols (from `../node_modules/react-native-sfsymbols`)
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
@@ -2559,8 +2556,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-keyboard-controller"
   react-native-menu:
     :path: "../node_modules/@react-native-menu/menu"
-  react-native-render-html:
-    :path: "../node_modules/react-native-render-html"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-sfsymbols:
@@ -2711,7 +2706,6 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: bef4a47c7efd42421de52201e6d76a73cf6c816e
   react-native-keyboard-controller: c872321fc580f8d815e9e2ad5558b24c26c18b4f
   react-native-menu: 2de122c54dc10056932c0c0f73b82adfa4231faf
-  react-native-render-html: 5afc4751f1a98621b3009432ef84c47019dcb2bd
   react-native-safe-area-context: 37e680fc4cace3c0030ee46e8987d24f5d3bdab2
   react-native-sfsymbols: 3309f24c98d32705568c84b714268f3ec62017c7
   react-native-slider: 8b9a218d1a3e526146a170cb6133be9cda23e70e

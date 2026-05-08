@@ -27,6 +27,7 @@ import FeedTimelineCard from '../components/timeline/FeedTimelineCard';
 import { resolve_bookmark_timeline_entry_content } from '../components/timeline/timelineEntryContent';
 import AppStore from '../stores/App';
 import Bookmarks from '../stores/Bookmarks';
+import { APPLE_SECTION_313 } from '../config';
 import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
@@ -399,7 +400,7 @@ function get_bookmark_menu_actions({ entry = null, theme }) {
   const original_url = `${entry?.url || ''}`.trim();
   const actions = [];
 
-  if (original_url) {
+  if (original_url && !APPLE_SECTION_313) {
     actions.push({
       id: 'new_post',
       image: Platform.select({
@@ -408,7 +409,9 @@ function get_bookmark_menu_actions({ entry = null, theme }) {
       imageColor: icon_color,
       title: 'New Post...',
     });
+  }
 
+  if (original_url) {
     actions.push({
       id: 'copy_link',
       image: Platform.select({
@@ -517,6 +520,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     justifyContent: 'center',
     marginLeft: 12,
+    paddingRight: SCREEN_HORIZONTAL_PADDING,
   },
   rowSwipeActionButton: {
     alignItems: 'center',

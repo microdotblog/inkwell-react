@@ -11,6 +11,7 @@ import { resolve_highlight_post_label } from '../../stores/Highlights';
 import {
   createScaledTextStyles,
 } from '../../theme/textScale';
+import { APPLE_SECTION_313 } from '../../config';
 
 const HIGHLIGHT_LIGHT_BACKGROUND = '#FFF9D6';
 const HIGHLIGHT_DARK_BACKGROUND = '#2D2B18';
@@ -291,7 +292,7 @@ function get_highlight_row_actions({
   const actions = [];
   const icon_color = theme?.colors?.ink;
 
-  if (can_post) {
+  if (can_post && !APPLE_SECTION_313) {
     actions.push({
       id: 'post',
       image: Platform.select({
