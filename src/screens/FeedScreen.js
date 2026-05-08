@@ -49,6 +49,7 @@ import { resolve_feed_timeline_entry_content } from '../components/timeline/time
 import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
+import { APPLE_SECTION_313 } from '../config';
 import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
@@ -221,7 +222,7 @@ function get_entry_menu_actions({ entry = null, theme }) {
   const read_title = entry?.is_read ? 'Mark as Unread' : 'Mark as Read';
   const actions = [];
 
-  if (original_url) {
+  if (original_url && !APPLE_SECTION_313) {
     actions.push({
       id: 'new_post',
       image: Platform.select({
@@ -230,7 +231,9 @@ function get_entry_menu_actions({ entry = null, theme }) {
       imageColor: icon_color,
       title: 'New Post...',
     });
+  }
 
+  if (original_url) {
     actions.push({
       id: 'copy_link',
       image: Platform.select({
