@@ -682,6 +682,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     justifyContent: 'center',
     marginLeft: 12,
+    paddingRight: SCREEN_HORIZONTAL_PADDING,
   },
   rowSwipeActionButton: {
     alignItems: 'center',
