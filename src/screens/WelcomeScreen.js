@@ -26,7 +26,7 @@ import Animated, {
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
-import Auth from '../stores/Auth';
+import Auth, { MICRO_BLOG_SUBSCRIPTION_REQUIRED_MESSAGE } from '../stores/Auth';
 import AppStore from '../stores/App';
 import { APPLE_SECTION_313 } from '../config';
 import { getAuthTheme } from '../theme/authTheme';
@@ -36,6 +36,7 @@ const TEXT_STYLE_NAMES = [
   'title',
   'body',
   'errorMessage',
+  'subscriptionModalTitle',
   'modalTitle',
   'modalBody',
   'modalInput',
@@ -180,6 +181,57 @@ function TokenSignInModal({
   );
 }
 
+function SubscriptionRequiredModal({
+  onDismiss,
+  scaled_text_styles,
+  theme,
+  visible = false,
+}) {
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onDismiss}
+      transparent
+      visible={visible}
+    >
+      <View style={styles.modalRoot}>
+        <Pressable onPress={onDismiss} style={styles.modalBackdrop} />
+
+        <View pointerEvents="box-none" style={styles.modalCardWrap}>
+          <AuthCard style={styles.modalCard} theme={theme}>
+            <Text
+              style={[
+                styles.subscriptionModalTitle,
+                scaled_text_styles.subscriptionModalTitle,
+                { color: theme.colors.ink },
+              ]}
+            >
+              Subscription required
+            </Text>
+
+            <Text
+              style={[
+                styles.modalBody,
+                scaled_text_styles.modalBody,
+                { color: theme.colors.inkSoft },
+              ]}
+            >
+              Inkwell is available for Micro.blog accounts with an active subscription.
+            </Text>
+
+            <PrimaryButton
+              label="OK"
+              onPress={onDismiss}
+              style={styles.modalButton}
+              theme={theme}
+            />
+          </AuthCard>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function WelcomeScreen({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
@@ -232,6 +284,12 @@ function WelcomeScreen({ isDark = false }) {
     set_token_value('');
   }
 
+  function dismiss_subscription_required_modal() {
+    Auth.clear_error();
+    set_is_token_modal_visible(false);
+    set_token_value('');
+  }
+
   function handle_token_value_change(value = '') {
     set_token_value(value);
 
@@ -265,8 +323,12 @@ function WelcomeScreen({ isDark = false }) {
     }
   }
 
-  const footer_error_message = is_token_modal_visible ? null : error_message;
-  const modal_error_message = is_token_modal_visible ? error_message : null;
+  const is_subscription_required_error =
+    error_message === MICRO_BLOG_SUBSCRIPTION_REQUIRED_MESSAGE;
+  const footer_error_message =
+    is_token_modal_visible || is_subscription_required_error ? null : error_message;
+  const modal_error_message =
+    is_token_modal_visible && !is_subscription_required_error ? error_message : null;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
@@ -377,7 +439,13 @@ function WelcomeScreen({ isDark = false }) {
         scaled_text_styles={scaled_text_styles}
         theme={theme}
         token_value={token_value}
-        visible={is_token_modal_visible}
+        visible={is_token_modal_visible && !is_subscription_required_error}
+      />
+      <SubscriptionRequiredModal
+        onDismiss={dismiss_subscription_required_modal}
+        scaled_text_styles={scaled_text_styles}
+        theme={theme}
+        visible={is_subscription_required_error}
       />
     </View>
   );
@@ -499,6 +567,11 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     gap: 16,
+  },
+  subscriptionModalTitle: {
+    fontFamily: 'Newsreader_700Bold',
+    fontSize: 22,
+    lineHeight: 28,
   },
   modalTitle: {
     fontFamily: 'Newsreader_700Bold',
