@@ -35,5 +35,8 @@ const Auth = create_auth_store({
   verify_micro_blog_token,
 });
 
-export { create_auth_store } from './createAuthStore';
+export {
+  create_auth_store,
+  MICRO_BLOG_SUBSCRIPTION_REQUIRED_MESSAGE,
+} from './createAuthStore';
 export default Auth;

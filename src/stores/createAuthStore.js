@@ -1,5 +1,8 @@
 import { flow, types } from 'mobx-state-tree';
 
+export const MICRO_BLOG_SUBSCRIPTION_REQUIRED_MESSAGE =
+  'Inkwell requires a Micro.blog subscription.';
+
 function normalize_micro_blog_session(token_payload = null, verify_payload = null) {
   const profile = token_payload?.profile || {};
 
@@ -38,7 +41,7 @@ function resolve_verified_session_token(token = '', verify_payload = null) {
 
 function resolve_verify_access_error_message(verify_payload = null) {
   if (verify_payload?.has_inkwell === false) {
-    return 'Inkwell requires a Micro.blog subscription.';
+    return MICRO_BLOG_SUBSCRIPTION_REQUIRED_MESSAGE;
   }
 
   return null;
