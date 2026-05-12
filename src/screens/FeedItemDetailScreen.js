@@ -50,6 +50,7 @@ import Bookmarks from "../stores/Bookmarks";
 import Feed from "../stores/Feed";
 import Highlights from "../stores/Highlights";
 import Tokens from "../stores/Tokens";
+import { APPLE_SECTION_313 } from "../config";
 import { getAuthTheme } from "../theme/authTheme";
 import {
   getTextScaleForSliderIndex,
@@ -145,12 +146,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const is_deleting_reader_highlight =
     Boolean(active_reader_highlight) &&
     deleting_highlight_id === active_reader_highlight.id;
+  const should_hide_reader_selection_actions =
+    APPLE_SECTION_313 && has_reader_selection && !active_reader_highlight;
   const should_show_highlight_action =
     detail_mode === "entry" &&
     Boolean(entry) &&
     active_pane === "post" &&
     has_entry_body &&
     !is_text_size_tray_visible &&
+    !should_hide_reader_selection_actions &&
     (Boolean(active_reader_highlight) ||
       has_reader_selection ||
       is_creating_highlight);
@@ -959,11 +963,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           actions={
             active_reader_highlight
               ? [
-                  {
-                    is_disabled: is_deleting_reader_highlight,
-                    label: "Post highlight",
-                    onPress: handle_post_reader_highlight,
-                  },
+                  ...(APPLE_SECTION_313
+                    ? []
+                    : [
+                        {
+                          is_disabled: is_deleting_reader_highlight,
+                          label: "Post highlight",
+                          onPress: handle_post_reader_highlight,
+                        },
+                      ]),
                   {
                     is_destructive: true,
                     is_loading: is_deleting_reader_highlight,
