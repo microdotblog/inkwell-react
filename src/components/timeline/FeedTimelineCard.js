@@ -1,8 +1,9 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MenuView } from '@react-native-menu/menu';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import PopupMenuAndroid from '@react-native/popup-menu-android';
 
 const FEED_AVATAR_SIZE = 26;
 const FEED_AVATAR_TRANSITION_MS = 180;
@@ -26,6 +27,7 @@ export default function FeedTimelineCard({
   theme,
   timestamp = '',
 }) {
+  const android_menu_ref = React.useRef(null);
   const row_content = (
     <View style={styles.rowContentWrap}>
       <FeedSourceAvatar
@@ -111,44 +113,88 @@ export default function FeedTimelineCard({
   );
   const should_show_menu =
     menu_actions.length > 0 && typeof onMenuAction === 'function';
+  const android_menu_items = React.useMemo(() => {
+    return menu_actions.map((menu_action) => menu_action.title);
+  }, [menu_actions]);
 
-  return (
-    <Pressable
-      accessibilityLabel={accessibility_label || display_title}
-      accessibilityRole="button"
-      onLongPress={should_show_menu ? () => {} : undefined}
-      onPress={onPress}
-      style={({ pressed }) => {
-        return [
-          styles.rowCard,
-          {
-            backgroundColor: resolve_row_background_color(theme, is_unread),
-            borderColor: theme.colors.line,
-            opacity: pressed ? Math.max(row_opacity - 0.08, 0.42) : row_opacity,
-          },
-        ];
-      }}
-    >
-      {should_show_menu ? (
-        <MenuView
-          accessibilityLabel={
-            accessibility_label || `More options for ${display_title}`
-          }
-          actions={menu_actions}
-          onCloseMenu={onMenuClose}
-          onOpenMenu={onMenuOpen}
-          onPressAction={({ nativeEvent }) => {
-            onMenuAction(nativeEvent.event);
-          }}
-          shouldOpenOnLongPress
-          themeVariant={theme.isDark ? 'dark' : 'light'}
-        >
-          {row_content}
-        </MenuView>
-      ) : (
-        row_content
-      )}
-    </Pressable>
+  function handle_android_long_press() {
+    if (!should_show_menu) {
+      return;
+    }
+
+    onMenuOpen?.();
+    android_menu_ref.current?.show?.();
+  }
+
+  function handle_android_menu_selection(menu_action_index = -1) {
+    const menu_action = menu_actions[menu_action_index];
+
+    if (!menu_action?.id) {
+      return;
+    }
+
+    onMenuAction(menu_action.id);
+  }
+
+  function render_row_card(children, on_long_press) {
+    return (
+      <Pressable
+        accessibilityLabel={accessibility_label || display_title}
+        accessibilityRole="button"
+        onLongPress={on_long_press}
+        onPress={onPress}
+        style={({ pressed }) => {
+          return [
+            styles.rowCard,
+            {
+              backgroundColor: resolve_row_background_color(theme, is_unread),
+              borderColor: theme.colors.line,
+              opacity: pressed
+                ? Math.max(row_opacity - 0.08, 0.42)
+                : row_opacity,
+            },
+          ];
+        }}
+      >
+        {children}
+      </Pressable>
+    );
+  }
+
+  if (Platform.OS === 'android' && should_show_menu) {
+    return (
+      <PopupMenuAndroid
+        instanceRef={android_menu_ref}
+        menuItems={android_menu_items}
+        onDismiss={onMenuClose}
+        onSelectionChange={handle_android_menu_selection}
+      >
+        {render_row_card(row_content, handle_android_long_press)}
+      </PopupMenuAndroid>
+    );
+  }
+
+  return render_row_card(
+    should_show_menu ? (
+      <MenuView
+        accessibilityLabel={
+          accessibility_label || `More options for ${display_title}`
+        }
+        actions={menu_actions}
+        onCloseMenu={onMenuClose}
+        onOpenMenu={onMenuOpen}
+        onPressAction={({ nativeEvent }) => {
+          onMenuAction(nativeEvent.event);
+        }}
+        shouldOpenOnLongPress
+        themeVariant={theme.isDark ? 'dark' : 'light'}
+      >
+        {row_content}
+      </MenuView>
+    ) : (
+      row_content
+    ),
+    should_show_menu ? () => {} : undefined,
   );
 }
 

@@ -1288,7 +1288,7 @@ function FeedEntrySwipeRow({
   const ios_symbol_name = get_entry_read_action_image(entry);
   const android_icon_name = get_entry_read_action_material_icon_name(entry);
 
-  if (Platform.OS === 'web') {
+  if (Platform.OS !== 'ios') {
     return children;
   }
 
