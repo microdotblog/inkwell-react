@@ -681,14 +681,14 @@ const styles = StyleSheet.create({
   rowSwipeActionsWrap: {
     alignItems: 'stretch',
     justifyContent: 'center',
-    marginLeft: 12,
+    marginLeft: 4,
     paddingRight: SCREEN_HORIZONTAL_PADDING,
   },
   rowSwipeActionButton: {
     alignItems: 'center',
     height: '100%',
     justifyContent: 'center',
-    width: 74,
+    width: 64,
   },
   rowSwipeActionCircle: {
     alignItems: 'center',

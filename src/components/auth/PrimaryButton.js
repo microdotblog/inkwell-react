@@ -130,8 +130,8 @@ function PrimaryButton({
                 {
                   shadowColor: theme.colors.glow,
                   borderColor: theme.isDark
-                    ? 'rgba(255, 255, 255, 0.10)'
-                    : 'rgba(255, 255, 255, 0.28)',
+                    ? darkenHexColor(theme.colors.accent, 0.08)
+                    : theme.colors.accentStrong,
                 },
               ],
           pressed && !disabled ? styles.pressed : null,

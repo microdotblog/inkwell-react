@@ -28,7 +28,6 @@ import AuthCard from '../components/auth/AuthCard';
 import PrimaryButton from '../components/auth/PrimaryButton';
 import Auth, { MICRO_BLOG_SUBSCRIPTION_REQUIRED_MESSAGE } from '../stores/Auth';
 import AppStore from '../stores/App';
-import { APPLE_SECTION_313 } from '../config';
 import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
@@ -357,12 +356,8 @@ function WelcomeScreen({ isDark = false }) {
               ]}
             >
               Inkwell is a feed reader that syncs with Micro.blog.
-              {!APPLE_SECTION_313 ? (
-                <>
-                  {'\n\n'}
-                  Make highlights to remember passages later or to blog quotes from them.
-                </>
-              ) : null}
+              {'\n\n'}
+              Make highlights to remember passages later.
             </Text>
           </Animated.View>
 
@@ -574,9 +569,9 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   modalTitle: {
-    fontFamily: 'Newsreader_700Bold',
-    fontSize: 30,
-    lineHeight: 34,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 28,
   },
   modalBody: {
     fontSize: 16,

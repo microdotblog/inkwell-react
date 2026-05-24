@@ -146,15 +146,12 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const is_deleting_reader_highlight =
     Boolean(active_reader_highlight) &&
     deleting_highlight_id === active_reader_highlight.id;
-  const should_hide_reader_selection_actions =
-    APPLE_SECTION_313 && has_reader_selection && !active_reader_highlight;
   const should_show_highlight_action =
     detail_mode === "entry" &&
     Boolean(entry) &&
     active_pane === "post" &&
     has_entry_body &&
     !is_text_size_tray_visible &&
-    !should_hide_reader_selection_actions &&
     (Boolean(active_reader_highlight) ||
       has_reader_selection ||
       is_creating_highlight);
@@ -988,13 +985,17 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
                     loading_label: "Saving...",
                     onPress: handle_create_highlight,
                   },
-                  {
-                    is_disabled: is_creating_highlight,
-                    is_loading: is_opening_reader_post,
-                    label: "New Post...",
-                    loading_label: "Opening...",
-                    onPress: handle_create_post_from_selection,
-                  },
+                  ...(APPLE_SECTION_313
+                    ? []
+                    : [
+                        {
+                          is_disabled: is_creating_highlight,
+                          is_loading: is_opening_reader_post,
+                          label: "New Post...",
+                          loading_label: "Opening...",
+                          onPress: handle_create_post_from_selection,
+                        },
+                      ]),
                 ]
           }
           action_group_style="joined"

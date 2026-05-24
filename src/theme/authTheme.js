@@ -31,7 +31,7 @@ const sharedLightColors = {
 const sharedDarkColors = {
   ink: '#f5f2ff',
   inkSoft: '#c5bedc',
-  line: 'rgba(232, 228, 248, 0.16)',
+  line: 'rgba(232, 228, 248, 0.08)',
   white: '#ffffff',
   shadow: 'rgba(4, 3, 10, 0.52)',
 };
