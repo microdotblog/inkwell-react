@@ -2097,7 +2097,7 @@ const styles = StyleSheet.create({
   rowSwipeActionsWrap: {
     alignItems: 'stretch',
     justifyContent: 'center',
-    marginLeft: 12,
+    marginLeft: 4,
     paddingRight: SCREEN_HORIZONTAL_PADDING,
   },
   rowSwipeContainer: {
@@ -2110,7 +2110,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: '100%',
     justifyContent: 'center',
-    width: 112,
+    width: 100,
   },
   rowSwipeActionContent: {
     alignItems: 'center',
