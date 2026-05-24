@@ -1546,6 +1546,7 @@ const styles = StyleSheet.create({
   },
   composerWrap: {
     marginBottom: 20,
+    marginTop: 15,
   },
   composerStack: {
     gap: 12,
