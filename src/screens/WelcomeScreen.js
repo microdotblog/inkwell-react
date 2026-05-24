@@ -569,9 +569,9 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   modalTitle: {
-    fontFamily: 'Newsreader_700Bold',
-    fontSize: 30,
-    lineHeight: 34,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 28,
   },
   modalBody: {
     fontSize: 16,
