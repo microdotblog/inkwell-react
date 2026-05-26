@@ -79,6 +79,10 @@ const SEGMENT_CONTROL_INSET = 3;
 const SEGMENT_BUTTON_HEIGHT = HEADER_CONTROL_HEIGHT - SEGMENT_CONTROL_INSET * 2;
 const SEGMENT_BUTTON_RADIUS = SEGMENT_BUTTON_HEIGHT / 2;
 const SEGMENT_LABEL_MAX_FONT_SIZE_MULTIPLIER = 1.15;
+const FEED_FILTER_BAR_HEIGHT = 68;
+const FEED_FILTER_BAR_OVERLAP = 34;
+const FEED_FILTER_BAR_VERTICAL_SPACE =
+  FEED_FILTER_BAR_HEIGHT - FEED_FILTER_BAR_OVERLAP;
 const TOP_STATUS_SCRIM_EXTRA_HEIGHT = 44;
 const TOP_STATUS_SCRIM_SCROLL_DISTANCE = 24;
 const MICRO_BLOG_PLANS_URL = 'https://micro.blog/account/plans';
@@ -92,6 +96,8 @@ const TEXT_STYLE_NAMES = [
   'recapError',
   'recapButtonLabel',
   'accountAvatarInitial',
+  'feedFilterButtonLabel',
+  'feedFilterLabel',
   'sourceAvatarInitial',
   'rowSourceLabel',
   'timestamp',
@@ -284,6 +290,9 @@ function FeedScreen({ navigation, isDark = false }) {
   const active_segment = Feed.active_segment;
   const hide_read_posts = Feed.hide_read_posts;
   const is_search_active = Feed.is_search_active;
+  const is_feed_filter_active = Feed.is_feed_filter_active();
+  const active_feed_filter_label = Feed.active_feed_filter_display_label();
+  const feed_filter_error_message = Feed.feed_filter_error_message;
   const search_query = Feed.search_query;
   const profile = Auth.current_profile();
   const is_using_ai = profile.is_using_ai;
@@ -294,6 +303,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const visible_timeline_entries = Feed.visible_timeline_entries();
   const recap_timeline_entries = Feed.fading_recap_timeline_entries();
   const is_fading_locked =
+    !is_feed_filter_active &&
     active_segment === 'fading' && is_premium === false;
   const display_timeline_entries = is_fading_locked
     ? []
@@ -319,12 +329,16 @@ function FeedScreen({ navigation, isDark = false }) {
     footer_bottom_inset +
     FOOTER_TOP_PADDING +
     SEGMENT_WRAP_MAX_HEIGHT +
+    (is_feed_filter_active ? FEED_FILTER_BAR_VERTICAL_SPACE : 0) +
     LIST_TOP_GAP;
   const search_footer_open_offset = Math.max(
     footer_bottom_inset - FOOTER_FLOAT_GAP - SEARCH_KEYBOARD_GAP,
     0,
   );
   const footer_visibility_bottom_threshold = list_bottom_inset;
+  const footer_panel_height =
+    SEGMENT_WRAP_MAX_HEIGHT +
+    (is_feed_filter_active ? FEED_FILTER_BAR_VERTICAL_SPACE : 0);
   const list_ref = React.useRef(null);
   const search_input_ref = React.useRef(null);
   const menu_touch_overlay_timeout_ref = React.useRef(null);
@@ -340,6 +354,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
     React.useState(false);
   const is_loading_initial =
+    !is_feed_filter_active &&
     !has_restored_cache &&
     (
       (Feed.is_bootstrapping && display_timeline_entries.length === 0) ||
@@ -348,7 +363,9 @@ function FeedScreen({ navigation, isDark = false }) {
         display_timeline_entries.length === 0)
     );
   const is_refreshing =
-    Feed.is_bootstrapping && (has_bootstrapped || has_restored_cache);
+    is_feed_filter_active
+      ? Feed.is_loading_feed_filter && Feed.has_loaded_feed_filter
+      : Feed.is_bootstrapping && (has_bootstrapped || has_restored_cache);
   const scroll_to_top_ref = React.useRef({
     scrollToTop: () => {
       footer_visibility_progress.value = 1;
@@ -403,11 +420,19 @@ function FeedScreen({ navigation, isDark = false }) {
   });
 
   const handle_segment_press = React.useCallback((segment) => {
+    if (Feed.is_feed_filter_active()) {
+      return;
+    }
+
     Feed.set_active_segment(segment);
     scroll_to_top_ref.current.scrollToTop();
   }, []);
 
   const handle_search_toggle_press = React.useCallback(() => {
+    if (Feed.is_feed_filter_active()) {
+      return;
+    }
+
     if (Feed.is_search_active) {
       clear_feed_search_focus(search_input_ref, true);
       Feed.hide_search();
@@ -426,6 +451,10 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const handle_search_query_change = React.useCallback(
     (next_search_query = '') => {
+      if (Feed.is_feed_filter_active()) {
+        return;
+      }
+
       Feed.set_search_query(next_search_query);
       scroll_y.value = 0;
       previous_scroll_y.value = 0;
@@ -479,6 +508,11 @@ function FeedScreen({ navigation, isDark = false }) {
     },
     [],
   );
+
+  const handle_clear_feed_filter = React.useCallback(() => {
+    Feed.clear_feed_filter();
+    scroll_to_top_ref.current.scrollToTop();
+  }, []);
 
   const handle_entry_press = React.useCallback(
     (entry_id = '') => {
@@ -681,7 +715,7 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const handle_segment_swipe = React.useCallback(
     (direction) => {
-      if (is_search_active) {
+      if (is_search_active || is_feed_filter_active) {
         return;
       }
 
@@ -700,7 +734,12 @@ function FeedScreen({ navigation, isDark = false }) {
 
       handle_segment_press(next_option.key);
     },
-    [active_segment, handle_segment_press, is_search_active],
+    [
+      active_segment,
+      handle_segment_press,
+      is_feed_filter_active,
+      is_search_active,
+    ],
   );
 
   const update_segment_frame = React.useCallback((segment, layout) => {
@@ -723,6 +762,13 @@ function FeedScreen({ navigation, isDark = false }) {
       };
     });
   }, []);
+
+  React.useEffect(() => {
+    if (is_feed_filter_active && is_search_active) {
+      clear_feed_search_focus(search_input_ref, true);
+      Feed.hide_search();
+    }
+  }, [is_feed_filter_active, is_search_active]);
 
   React.useEffect(() => {
     if (is_search_active) {
@@ -783,7 +829,7 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const footer_wrap_style = useAnimatedStyle(() => {
     const hidden_footer_offset =
-      footer_bottom_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
+      footer_bottom_inset + footer_panel_height + LIST_TOP_GAP;
 
     return {
       opacity: footer_visibility_progress.value,
@@ -798,11 +844,11 @@ function FeedScreen({ navigation, isDark = false }) {
         },
       ],
     };
-  }, [footer_bottom_inset]);
+  }, [footer_bottom_inset, footer_panel_height]);
 
   const footer_backdrop_style = useAnimatedStyle(() => {
     const hidden_footer_offset =
-      footer_bottom_inset + SEGMENT_WRAP_MAX_HEIGHT + LIST_TOP_GAP;
+      footer_bottom_inset + footer_panel_height + LIST_TOP_GAP;
 
     return {
       opacity: interpolate(
@@ -822,7 +868,7 @@ function FeedScreen({ navigation, isDark = false }) {
         },
       ],
     };
-  }, [footer_bottom_inset]);
+  }, [footer_bottom_inset, footer_panel_height]);
 
   const active_segment_style = useAnimatedStyle(() => {
     return {
@@ -870,6 +916,9 @@ function FeedScreen({ navigation, isDark = false }) {
       >
         {render_content({
             active_segment,
+            feed_filter_error_message,
+            is_feed_filter_active,
+            is_loading_feed_filter: Feed.is_loading_feed_filter,
             is_search_active,
             list_bottom_inset,
             list_top_inset,
@@ -919,7 +968,7 @@ function FeedScreen({ navigation, isDark = false }) {
           style={styles.topStatusScrimGradient}
         />
       </Animated.View>
-      {is_search_active ? (
+      {is_search_active && !is_feed_filter_active ? (
         <View pointerEvents="box-none" style={styles.searchFooterOverlay}>
           <KeyboardStickyView
             offset={{
@@ -944,6 +993,7 @@ function FeedScreen({ navigation, isDark = false }) {
                   active_segment_style={active_segment_style}
                   hide_read_posts={hide_read_posts}
                   input_ref={search_input_ref}
+                  is_feed_filter_active={is_feed_filter_active}
                   is_search_active={is_search_active}
                   is_dark={isDark}
                   onProfileMenuAction={handle_profile_menu_action}
@@ -965,6 +1015,29 @@ function FeedScreen({ navigation, isDark = false }) {
         </View>
       ) : (
         <View pointerEvents="box-none" style={styles.footerOverlay}>
+          {is_feed_filter_active ? (
+            <Animated.View
+              pointerEvents="box-none"
+              style={[
+                styles.feedFilterLayer,
+                {
+                  bottom:
+                    footer_bottom_inset +
+                    FOOTER_TOP_PADDING +
+                    SEGMENT_WRAP_MAX_HEIGHT -
+                    FEED_FILTER_BAR_OVERLAP,
+                },
+                footer_wrap_style,
+              ]}
+            >
+              <FeedFilterBar
+                label={active_feed_filter_label}
+                onClear={handle_clear_feed_filter}
+                scaled_text_styles={scaled_text_styles}
+                theme={theme}
+              />
+            </Animated.View>
+          ) : null}
           <Animated.View
             pointerEvents="none"
             style={[
@@ -999,6 +1072,7 @@ function FeedScreen({ navigation, isDark = false }) {
                 active_segment_style={active_segment_style}
                 hide_read_posts={hide_read_posts}
                 input_ref={search_input_ref}
+                is_feed_filter_active={is_feed_filter_active}
                 is_search_active={is_search_active}
                 is_dark={isDark}
                 onProfileMenuAction={handle_profile_menu_action}
@@ -1033,6 +1107,9 @@ function FeedScreen({ navigation, isDark = false }) {
 
 function render_content({
   active_segment,
+  feed_filter_error_message,
+  is_feed_filter_active,
+  is_loading_feed_filter,
   is_search_active,
   list_bottom_inset,
   list_top_inset,
@@ -1170,6 +1247,7 @@ function render_content({
                 >
                   {get_empty_state_title(
                     active_segment,
+                    is_feed_filter_active,
                     is_search_active,
                     search_query,
                   )}
@@ -1183,6 +1261,9 @@ function render_content({
                 >
                   {get_empty_state_body(
                     active_segment,
+                    feed_filter_error_message,
+                    is_feed_filter_active,
+                    is_loading_feed_filter,
                     is_search_active,
                     search_query,
                   )}
@@ -1195,6 +1276,7 @@ function render_content({
           !is_fading_locked &&
           should_show_recap_card({
             active_segment,
+            is_feed_filter_active,
             is_search_active,
             recap_timeline_entries,
           }) ? (
@@ -1221,7 +1303,11 @@ function render_content({
         refreshControl={
           <RefreshControl
             colors={[theme.colors.accentStrong]}
-            onRefresh={Feed.retry_bootstrap}
+            onRefresh={
+              is_feed_filter_active
+                ? Feed.refresh_feed_filter
+                : Feed.retry_bootstrap
+            }
             progressViewOffset={list_top_inset}
             refreshing={is_refreshing}
             tintColor={theme.colors.accentStrong}
@@ -1381,6 +1467,7 @@ function FeedFooterControlsRow({
   active_segment_style,
   hide_read_posts = false,
   input_ref,
+  is_feed_filter_active = false,
   is_dark = false,
   is_search_active = false,
   onProfileMenuAction,
@@ -1397,88 +1484,167 @@ function FeedFooterControlsRow({
   update_segment_frame,
 }) {
   return (
-    <View style={styles.headerControlsRow}>
-      <AccountHeaderButton
-        hide_read_posts={hide_read_posts}
-        is_dark={is_dark}
-        onMenuAction={onProfileMenuAction}
-        onMenuClose={onProfileMenuClose}
-        onMenuOpen={onProfileMenuOpen}
-        profile_name={profile_name}
-        profile_photo={profile_photo}
-        scaled_text_styles={scaled_text_styles}
-        theme={theme}
-      />
-      {is_search_active ? (
-        <FeedSearchField
-          input_ref={input_ref}
-          onChangeText={onSearchQueryChange}
+    <View style={styles.footerControlStack}>
+      <View style={styles.headerControlsRow}>
+        <AccountHeaderButton
+          hide_read_posts={hide_read_posts}
+          is_dark={is_dark}
+          onMenuAction={onProfileMenuAction}
+          onMenuClose={onProfileMenuClose}
+          onMenuOpen={onProfileMenuOpen}
+          profile_name={profile_name}
+          profile_photo={profile_photo}
           scaled_text_styles={scaled_text_styles}
           theme={theme}
-          value={search_query}
         />
-      ) : (
-        <View
+        {is_search_active ? (
+          <FeedSearchField
+            input_ref={input_ref}
+            onChangeText={onSearchQueryChange}
+            scaled_text_styles={scaled_text_styles}
+            theme={theme}
+            value={search_query}
+          />
+        ) : (
+          <View
+            style={[
+              styles.segmentedControl,
+              is_feed_filter_active ? styles.segmentedControlDisabled : null,
+              {
+                backgroundColor: theme.colors.paper,
+                borderColor: theme.colors.line,
+                shadowColor: theme.colors.shadow,
+              },
+            ]}
+          >
+            {!is_feed_filter_active ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.activeSegmentPill,
+                  {
+                    backgroundColor: theme.colors.accent,
+                  },
+                  active_segment_style,
+                ]}
+              />
+            ) : null}
+            {SEGMENT_OPTIONS.map((option) => {
+              const is_active = option.key === active_segment;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: is_feed_filter_active,
+                    selected: is_active,
+                  }}
+                  disabled={is_feed_filter_active}
+                  key={option.key}
+                  onLayout={(event) => {
+                    update_segment_frame(
+                      option.key,
+                      event.nativeEvent.layout,
+                    );
+                  }}
+                  onPress={() => onSegmentPress(option.key)}
+                  style={[styles.segmentButton]}
+                >
+                  <Text
+                    maxFontSizeMultiplier={SEGMENT_LABEL_MAX_FONT_SIZE_MULTIPLIER}
+                    numberOfLines={1}
+                    style={[
+                      styles.segmentLabel,
+                      scaled_text_styles.segmentLabel,
+                      {
+                        color:
+                          is_active && !is_feed_filter_active
+                            ? theme.colors.white
+                            : theme.colors.inkSoft,
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+        <FeedSearchToggleButton
+          disabled={is_feed_filter_active}
+          is_search_active={is_search_active}
+          onPress={onSearchTogglePress}
+          theme={theme}
+        />
+      </View>
+    </View>
+  );
+}
+
+function FeedFilterBar({
+  label = '',
+  onClear,
+  scaled_text_styles,
+  theme,
+}) {
+  const display_label = `${label || 'this blog'}`.trim();
+
+  return (
+    <View
+      style={[
+        styles.feedFilterBar,
+        {
+          backgroundColor: resolve_feed_filter_bar_background_color(theme),
+          borderColor: theme.colors.line,
+          shadowColor: theme.colors.shadow,
+        },
+      ]}
+    >
+      <View style={styles.feedFilterBarContent}>
+        <Text
+          numberOfLines={1}
           style={[
-            styles.segmentedControl,
-            {
-              backgroundColor: theme.colors.paper,
-              borderColor: theme.colors.line,
-              shadowColor: theme.colors.shadow,
-            },
+            styles.feedFilterLabel,
+            scaled_text_styles.feedFilterLabel,
+            { color: theme.colors.inkSoft },
           ]}
         >
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.activeSegmentPill,
+          {`Showing posts from ${display_label}`}
+        </Text>
+        <Pressable
+          accessibilityLabel="Clear blog filter"
+          accessibilityRole="button"
+          hitSlop={6}
+          onPress={onClear}
+          style={({ pressed }) => {
+            return [
+              styles.feedFilterButton,
               {
-                backgroundColor: theme.colors.accent,
+                backgroundColor: theme.colors.accentSoft,
+                opacity: pressed ? 0.82 : 1,
               },
-              active_segment_style,
+            ];
+          }}
+        >
+          <Text
+            style={[
+              styles.feedFilterButtonLabel,
+              scaled_text_styles.feedFilterButtonLabel,
+              { color: theme.colors.accentStrong },
             ]}
-          />
-          {SEGMENT_OPTIONS.map((option) => {
-            const is_active = option.key === active_segment;
-
-            return (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: is_active }}
-                key={option.key}
-                onLayout={(event) => {
-                  update_segment_frame(
-                    option.key,
-                    event.nativeEvent.layout,
-                  );
-                }}
-                onPress={() => onSegmentPress(option.key)}
-                style={[styles.segmentButton]}
-              >
-                <Text
-                  maxFontSizeMultiplier={SEGMENT_LABEL_MAX_FONT_SIZE_MULTIPLIER}
-                  numberOfLines={1}
-                  style={[
-                    styles.segmentLabel,
-                    scaled_text_styles.segmentLabel,
-                    {
-                      color: is_active
-                        ? theme.colors.white
-                        : theme.colors.inkSoft,
-                    },
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-      <FeedSearchToggleButton
-        is_search_active={is_search_active}
-        onPress={onSearchTogglePress}
-        theme={theme}
+          >
+            Clear
+          </Text>
+        </Pressable>
+      </View>
+      <LinearGradient
+        colors={[
+          with_color_opacity(theme.colors.shadow, 0),
+          with_color_opacity(theme.colors.shadow, theme.isDark ? 0.1 : 0.055),
+        ]}
+        pointerEvents="none"
+        style={styles.feedFilterBottomStopShadow}
       />
     </View>
   );
@@ -1737,6 +1903,7 @@ function FeedSearchField({
 }
 
 function FeedSearchToggleButton({
+  disabled = false,
   is_search_active = false,
   onPress,
   theme,
@@ -1747,6 +1914,8 @@ function FeedSearchToggleButton({
     <Pressable
       accessibilityLabel={is_search_active ? 'Close search' : 'Search'}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       hitSlop={8}
       onPress={onPress}
       style={({ pressed }) => {
@@ -1755,7 +1924,7 @@ function FeedSearchToggleButton({
           {
             backgroundColor: theme.colors.paper,
             borderColor: theme.colors.line,
-            opacity: pressed ? 0.82 : 1,
+            opacity: disabled ? 0.48 : pressed ? 0.82 : 1,
             shadowColor: theme.colors.shadow,
           },
         ];
@@ -1785,9 +1954,14 @@ function get_profile_initial(profile_name = '') {
 
 function get_empty_state_title(
   active_segment = 'today',
+  is_feed_filter_active = false,
   is_search_active = false,
   search_query = '',
 ) {
+  if (is_feed_filter_active) {
+    return 'No posts for this blog';
+  }
+
   if (is_search_active) {
     if (`${search_query || ''}`.trim()) {
       return 'No matching posts';
@@ -1807,9 +1981,24 @@ function get_empty_state_title(
 
 function get_empty_state_body(
   active_segment = 'today',
+  feed_filter_error_message = '',
+  is_feed_filter_active = false,
+  is_loading_feed_filter = false,
   is_search_active = false,
   search_query = '',
 ) {
+  if (is_feed_filter_active) {
+    if (is_loading_feed_filter) {
+      return 'Loading posts from this blog.';
+    }
+
+    if (feed_filter_error_message) {
+      return feed_filter_error_message;
+    }
+
+    return 'Clear the blog filter to return to your timeline.';
+  }
+
   if (is_search_active) {
     if (`${search_query || ''}`.trim()) {
       return 'Try a different word or phrase.';
@@ -1829,10 +2018,11 @@ function get_empty_state_body(
 
 function should_show_recap_card({
   active_segment = 'today',
+  is_feed_filter_active = false,
   is_search_active = false,
   recap_timeline_entries = [],
 }) {
-  if (active_segment !== 'fading' || is_search_active) {
+  if (active_segment !== 'fading' || is_feed_filter_active || is_search_active) {
     return false;
   }
 
@@ -1943,10 +2133,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: HEADER_ACCOUNT_GAP,
   },
+  footerControlStack: {
+    gap: 8,
+  },
   footerWrap: {
     marginBottom: 0,
     position: 'relative',
-    zIndex: 1,
+    zIndex: 2,
+  },
+  feedFilterLayer: {
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    zIndex: 0,
   },
   accountButton: {
     width: HEADER_ACCOUNT_BUTTON_SIZE,
@@ -2012,6 +2211,60 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 16,
     elevation: 3,
+  },
+  segmentedControlDisabled: {
+    opacity: 0.72,
+  },
+  feedFilterBar: {
+    alignItems: 'center',
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    flexDirection: 'row',
+    height: FEED_FILTER_BAR_HEIGHT,
+    overflow: 'hidden',
+    paddingBottom: 32,
+    paddingTop: 8,
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 1,
+  },
+  feedFilterBarContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flex: 1,
+    gap: 10,
+    paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
+    zIndex: 1,
+  },
+  feedFilterBottomStopShadow: {
+    bottom: 0,
+    height: 6,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+  },
+  feedFilterLabel: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  feedFilterButton: {
+    alignItems: 'center',
+    borderRadius: 999,
+    justifyContent: 'center',
+    minHeight: 24,
+    paddingHorizontal: 10,
+  },
+  feedFilterButtonLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 15,
   },
   searchField: {
     flex: 1,
@@ -2247,6 +2500,21 @@ function resolve_read_swipe_action_color(theme) {
   } else {
     return '#a2a2a8';
   }
+}
+
+function resolve_feed_filter_bar_background_color(theme) {
+  const paper_color = `${theme?.colors?.paper || ''}`.trim();
+  const rgba_match = paper_color.match(
+    /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*[\d.]+\s*\)$/i,
+  );
+
+  if (!rgba_match) {
+    return paper_color || (theme?.isDark ? '#1e192f' : '#ffffff');
+  }
+
+  const opacity = theme?.isDark ? 0.94 : 0.96;
+
+  return `rgba(${rgba_match[1]}, ${rgba_match[2]}, ${rgba_match[3]}, ${opacity})`;
 }
 
 function with_color_opacity(color_value = '', opacity = 1) {

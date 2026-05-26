@@ -86,6 +86,13 @@ const Feed = types
     hide_read_posts: types.optional(types.boolean, false),
     is_search_active: types.optional(types.boolean, false),
     search_query: types.optional(types.string, ''),
+    active_feed_filter_feed_id: types.optional(types.string, ''),
+    active_feed_filter_label: types.optional(types.string, ''),
+    active_feed_filter_hostname: types.optional(types.string, ''),
+    feed_filter_entries: types.optional(types.array(TimelineEntry), []),
+    is_loading_feed_filter: types.optional(types.boolean, false),
+    has_loaded_feed_filter: types.optional(types.boolean, false),
+    feed_filter_error_message: types.maybeNull(types.string),
     subscriptions: types.optional(types.array(FeedSubscription), []),
     is_loading_subscriptions: types.optional(types.boolean, false),
     subscriptions_error_message: types.maybeNull(types.string),
@@ -124,6 +131,7 @@ const Feed = types
     recap_bookmark_request_token: 0,
     subscriptions_request_token: 0,
     subscription_feed_request_token: 0,
+    feed_filter_request_token: 0,
     timeline_cache_persist_timeout_id: null,
   }))
   .actions((self) => ({
@@ -138,6 +146,7 @@ const Feed = types
     clear_feed_data() {
       self.subscriptions.replace([]);
       self.timeline_entries.replace([]);
+      self.clear_feed_filter();
       self.clear_active_subscription_feed();
       self.is_loading_subscriptions = false;
       self.subscriptions_error_message = null;
@@ -219,6 +228,7 @@ const Feed = types
       self.active_segment = 'today';
       self.is_search_active = false;
       self.search_query = '';
+      self.clear_feed_filter();
       self.has_checked_timeline_cache = false;
       self.is_bootstrapping = false;
       self.has_bootstrapped = false;
@@ -233,6 +243,10 @@ const Feed = types
     },
 
     set_active_segment(segment = 'today') {
+      if (self.active_feed_filter_feed_id) {
+        return;
+      }
+
       const next_segment = normalize_segment(segment);
       self.active_segment = next_segment;
     },
@@ -254,6 +268,10 @@ const Feed = types
     },
 
     show_search() {
+      if (self.active_feed_filter_feed_id) {
+        return;
+      }
+
       self.is_search_active = true;
     },
 
@@ -265,6 +283,176 @@ const Feed = types
     set_search_query(search_query = '') {
       self.search_query = `${search_query || ''}`;
     },
+
+    clear_feed_filter() {
+      self.feed_filter_request_token += 1;
+      self.active_feed_filter_feed_id = '';
+      self.active_feed_filter_label = '';
+      self.active_feed_filter_hostname = '';
+      self.feed_filter_entries.replace([]);
+      self.is_loading_feed_filter = false;
+      self.has_loaded_feed_filter = false;
+      self.feed_filter_error_message = null;
+    },
+
+    show_posts_for_feed: flow(function* ({
+      feed_id = '',
+      hostname = '',
+      label = '',
+    } = {}) {
+      const normalized_feed_id = normalize_string(feed_id);
+
+      if (!normalized_feed_id) {
+        return false;
+      }
+
+      const normalized_hostname = normalize_hostname(hostname);
+      const normalized_label = normalize_string(label);
+      const subscription = self.subscription_snapshot(normalized_feed_id);
+      const is_same_filter =
+        self.active_feed_filter_feed_id === normalized_feed_id;
+
+      self.is_search_active = false;
+      self.search_query = '';
+      self.active_feed_filter_feed_id = normalized_feed_id;
+      self.active_feed_filter_label =
+        normalized_label ||
+        resolve_source(subscription) ||
+        `Feed ${normalized_feed_id}`;
+      self.active_feed_filter_hostname =
+        normalized_hostname ||
+        get_subscription_host(subscription) ||
+        normalize_hostname(subscription?.site_url || subscription?.feed_url);
+      self.feed_filter_error_message = null;
+
+      if (!is_same_filter) {
+        self.feed_filter_entries.replace([]);
+        self.has_loaded_feed_filter = false;
+      }
+
+      yield self.load_feed_filter(normalized_feed_id);
+      return true;
+    }),
+
+    load_feed_filter: flow(function* (feed_id = '') {
+      const normalized_feed_id = normalize_string(feed_id);
+
+      if (!normalized_feed_id) {
+        self.clear_feed_filter();
+        return false;
+      }
+
+      if (
+        self.is_loading_feed_filter &&
+        self.active_feed_filter_feed_id === normalized_feed_id
+      ) {
+        return true;
+      }
+
+      self.is_loading_feed_filter = true;
+      self.feed_filter_error_message = null;
+      self.feed_filter_request_token += 1;
+      const request_token = self.feed_filter_request_token;
+
+      try {
+        yield Tokens.hydrate();
+
+        const user_token = Tokens.get_user_token();
+        if (!user_token) {
+          self.reset();
+          return false;
+        }
+
+        const [entries_result, unread_result, starred_result] =
+          yield Promise.allSettled([
+            fetch_micro_blog_feed_entries_for_feed({
+              token: user_token,
+              feed_id: normalized_feed_id,
+            }),
+            fetch_micro_blog_feed_unread_entry_ids({ token: user_token }),
+            fetch_micro_blog_feed_starred_entry_ids({ token: user_token }),
+          ]);
+
+        if (entries_result.status !== 'fulfilled') {
+          throw entries_result.reason;
+        }
+
+        if (unread_result.status !== 'fulfilled') {
+          throw unread_result.reason;
+        }
+
+        if (starred_result.status !== 'fulfilled') {
+          throw starred_result.reason;
+        }
+
+        const current_user_token = Tokens.get_user_token();
+        if (current_user_token !== user_token) {
+          if (!current_user_token) {
+            self.reset();
+          }
+          return false;
+        }
+
+        if (
+          self.feed_filter_request_token !== request_token ||
+          self.active_feed_filter_feed_id !== normalized_feed_id
+        ) {
+          return false;
+        }
+
+        const known_entries = self.current_feed_filter_timeline_entries();
+        const normalized_entries = normalize_timeline_entries(
+          entries_result.value,
+          self.subscriptions.slice(),
+          unread_result.value,
+          starred_result.value,
+          self.local_read_entry_ids,
+          self.local_unread_entry_ids,
+          self.local_bookmarked_entry_ids,
+          self.local_unbookmarked_entry_ids,
+          { filter_timeline_window: false },
+        );
+
+        self.feed_filter_entries.replace(
+          merge_normalized_timeline_entries(
+            known_entries,
+            normalized_entries,
+          ),
+        );
+        self.has_loaded_feed_filter = true;
+        self.feed_filter_error_message = null;
+        return true;
+      } catch (error) {
+        if (
+          self.feed_filter_request_token === request_token &&
+          self.active_feed_filter_feed_id === normalized_feed_id
+        ) {
+          self.feed_filter_error_message =
+            resolve_subscription_request_error_message(
+              error,
+              'We could not load posts for that blog right now.',
+            );
+        }
+        return false;
+      } finally {
+        if (
+          self.feed_filter_request_token === request_token &&
+          self.active_feed_filter_feed_id === normalized_feed_id
+        ) {
+          self.is_loading_feed_filter = false;
+        }
+      }
+    }),
+
+    refresh_feed_filter: flow(function* () {
+      const normalized_feed_id = self.active_feed_filter_feed_id;
+
+      if (!normalized_feed_id) {
+        return false;
+      }
+
+      return yield self.load_feed_filter(normalized_feed_id);
+    }),
 
     clear_active_subscription_feed() {
       self.subscription_feed_request_token += 1;
@@ -1124,6 +1312,7 @@ const Feed = types
           self.local_unread_entry_ids,
           self.local_bookmarked_entry_ids,
           self.local_unbookmarked_entry_ids,
+          { filter_timeline_window: false },
         );
 
         self.subscription_feed_entries.replace(normalized_entries);
@@ -1281,7 +1470,11 @@ const Feed = types
 
       let did_change = false;
 
-      [self.timeline_entries, self.subscription_feed_entries].forEach(
+      [
+        self.timeline_entries,
+        self.subscription_feed_entries,
+        self.feed_filter_entries,
+      ].forEach(
         (entries) => {
           entries.forEach((entry) => {
             if (
@@ -1322,7 +1515,11 @@ const Feed = types
 
       let did_change = false;
 
-      [self.timeline_entries, self.subscription_feed_entries].forEach(
+      [
+        self.timeline_entries,
+        self.subscription_feed_entries,
+        self.feed_filter_entries,
+      ].forEach(
         (entries) => {
           entries.forEach((entry) => {
             if (
@@ -1699,6 +1896,18 @@ const Feed = types
       return self.recap_bookmarked_quote_urls.includes(normalized_bookmark_url);
     },
 
+    is_feed_filter_active() {
+      return Boolean(self.active_feed_filter_feed_id);
+    },
+
+    active_feed_filter_display_label() {
+      return (
+        self.active_feed_filter_label ||
+        self.active_feed_filter_hostname ||
+        ''
+      );
+    },
+
     fading_recap_timeline_entries() {
       return self.timeline_entries
         .filter((timeline_entry) => {
@@ -1709,11 +1918,34 @@ const Feed = types
         });
     },
 
+    current_feed_filter_timeline_entries() {
+      if (!self.active_feed_filter_feed_id) {
+        return [];
+      }
+
+      return self.timeline_entries
+        .filter((timeline_entry) => {
+          return timeline_entry.feed_id === self.active_feed_filter_feed_id;
+        })
+        .map((timeline_entry) => {
+          return getSnapshot(timeline_entry);
+        })
+        .sort(compare_timeline_entries_by_published_at);
+    },
+
     visible_timeline_entries() {
       const normalized_search_query = normalize_search_query(self.search_query);
       let timeline_entries = self.timeline_entries;
 
-      if (self.is_search_active) {
+      if (self.active_feed_filter_feed_id) {
+        timeline_entries =
+          self.feed_filter_entries.length > 0 ||
+          self.has_loaded_feed_filter
+            ? self.feed_filter_entries
+            : self.timeline_entries.filter((timeline_entry) => {
+                return timeline_entry.feed_id === self.active_feed_filter_feed_id;
+              });
+      } else if (self.is_search_active) {
         if (normalized_search_query) {
           timeline_entries = timeline_entries.filter((timeline_entry) => {
             return timeline_entry_matches_search(
@@ -1759,11 +1991,19 @@ const Feed = types
         return entry.id === normalized_entry_id;
       });
 
-      if (!timeline_entry) {
-        return null;
+      if (timeline_entry) {
+        return getSnapshot(timeline_entry);
       }
 
-      return getSnapshot(timeline_entry);
+      const feed_filter_entry = self.feed_filter_entries.find((entry) => {
+        return entry.id === normalized_entry_id;
+      });
+
+      if (feed_filter_entry) {
+        return getSnapshot(feed_filter_entry);
+      }
+
+      return null;
     },
 
     subscription_snapshots() {
@@ -2354,11 +2594,14 @@ function normalize_timeline_entries(
   local_unread_entry_ids = new Set(),
   local_bookmarked_entry_ids = new Set(),
   local_unbookmarked_entry_ids = new Set(),
+  options = {},
 ) {
   if (!Array.isArray(entries)) {
     return [];
   }
 
+  const should_filter_timeline_window =
+    options?.filter_timeline_window !== false;
   const subscription_map = build_subscription_map(subscriptions);
   const unread_set = new Set(
     (Array.isArray(unread_entry_ids) ? unread_entry_ids : []).map(
@@ -2409,7 +2652,10 @@ function normalize_timeline_entries(
       };
     })
     .filter((entry) => {
-      return is_inside_timeline_window(entry.published_at);
+      return (
+        !should_filter_timeline_window ||
+        is_inside_timeline_window(entry.published_at)
+      );
     });
 
   normalized_entries.sort((left, right) => {
@@ -2432,6 +2678,55 @@ function normalize_timeline_entries(
   });
 
   return normalized_entries;
+}
+
+function merge_normalized_timeline_entries(
+  known_entries = [],
+  loaded_entries = [],
+) {
+  const entry_map = new Map();
+
+  [known_entries, loaded_entries].forEach((entries) => {
+    if (!Array.isArray(entries)) {
+      return;
+    }
+
+    entries.forEach((entry, index) => {
+      const normalized_entry = normalize_timeline_entry_snapshot(entry, index);
+      const entry_id = normalize_entry_id(normalized_entry, index);
+
+      if (entry_id && normalized_entry) {
+        entry_map.set(entry_id, normalized_entry);
+      }
+    });
+  });
+
+  return [...entry_map.values()].sort(compare_timeline_entries_by_published_at);
+}
+
+function normalize_timeline_entry_snapshot(entry = null, index = 0) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+
+  const published_at = resolve_published_at(entry);
+
+  return {
+    id: normalize_entry_id(entry, index),
+    feed_id: normalize_feed_id(entry),
+    source: normalize_string(entry?.source) || 'Feed',
+    source_url: normalize_string(entry?.source_url),
+    avatar_url: normalize_string(entry?.avatar_url),
+    title: normalize_string(entry?.title),
+    summary: normalize_string(entry?.summary),
+    content: normalize_string(entry?.content),
+    author: normalize_string(entry?.author),
+    url: normalize_string(entry?.url),
+    published_at,
+    is_read: Boolean(entry?.is_read),
+    is_bookmarked: Boolean(entry?.is_bookmarked),
+    age_bucket: get_age_bucket(published_at),
+  };
 }
 
 function build_subscription_map(subscriptions = []) {
@@ -2584,6 +2879,24 @@ function normalize_icon_host(host = '') {
   }
 
   return normalized_host;
+}
+
+function normalize_hostname(value = '') {
+  const normalized_value = normalize_string(value);
+
+  if (!normalized_value) {
+    return '';
+  }
+
+  try {
+    return normalize_icon_host(new URL(normalized_value).hostname);
+  } catch (error) {
+    try {
+      return normalize_icon_host(new URL(`https://${normalized_value}`).hostname);
+    } catch (fallback_error) {
+      return normalize_icon_host(normalized_value);
+    }
+  }
 }
 
 function resolve_avatar_url(subscription = null) {

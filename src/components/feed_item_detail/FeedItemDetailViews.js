@@ -99,6 +99,7 @@ const EntryReaderView = observer(function EntryReaderView({
   onCopyHighlight,
   onDeleteHighlight,
   onPostHighlight,
+  onPressFeedAvatar,
   onPressReplyProfile,
   onReaderActiveHighlightChange,
   onReaderImagePress,
@@ -162,6 +163,7 @@ const EntryReaderView = observer(function EntryReaderView({
         <View style={styles.feedHeaderRow}>
           <FeedDetailAvatar
             avatar_url={entry.avatar_url}
+            onPress={onPressFeedAvatar}
             source={source_label}
             size={READER_AVATAR_SIZE}
             theme={theme}
@@ -1890,6 +1892,7 @@ function UnavailableBodyCard({
 
 function FeedDetailAvatar({
   avatar_url = "",
+  onPress,
   source = "",
   size = READER_AVATAR_SIZE,
   theme,
@@ -1907,7 +1910,7 @@ function FeedDetailAvatar({
     set_is_image_loaded(false);
   }, [trimmed_avatar_url]);
 
-  return (
+  const avatar = (
     <View
       style={[
         styles.avatarFrame,
@@ -1947,6 +1950,26 @@ function FeedDetailAvatar({
         />
       ) : null}
     </View>
+  );
+
+  if (!onPress) {
+    return avatar;
+  }
+
+  return (
+    <Pressable
+      accessibilityLabel={`Show posts from ${source || "this blog"}`}
+      accessibilityRole="button"
+      hitSlop={6}
+      onPress={onPress}
+      style={({ pressed }) => {
+        return {
+          opacity: pressed ? 0.78 : 1,
+        };
+      }}
+    >
+      {avatar}
+    </Pressable>
   );
 }
 
@@ -2349,7 +2372,7 @@ const styles = StyleSheet.create({
   },
   readerImageViewerCloseButton: {
     alignItems: "center",
-    alignSelf: "flex-end",
+    alignSelf: "flex-start",
     borderRadius: READER_IMAGE_MODAL_CLOSE_BUTTON_SIZE / 2,
     borderWidth: 1,
     height: READER_IMAGE_MODAL_CLOSE_BUTTON_SIZE,

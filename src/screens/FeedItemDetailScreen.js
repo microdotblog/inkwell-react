@@ -80,6 +80,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const recap = detail_mode === "recap" ? Feed.active_recap_snapshot() : null;
   const resolved_entry_id = `${entry?.id || entry_id || ""}`.trim();
   const source_label = `${entry?.source || "Feed"}`.trim() || "Feed";
+  const entry_feed_id = `${entry?.feed_id || ""}`.trim();
   const source_url = normalize_http_url(entry?.source_url);
   const original_url = normalize_http_url(entry?.url);
   const report_blog_username = resolve_report_blog_username({
@@ -313,6 +314,19 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     },
     [navigation],
   );
+
+  const handle_feed_avatar_press = React.useCallback(() => {
+    if (!entry_feed_id) {
+      return;
+    }
+
+    Feed.show_posts_for_feed({
+      feed_id: entry_feed_id,
+      hostname: report_blog_username,
+      label: source_label,
+    });
+    navigation.navigate("Feed");
+  }, [entry_feed_id, navigation, report_blog_username, source_label]);
 
   const handle_highlights_pane_press = React.useCallback(() => {
     if (highlight_count === 0) {
@@ -901,6 +915,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             entry={entry}
             onCopyHighlight={handle_copy_highlight}
             onDeleteHighlight={handle_delete_highlight}
+            onPressFeedAvatar={
+              entry_feed_id ? handle_feed_avatar_press : undefined
+            }
             onPostHighlight={handle_post_highlight}
             onPressHighlightsPane={handle_highlights_pane_press}
             onPressPostPane={handle_post_pane_press}
