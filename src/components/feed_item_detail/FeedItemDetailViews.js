@@ -82,7 +82,6 @@ import {
 } from "./feedItemDetailUtils";
 import { RecapReaderView } from "./ReadingRecapView";
 import { resolve_reader_image_viewer_payload } from "./readerImagePayload";
-import { APPLE_SECTION_313 } from "../../config";
 
 const READER_PANE_TABS_ENTERING = FadeInDown.duration(220);
 
@@ -1647,7 +1646,7 @@ function get_entry_menu_actions({
   const read_title = entry?.is_read ? "Mark as Unread" : "Mark as Read";
   const actions = [];
 
-  if (original_url && !APPLE_SECTION_313) {
+  if (original_url) {
     actions.push({
       id: "new_post",
       image: Platform.select({
