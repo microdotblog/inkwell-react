@@ -50,7 +50,6 @@ import Bookmarks from "../stores/Bookmarks";
 import Feed from "../stores/Feed";
 import Highlights from "../stores/Highlights";
 import Tokens from "../stores/Tokens";
-import { APPLE_SECTION_313 } from "../config";
 import { getAuthTheme } from "../theme/authTheme";
 import {
   getTextScaleForSliderIndex,
@@ -977,15 +976,11 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           actions={
             active_reader_highlight
               ? [
-                  ...(APPLE_SECTION_313
-                    ? []
-                    : [
-                        {
-                          is_disabled: is_deleting_reader_highlight,
-                          label: "Post highlight",
-                          onPress: handle_post_reader_highlight,
-                        },
-                      ]),
+                  {
+                    is_disabled: is_deleting_reader_highlight,
+                    label: "Post highlight",
+                    onPress: handle_post_reader_highlight,
+                  },
                   {
                     is_destructive: true,
                     is_loading: is_deleting_reader_highlight,
@@ -1002,17 +997,13 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
                     loading_label: "Saving...",
                     onPress: handle_create_highlight,
                   },
-                  ...(APPLE_SECTION_313
-                    ? []
-                    : [
-                        {
-                          is_disabled: is_creating_highlight,
-                          is_loading: is_opening_reader_post,
-                          label: "New Post...",
-                          loading_label: "Opening...",
-                          onPress: handle_create_post_from_selection,
-                        },
-                      ]),
+                  {
+                    is_disabled: is_creating_highlight,
+                    is_loading: is_opening_reader_post,
+                    label: "New Post...",
+                    loading_label: "Opening...",
+                    onPress: handle_create_post_from_selection,
+                  },
                 ]
           }
           action_group_style="joined"
