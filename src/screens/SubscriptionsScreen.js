@@ -793,7 +793,7 @@ function NewFeedComposerCard({
               { color: theme.colors.ink },
             ]}
           >
-            New Feed...
+            New Feed
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -1535,6 +1535,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   composerInputWrap: {
+    borderRadius: 10,
     minHeight: 52,
   },
   composerPrimaryButton: {
