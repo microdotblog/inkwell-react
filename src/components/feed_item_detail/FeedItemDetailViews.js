@@ -13,7 +13,9 @@ import Slider from "@react-native-community/slider";
 import { MenuView } from "@react-native-menu/menu";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import * as WebBrowser from "expo-web-browser";
 import { observer } from "mobx-react";
+import { SFSymbol } from "react-native-sfsymbols";
 import { WebView } from "react-native-webview";
 import Animated, {
   FadeInDown,
@@ -47,7 +49,6 @@ import {
   READER_PANE_CONTROL_INSET,
   READER_PANE_CONTROL_RADIUS,
   READER_PANE_LAYOUT_TRANSITION,
-  READER_REPLY_CONTENT_WIDTH_OFFSET,
   READER_TEXT_SIZE_TRAY_BOTTOM_GAP,
   READER_TEXT_SIZE_TRAY_RADIUS,
   READER_TEXT_SIZE_TRAY_SHADOW_HEIGHT,
@@ -57,33 +58,46 @@ import {
   READER_TITLE_TOP_MARGIN,
   READER_WEBVIEW_CONTENT_MAX_WIDTH,
   READER_WEBVIEW_MIN_HEIGHT,
-  REPLY_AVATAR_SIZE,
   TEXT_STYLE_NAMES,
   create_reader_body_html,
   create_reader_image_viewer_document_html,
   create_reader_post_document_html,
-  create_reply_document_html,
   format_reader_date,
-  format_reply_date,
   get_highlight_count_label,
-  get_reply_author_name,
   get_reply_count_label,
   get_source_avatar_initial,
   normalize_http_url,
   open_external_url,
   resolve_host_label,
-  resolve_reply_key,
   resolve_reader_text_metrics,
   resolve_reader_text_size_backdrop_color,
   resolve_reader_title,
-  resolve_reply_html,
   sanitize_reader_html,
   with_color_opacity,
 } from "./feedItemDetailUtils";
 import { RecapReaderView } from "./ReadingRecapView";
+import RepliesListView from "./RepliesListView";
 import { resolve_reader_image_viewer_payload } from "./readerImagePayload";
 
 const READER_PANE_TABS_ENTERING = FadeInDown.duration(220);
+
+async function open_in_app_browser_url(raw_url = "", theme = null) {
+  const normalized_url = normalize_http_url(raw_url);
+
+  if (!normalized_url) {
+    return;
+  }
+
+  try {
+    await WebBrowser.openBrowserAsync(normalized_url, {
+      controlsColor: theme?.colors?.accent,
+      dismissButtonStyle: "close",
+    });
+  } catch (error) {
+    console.warn("Failed to open reader link", error);
+    AppStore.show_toast("We could not open this link.");
+  }
+}
 
 export function useFeedItemDetailScaledTextStyles() {
   return React.useMemo(() => {
@@ -99,6 +113,7 @@ const EntryReaderView = observer(function EntryReaderView({
   onDeleteHighlight,
   onPostHighlight,
   onPressFeedAvatar,
+  onPressReply,
   onPressReplyProfile,
   onReaderActiveHighlightChange,
   onReaderImagePress,
@@ -133,6 +148,12 @@ const EntryReaderView = observer(function EntryReaderView({
   const reply_count = replies.length;
   const highlight_count = entry_highlights.length;
   const should_show_pane_tabs = reply_count > 0 || highlight_count > 0;
+  const handle_open_original_url_in_app = React.useCallback(() => {
+    open_in_app_browser_url(original_url, theme);
+  }, [original_url, theme]);
+  const handle_open_original_url_in_system_browser = React.useCallback(() => {
+    open_external_url(original_url);
+  }, [original_url]);
 
   React.useEffect(() => {
     if (resolved_entry_id) {
@@ -205,10 +226,11 @@ const EntryReaderView = observer(function EntryReaderView({
                 {formatted_date ? (
                   <MetaLink
                     color={theme.colors.inkSoft}
+                    ios_icon_name="safari"
                     label={formatted_date}
                     onPress={
                       original_url
-                        ? () => open_external_url(original_url)
+                        ? handle_open_original_url_in_system_browser
                         : null
                     }
                     style={[styles.dateLabel, scaled_text_styles.dateLabel]}
@@ -221,16 +243,40 @@ const EntryReaderView = observer(function EntryReaderView({
 
         {should_show_reader_title ? (
           <View style={styles.titleWrap}>
-            <Text
-              style={[
-                styles.title,
-                { color: theme.colors.ink },
-                title_font_size ? { fontSize: title_font_size } : null,
-                title_line_height ? { lineHeight: title_line_height } : null,
-              ]}
-            >
-              {reader_title}
-            </Text>
+            {original_url ? (
+              <Pressable
+                accessibilityLabel={`Open ${reader_title}`}
+                accessibilityRole="link"
+                hitSlop={4}
+                onPress={handle_open_original_url_in_app}
+                style={({ pressed }) => [
+                  styles.titleLink,
+                  pressed ? styles.pressedMetaLink : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.title,
+                    { color: theme.colors.ink },
+                    title_font_size ? { fontSize: title_font_size } : null,
+                    title_line_height ? { lineHeight: title_line_height } : null,
+                  ]}
+                >
+                  {reader_title}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text
+                style={[
+                  styles.title,
+                  { color: theme.colors.ink },
+                  title_font_size ? { fontSize: title_font_size } : null,
+                  title_line_height ? { lineHeight: title_line_height } : null,
+                ]}
+              >
+                {reader_title}
+              </Text>
+            )}
             {author_label ? (
               <Text
                 style={[
@@ -269,6 +315,7 @@ const EntryReaderView = observer(function EntryReaderView({
         {active_pane === "replies" ? (
           <RepliesListView
             onPressProfile={onPressReplyProfile}
+            onPressReply={onPressReply}
             replies={replies}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
@@ -503,31 +550,6 @@ function ReaderPaneButton({
   );
 }
 
-function RepliesListView({
-  onPressProfile,
-  replies = [],
-  scaled_text_styles,
-  theme,
-  width = 0,
-}) {
-  return (
-    <View style={styles.repliesList}>
-      {replies.map((reply, index) => {
-        return (
-          <ReplyRow
-            key={resolve_reply_key(reply, index)}
-            onPressProfile={onPressProfile}
-            reply={reply}
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-            width={width}
-          />
-        );
-      })}
-    </View>
-  );
-}
-
 function HighlightsListView({
   deleting_highlight_id = "",
   highlights = [],
@@ -552,240 +574,6 @@ function HighlightsListView({
           />
         );
       })}
-    </View>
-  );
-}
-
-function ReplyRow({
-  onPressProfile,
-  reply,
-  scaled_text_styles,
-  theme,
-  width = 0,
-}) {
-  const author_name = get_reply_author_name(reply);
-  const author_url = normalize_http_url(reply?.author?.url);
-  const profile_username = resolve_reply_profile_username(reply);
-  const formatted_date = format_reply_date(reply?.date_published);
-  const reply_html = resolve_reply_html(reply);
-  const can_open_profile = Boolean(profile_username && onPressProfile);
-  const avatar = (
-    <FeedDetailAvatar
-      avatar_url={reply?.author?.avatar}
-      size={REPLY_AVATAR_SIZE}
-      source={author_name}
-      theme={theme}
-    />
-  );
-
-  return (
-    <View style={styles.replyRow}>
-      {can_open_profile ? (
-        <Pressable
-          accessibilityLabel={`Open @${profile_username} profile`}
-          accessibilityRole="button"
-          hitSlop={6}
-          onPress={() => {
-            onPressProfile?.({
-              avatar_url: `${reply?.author?.avatar || ""}`.trim(),
-              display_name: author_name,
-              profile_url: author_url,
-              username: profile_username,
-            });
-          }}
-          style={({ pressed }) => {
-            return {
-              opacity: pressed ? 0.78 : 1,
-            };
-          }}
-        >
-          {avatar}
-        </Pressable>
-      ) : (
-        avatar
-      )}
-      <View style={styles.replyBody}>
-        <MetaLink
-          color={theme.colors.ink}
-          label={author_name}
-          onPress={author_url ? () => open_external_url(author_url) : null}
-          style={[styles.replyAuthor, scaled_text_styles.replyAuthor]}
-        />
-        {reply_html ? (
-          <ReplyHtml html={reply_html} theme={theme} width={width} />
-        ) : null}
-        {formatted_date ? (
-          <Text
-            style={[
-              styles.replyDate,
-              scaled_text_styles.replyDate,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {formatted_date}
-          </Text>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function resolve_reply_profile_username(reply = null) {
-  const micro_blog_username = `${reply?.author?._microblog?.username || ""}`
-    .trim()
-    .replace(/^@+/, "");
-
-  if (micro_blog_username) {
-    return micro_blog_username;
-  }
-
-  const author_url = normalize_http_url(reply?.author?.url);
-
-  if (!author_url) {
-    return "";
-  }
-
-  try {
-    const parsed_url = new URL(author_url);
-    const hostname = `${parsed_url.hostname || ""}`.toLowerCase();
-
-    if (hostname !== "micro.blog" && hostname !== "www.micro.blog") {
-      return "";
-    }
-
-    const username = `${parsed_url.pathname || ""}`
-      .split("/")
-      .filter(Boolean)[0];
-
-    return `${username || ""}`.replace(/^@+/, "");
-  } catch {
-    return "";
-  }
-}
-
-function ReplyHtml({ html = "", theme, width = 0 }) {
-  const [content_height, set_content_height] = React.useState(
-    READER_WEBVIEW_MIN_HEIGHT,
-  );
-  const content_width = Math.max(
-    Math.min(
-      width - READER_HORIZONTAL_PADDING * 2 - READER_REPLY_CONTENT_WIDTH_OFFSET,
-      READER_COLUMN_MAX_WIDTH,
-    ),
-    0,
-  );
-  const resolved_base_url = "https://example.com/";
-  const document_html = React.useMemo(() => {
-    return create_reply_document_html({
-      base_url: resolved_base_url,
-      content_max_width: Math.max(
-        Math.min(content_width, READER_WEBVIEW_CONTENT_MAX_WIDTH),
-        0,
-      ),
-      html,
-      theme,
-    });
-  }, [
-    content_width,
-    html,
-    resolved_base_url,
-    theme.colors.accentStrong,
-    theme.colors.badge,
-    theme.colors.inkSoft,
-    theme.colors.line,
-  ]);
-  const webview_source = React.useMemo(() => {
-    return {
-      baseUrl: resolved_base_url,
-      html: document_html,
-    };
-  }, [document_html, resolved_base_url]);
-
-  React.useEffect(() => {
-    set_content_height(READER_WEBVIEW_MIN_HEIGHT);
-  }, [document_html]);
-
-  const handle_message = React.useCallback((event) => {
-    const raw_data = `${event?.nativeEvent?.data || ""}`.trim();
-
-    if (!raw_data) {
-      return;
-    }
-
-    try {
-      const payload = JSON.parse(raw_data);
-
-      if (payload?.type === "height") {
-        const next_height = Number(payload?.value);
-
-        if (Number.isFinite(next_height)) {
-          set_content_height(Math.max(Math.ceil(next_height), 1));
-        }
-        return;
-      }
-
-      if (payload?.type === "link") {
-        open_external_url(payload?.href);
-        return;
-      }
-
-      if (payload?.type === "image") {
-        open_external_url(payload?.image_url || payload?.image_src);
-      }
-    } catch {
-      // Ignore malformed bridge events from the embedded document.
-    }
-  }, []);
-
-  const handle_should_start = React.useCallback((request) => {
-    const request_url = `${request?.url || ""}`.trim();
-    const navigation_type = `${request?.navigationType || ""}`
-      .trim()
-      .toLowerCase();
-
-    if (
-      !request_url ||
-      request_url.startsWith("about:") ||
-      request_url.startsWith("data:text/html") ||
-      request_url === resolved_base_url ||
-      (navigation_type && navigation_type !== "click")
-    ) {
-      return true;
-    }
-
-    const normalized_url = normalize_http_url(request_url, {
-      base_url: resolved_base_url,
-    });
-
-    if (!normalized_url) {
-      return false;
-    }
-
-    open_external_url(normalized_url);
-    return false;
-  }, []);
-
-  return (
-    <View style={styles.replyWebViewFrame}>
-      <WebView
-        androidLayerType="hardware"
-        automaticallyAdjustContentInsets={false}
-        bounces={false}
-        javaScriptEnabled
-        onMessage={handle_message}
-        onShouldStartLoadWithRequest={handle_should_start}
-        originWhitelist={["*"]}
-        scrollEnabled={false}
-        setSupportMultipleWindows={false}
-        showsVerticalScrollIndicator={false}
-        source={webview_source}
-        style={[
-          styles.replyWebView,
-          {
-            height: content_height,
-          },
-        ]}
-      />
     </View>
   );
 }
@@ -1634,6 +1422,7 @@ function get_entry_menu_actions({
   entry_source = "feed",
   is_bookmarked = false,
   original_url = "",
+  reply_target = null,
   theme,
 }) {
   if (!entry) {
@@ -1644,6 +1433,7 @@ function get_entry_menu_actions({
   const bookmark_title =
     entry_source === "bookmark" || is_bookmarked ? "Unbookmark" : "Bookmark";
   const read_title = entry?.is_read ? "Mark as Unread" : "Mark as Read";
+  const reply_post_id = `${reply_target?.post_id || ""}`.trim();
   const actions = [];
 
   if (original_url) {
@@ -1653,7 +1443,18 @@ function get_entry_menu_actions({
         ios: "square.and.pencil",
       }),
       imageColor: icon_color,
-      title: "New Post...",
+      title: "New Post",
+    });
+  }
+
+  if (reply_post_id) {
+    actions.push({
+      id: "reply",
+      image: Platform.select({
+        ios: "arrowshape.turn.up.left",
+      }),
+      imageColor: icon_color,
+      title: "Reply",
     });
   }
 
@@ -1756,17 +1557,40 @@ function HeaderEntryMenuButton({
   );
 }
 
-function MetaLink({ color, label, onPress, style }) {
+function MetaLink({ color, ios_icon_name = "", label, onPress, style }) {
   if (!label) {
     return null;
   }
 
+  const icon =
+    Platform.OS === "ios" && ios_icon_name ? (
+      <SFSymbol
+        color={color}
+        multicolor={false}
+        name={ios_icon_name}
+        style={styles.metaLinkSymbol}
+      />
+    ) : null;
+  const content = icon ? (
+    <View style={styles.metaLinkContent}>
+      <Text style={[style, { color }]}>{label}</Text>
+      {icon}
+    </View>
+  ) : (
+    <Text style={[style, { color }]}>{label}</Text>
+  );
+
   if (!onPress) {
-    return <Text style={[style, { color }]}>{label}</Text>;
+    return content;
   } else {
     return (
-      <Pressable accessibilityRole="link" hitSlop={6} onPress={onPress}>
-        <Text style={[style, { color }]}>{label}</Text>
+      <Pressable
+        accessibilityRole="link"
+        hitSlop={6}
+        onPress={onPress}
+        style={({ pressed }) => (pressed ? styles.pressedMetaLink : null)}
+      >
+        {content}
       </Pressable>
     );
   }
@@ -2028,10 +1852,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  metaLinkContent: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  metaLinkSymbol: {
+    height: 16,
+    width: 16,
+  },
+  pressedMetaLink: {
+    opacity: 0.72,
+  },
   title: {
     // fontFamily: "Newsreader_600SemiBold",
     fontSize: READER_TITLE_FONT_SIZE,
     lineHeight: READER_TITLE_LINE_HEIGHT,
+  },
+  titleLink: {
+    alignSelf: "flex-start",
+    maxWidth: "100%",
   },
   authorLabel: {
     fontSize: 15,
@@ -2099,28 +1939,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 16,
   },
-  repliesList: {
-    gap: 18,
-  },
   highlightsList: {
     gap: 16,
-  },
-  replyRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 12,
-  },
-  replyBody: {
-    flex: 1,
-    gap: 6,
-    minWidth: 0,
-  },
-  replyWebViewFrame: {
-    width: "100%",
-  },
-  replyWebView: {
-    backgroundColor: "transparent",
-    width: "100%",
   },
   replyAuthor: {
     fontSize: 14,
@@ -2128,6 +1948,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   replyDate: {
+    flex: 1,
     fontSize: 12,
     lineHeight: 18,
   },

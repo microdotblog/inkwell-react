@@ -1,12 +1,13 @@
 import React from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Application from 'expo-application';
 import { Image as ExpoImage } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   interpolateColor,
@@ -24,10 +25,26 @@ import { ACCENT_PALETTE_OPTIONS, getAuthTheme } from '../theme/authTheme';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
 const CONTENT_TOP_PADDING = 12;
+const CONTENT_BOTTOM_PADDING = 24;
 const AUTH_WAVE_BACKGROUND = require('../../assets/images/auth-wave-background.jpg');
 const MICRO_BLOG_COMMUNITY_GUIDELINES_URL = 'https://help.micro.blog/t/community-guidelines/39';
 const MICRO_BLOG_PRIVACY_POLICY_URL = 'https://help.micro.blog/t/privacy-policy/114';
 const MICRO_BLOG_DELETE_ACCOUNT_URL = 'https://micro.blog/account/delete';
+const APP_VERSION_LABEL = format_app_version_label(
+  Application.nativeApplicationVersion,
+  Application.nativeBuildVersion,
+);
+
+function format_app_version_label(app_version = '', build_version = '') {
+  const trimmed_app_version = `${app_version || ''}`.trim();
+  const trimmed_build_version = `${build_version || ''}`.trim();
+
+  if (!trimmed_app_version || !trimmed_build_version) {
+    return '';
+  }
+
+  return `${trimmed_app_version} (${trimmed_build_version})`;
+}
 
 function format_profile_handle(profile_url = '') {
   const trimmed_profile_url = `${profile_url || ''}`.trim();
@@ -160,7 +177,9 @@ function AccountScreenContent({
   transition_theme,
 }) {
   const header_height = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const content_top_padding = header_height + CONTENT_TOP_PADDING;
+  const content_bottom_padding = insets.bottom + CONTENT_BOTTOM_PADDING;
   const handle_open_micro_blog_browser = React.useCallback(async (url = '', action_label = 'Micro.blog') => {
     if (!url) {
       return;
@@ -227,14 +246,21 @@ function AccountScreenContent({
   }, [theme, transition_progress, transition_theme]);
 
   return (
-    <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-      <ScrollView
-        alwaysBounceVertical
-        bounces
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={[styles.content, { paddingTop: content_top_padding }]}
-        showsVerticalScrollIndicator={false}
-      >
+    <ScrollView
+      alwaysBounceVertical
+      bounces
+      contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingBottom: content_bottom_padding,
+          paddingTop: content_top_padding,
+        },
+      ]}
+      showsVerticalScrollIndicator={false}
+      style={styles.scroller}
+    >
+      <View style={styles.settingsStack}>
         <View style={styles.cardStack}>
           <AuthCard style={styles.card} theme={theme}>
             <View style={styles.preferenceStack}>
@@ -372,8 +398,21 @@ function AccountScreenContent({
             </View>
           </AuthCard>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        {APP_VERSION_LABEL ? (
+          <View style={styles.versionFooter}>
+            <Text
+              style={[
+                styles.versionText,
+                { color: is_dark ? '#ffffff' : '#000000' },
+              ]}
+            >
+              {APP_VERSION_LABEL}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -624,19 +663,32 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  safeArea: {
+  scroller: {
     flex: 1,
   },
   content: {
     flexGrow: 1,
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
-    paddingBottom: 24,
   },
   card: {
     padding: 22,
   },
+  settingsStack: {
+    flex: 1,
+  },
   cardStack: {
     gap: 14,
+  },
+  versionFooter: {
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 24,
+  },
+  versionText: {
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
+    textAlign: 'center',
   },
   accountCardStack: {
     gap: 18,

@@ -663,13 +663,20 @@ function SubscriptionsHeader({
   return (
     <View style={styles.headerContent}>
       {is_search_open ? (
-        <SearchField
-          autoFocus={true}
-          onChangeText={onChangeSearchQuery}
-          scaled_text_styles={scaled_text_styles}
-          theme={theme}
-          value={search_query}
-        />
+        <Animated.View
+          entering={COMPOSER_ENTERING}
+          exiting={COMPOSER_EXITING}
+          layout={COMPOSER_LAYOUT_TRANSITION}
+          style={styles.subscriptionSearchWrap}
+        >
+          <SearchField
+            autoFocus={true}
+            onChangeText={onChangeSearchQuery}
+            scaled_text_styles={scaled_text_styles}
+            theme={theme}
+            value={search_query}
+          />
+        </Animated.View>
       ) : null}
 
       {!is_composer_open ? (
@@ -793,7 +800,7 @@ function NewFeedComposerCard({
               { color: theme.colors.ink },
             ]}
           >
-            New Feed...
+            New Feed
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -1535,6 +1542,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   composerInputWrap: {
+    borderRadius: 10,
     minHeight: 52,
   },
   composerPrimaryButton: {
@@ -1732,7 +1740,7 @@ const styles = StyleSheet.create({
   },
   searchField: {
     alignItems: 'center',
-    borderRadius: 18,
+    borderRadius: 999,
     borderWidth: 1,
     flexDirection: 'row',
     minHeight: 52,
@@ -1743,6 +1751,9 @@ const styles = StyleSheet.create({
   searchFieldIcon: {
     marginRight: 10,
     marginTop: 2,
+  },
+  subscriptionSearchWrap: {
+    marginTop: 12,
   },
   searchInput: {
     flex: 1,

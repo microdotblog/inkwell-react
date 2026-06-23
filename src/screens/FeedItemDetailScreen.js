@@ -1,7 +1,6 @@
 import React from "react";
 import {
   Alert,
-  Platform,
   Pressable,
   ScrollView,
   View,
@@ -72,6 +71,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const detail_mode = resolve_detail_mode(route?.params?.mode);
   const entry_source = resolve_entry_source(route?.params?.entry_source);
   const entry_id = `${route?.params?.entry_id || ""}`.trim();
+  const posted_reply_at = Number(route?.params?.reply_posted_at || 0);
   const entry =
     detail_mode === "entry"
       ? resolve_detail_entry_snapshot(entry_id, entry_source)
@@ -132,6 +132,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     React.useState(0);
   const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
     React.useState(false);
+  const [entry_reply_target, set_entry_reply_target] = React.useState(null);
   const menu_touch_overlay_timeout_ref = React.useRef(null);
   const replies_request_token_ref = React.useRef(0);
   const reader_post_ref = React.useRef(null);
@@ -161,9 +162,17 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       entry_source,
       is_bookmarked: is_entry_bookmarked,
       original_url,
+      reply_target: entry_reply_target,
       theme,
     });
-  }, [entry, entry_source, is_entry_bookmarked, original_url, theme]);
+  }, [
+    entry,
+    entry_reply_target,
+    entry_source,
+    is_entry_bookmarked,
+    original_url,
+    theme,
+  ]);
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
@@ -217,6 +226,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
     set_active_pane("post");
     set_replies([]);
+    set_entry_reply_target(null);
     set_is_loading_replies(false);
 
     if (detail_mode !== "entry" || !original_url) {
@@ -245,6 +255,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         }
 
         set_replies(normalize_conversation_replies(payload?.items));
+        set_entry_reply_target(resolve_conversation_reply_target(payload));
       } catch (error) {
         if (did_cancel || replies_request_token_ref.current !== request_token) {
           return;
@@ -252,12 +263,16 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
         console.warn("Failed to load conversation replies", error);
         set_replies([]);
+        set_entry_reply_target(null);
       } finally {
         if (did_cancel || replies_request_token_ref.current !== request_token) {
           return;
         }
 
         set_is_loading_replies(false);
+        navigation.setParams({
+          reply_posted_at: 0,
+        });
       }
     }
 
@@ -267,6 +282,62 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       did_cancel = true;
     };
   }, [detail_mode, entry_id, original_url]);
+
+  React.useEffect(() => {
+    if (!posted_reply_at || detail_mode !== "entry" || !original_url) {
+      return;
+    }
+
+    replies_request_token_ref.current += 1;
+    const request_token = replies_request_token_ref.current;
+    let did_cancel = false;
+
+    set_is_loading_replies(true);
+
+    async function reload_replies_after_post() {
+      try {
+        await Tokens.hydrate();
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return;
+        }
+
+        const payload = await fetch_micro_blog_conversation_replies({
+          token: user_token,
+          post_url: original_url,
+        });
+
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
+          return;
+        }
+
+        const next_replies = normalize_conversation_replies(payload?.items);
+
+        set_replies(next_replies);
+        set_entry_reply_target(resolve_conversation_reply_target(payload));
+        set_active_pane("replies");
+      } catch (error) {
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
+          return;
+        }
+
+        console.warn("Failed to reload conversation replies", error);
+      } finally {
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
+          return;
+        }
+
+        set_is_loading_replies(false);
+      }
+    }
+
+    reload_replies_after_post();
+
+    return () => {
+      did_cancel = true;
+    };
+  }, [detail_mode, navigation, original_url, posted_reply_at]);
 
   React.useEffect(() => {
     if (active_pane === "replies" && reply_count === 0) {
@@ -313,6 +384,24 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     },
     [navigation],
   );
+
+  const handle_reply_press = React.useCallback((reply_payload = {}) => {
+    const post_id = `${reply_payload?.post_id || ""}`.trim();
+    const username = `${reply_payload?.username || ""}`
+      .trim()
+      .replace(/^@+/, "");
+
+    if (!post_id || !username) {
+      return;
+    }
+
+    navigation.navigate("ReplyComposer", {
+      initial_text: `@${username} `,
+      post_id,
+      source_route_key: route?.key,
+      username,
+    });
+  }, [navigation, route?.key]);
 
   const handle_feed_avatar_press = React.useCallback(() => {
     if (!entry_feed_id) {
@@ -742,6 +831,15 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         return;
       }
 
+      if (menu_action_id === "reply") {
+        handle_reply_press({
+          display_name: entry_reply_target?.username,
+          post_id: entry_reply_target?.post_id,
+          username: entry_reply_target?.username,
+        });
+        return;
+      }
+
       if (menu_action_id === "open_web") {
         await open_external_url(original_url);
         return;
@@ -821,8 +919,11 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     },
     [
       entry?.is_read,
+      entry_reply_target?.post_id,
+      entry_reply_target?.username,
       entry_source,
       handle_copy_link,
+      handle_reply_press,
       handle_report_blog,
       has_entry_menu,
       is_entry_bookmarked,
@@ -920,6 +1021,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             onPostHighlight={handle_post_highlight}
             onPressHighlightsPane={handle_highlights_pane_press}
             onPressPostPane={handle_post_pane_press}
+            onPressReply={handle_reply_press}
             onPressReplyProfile={handle_reply_profile_press}
             onPressRepliesPane={handle_replies_pane_press}
             onReaderActiveHighlightChange={handle_reader_active_highlight_change}
@@ -1083,6 +1185,45 @@ function does_highlight_match_identifier(highlight = null, identifier = "") {
     normalized_identifier === highlight_identifier ||
     normalized_identifier === highlight_id
   );
+}
+
+function resolve_conversation_reply_target(payload = null) {
+  const home_page_url = `${payload?.home_page_url || ""}`.trim();
+
+  if (payload?.not_found || !home_page_url.startsWith("https://micro.blog")) {
+    return null;
+  }
+
+  let url_parts = [];
+
+  try {
+    const parsed_url = new URL(home_page_url);
+
+    if (
+      parsed_url.protocol !== "https:" ||
+      parsed_url.hostname !== "micro.blog"
+    ) {
+      return null;
+    }
+
+    url_parts = `${parsed_url.pathname || ""}`.split("/").filter(Boolean);
+  } catch (error) {
+    return null;
+  }
+
+  const post_id = `${url_parts[url_parts.length - 1] || ""}`.trim();
+  const username = `${url_parts[url_parts.length - 2] || ""}`
+    .trim()
+    .replace(/^@+/, "");
+
+  if (!post_id || !username) {
+    return null;
+  }
+
+  return {
+    post_id,
+    username,
+  };
 }
 
 function resolve_report_blog_username({
