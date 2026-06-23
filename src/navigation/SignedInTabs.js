@@ -8,6 +8,7 @@ import BookmarksScreen from '../screens/BookmarksScreen';
 import FeedItemDetailScreen from '../screens/FeedItemDetailScreen';
 import FeedScreen from '../screens/FeedScreen';
 import HighlightsScreen from '../screens/HighlightsScreen';
+import ReplyComposerScreen from '../screens/ReplyComposerScreen';
 import SubscriptionFeedScreen from '../screens/SubscriptionFeedScreen';
 import SubscriptionsScreen from '../screens/SubscriptionsScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
@@ -168,6 +169,21 @@ function SignedInTabs({ isDark = false }) {
       >
         {(screen_props) => (
           <UserProfileScreen
+            {...screen_props}
+            isDark={isDark}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen
+        name="ReplyComposer"
+        options={{
+          headerBackVisible: false,
+          presentation: 'modal',
+          title: 'Reply',
+        }}
+      >
+        {(screen_props) => (
+          <ReplyComposerScreen
             {...screen_props}
             isDark={isDark}
           />

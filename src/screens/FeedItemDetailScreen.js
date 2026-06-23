@@ -12,7 +12,6 @@ import { observer } from "mobx-react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
-  create_micro_blog_reply,
   fetch_micro_blog_conversation_replies,
   report_micro_blog_user,
 } from "../api/MicroBlogFeeds";
@@ -28,7 +27,6 @@ import {
   get_entry_menu_actions,
   useFeedItemDetailScaledTextStyles,
 } from "../components/feed_item_detail/FeedItemDetailViews";
-import ReplyComposerModal from "../components/feed_item_detail/ReplyComposerModal";
 import {
   open_micro_blog_entry_post,
   open_micro_blog_highlight_post,
@@ -73,6 +71,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const detail_mode = resolve_detail_mode(route?.params?.mode);
   const entry_source = resolve_entry_source(route?.params?.entry_source);
   const entry_id = `${route?.params?.entry_id || ""}`.trim();
+  const posted_reply_at = Number(route?.params?.reply_posted_at || 0);
   const entry =
     detail_mode === "entry"
       ? resolve_detail_entry_snapshot(entry_id, entry_source)
@@ -134,13 +133,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
     React.useState(false);
   const [entry_reply_target, set_entry_reply_target] = React.useState(null);
-  const [reply_composer, set_reply_composer] = React.useState(null);
-  const [reply_text, set_reply_text] = React.useState("");
-  const [is_posting_reply, set_is_posting_reply] = React.useState(false);
   const menu_touch_overlay_timeout_ref = React.useRef(null);
   const replies_request_token_ref = React.useRef(0);
   const reader_post_ref = React.useRef(null);
-  const reply_input_ref = React.useRef(null);
   const active_reader_highlight = Highlights.entry_highlight_snapshot_by_identifier(
     resolved_entry_id,
     active_reader_highlight_id,
@@ -275,6 +270,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         }
 
         set_is_loading_replies(false);
+        navigation.setParams({
+          reply_posted_at: 0,
+        });
       }
     }
 
@@ -284,6 +282,62 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       did_cancel = true;
     };
   }, [detail_mode, entry_id, original_url]);
+
+  React.useEffect(() => {
+    if (!posted_reply_at || detail_mode !== "entry" || !original_url) {
+      return;
+    }
+
+    replies_request_token_ref.current += 1;
+    const request_token = replies_request_token_ref.current;
+    let did_cancel = false;
+
+    set_is_loading_replies(true);
+
+    async function reload_replies_after_post() {
+      try {
+        await Tokens.hydrate();
+        const user_token = Tokens.get_user_token();
+
+        if (!user_token) {
+          return;
+        }
+
+        const payload = await fetch_micro_blog_conversation_replies({
+          token: user_token,
+          post_url: original_url,
+        });
+
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
+          return;
+        }
+
+        const next_replies = normalize_conversation_replies(payload?.items);
+
+        set_replies(next_replies);
+        set_entry_reply_target(resolve_conversation_reply_target(payload));
+        set_active_pane("replies");
+      } catch (error) {
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
+          return;
+        }
+
+        console.warn("Failed to reload conversation replies", error);
+      } finally {
+        if (did_cancel || replies_request_token_ref.current !== request_token) {
+          return;
+        }
+
+        set_is_loading_replies(false);
+      }
+    }
+
+    reload_replies_after_post();
+
+    return () => {
+      did_cancel = true;
+    };
+  }, [detail_mode, navigation, original_url, posted_reply_at]);
 
   React.useEffect(() => {
     if (active_pane === "replies" && reply_count === 0) {
@@ -341,108 +395,13 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       return;
     }
 
-    set_reply_composer({
-      display_name: `${reply_payload?.display_name || ""}`.trim(),
+    navigation.navigate("ReplyComposer", {
+      initial_text: `@${username} `,
       post_id,
+      source_route_key: route?.key,
       username,
     });
-    set_reply_text(`@${username} `);
-  }, []);
-
-  const handle_reply_composer_close = React.useCallback(() => {
-    if (is_posting_reply) {
-      return;
-    }
-
-    set_reply_composer(null);
-    set_reply_text("");
-  }, [is_posting_reply]);
-
-  const handle_post_reply = React.useCallback(async () => {
-    const post_id = `${reply_composer?.post_id || ""}`.trim();
-    const content = `${reply_text || ""}`;
-
-    if (is_posting_reply || !post_id || !content.trim()) {
-      return;
-    }
-
-    set_is_posting_reply(true);
-
-    try {
-      await Tokens.hydrate();
-      const user_token = Tokens.get_user_token();
-
-      if (!user_token) {
-        AppStore.show_toast(
-          "Your Micro.blog session expired. Please sign in again.",
-          {
-            top_offset: toast_top_offset,
-          },
-        );
-        return;
-      }
-
-      await create_micro_blog_reply({
-        token: user_token,
-        post_id,
-        content,
-      });
-
-      set_reply_composer(null);
-      set_reply_text("");
-      AppStore.show_toast("Reply posted", {
-        top_offset: toast_top_offset,
-      });
-
-      if (!original_url) {
-        return;
-      }
-
-      replies_request_token_ref.current += 1;
-      const request_token = replies_request_token_ref.current;
-
-      set_is_loading_replies(true);
-
-      try {
-        const payload = await fetch_micro_blog_conversation_replies({
-          token: user_token,
-          post_url: original_url,
-        });
-
-        if (replies_request_token_ref.current === request_token) {
-          const next_replies = normalize_conversation_replies(payload?.items);
-
-          set_replies(next_replies);
-          set_entry_reply_target(resolve_conversation_reply_target(payload));
-          set_active_pane("replies");
-        }
-      } catch (error) {
-        console.warn("Failed to reload conversation replies", error);
-      } finally {
-        if (replies_request_token_ref.current === request_token) {
-          set_is_loading_replies(false);
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to post reply", error);
-      AppStore.show_toast(
-        error?.status === 401 || error?.status === 403
-          ? "Your Micro.blog session expired. Please sign in again."
-          : "We could not post that reply.",
-        {
-          top_offset: toast_top_offset,
-        },
-      );
-    } finally {
-      set_is_posting_reply(false);
-    }
-  }, [
-    is_posting_reply,
-    original_url,
-    reply_composer?.post_id,
-    reply_text,
-    toast_top_offset,
-  ]);
+  }, [navigation, route?.key]);
 
   const handle_feed_avatar_press = React.useCallback(() => {
     if (!entry_feed_id) {
@@ -1175,20 +1134,6 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         safe_area_top={insets.top}
         theme={theme}
         visible={is_reader_image_viewer_visible}
-      />
-
-      <ReplyComposerModal
-        input_ref={reply_input_ref}
-        is_posting={is_posting_reply}
-        onChangeText={set_reply_text}
-        onPost={handle_post_reply}
-        onRequestClose={handle_reply_composer_close}
-        reply_key={reply_composer?.post_id}
-        safe_area_bottom={insets.bottom}
-        safe_area_top={insets.top}
-        theme={theme}
-        value={reply_text}
-        visible={Boolean(reply_composer)}
       />
 
       {is_menu_touch_overlay_active ? (
