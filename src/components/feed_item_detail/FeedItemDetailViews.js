@@ -1443,7 +1443,7 @@ function get_entry_menu_actions({
         ios: "square.and.pencil",
       }),
       imageColor: icon_color,
-      title: "New Post...",
+      title: "New Post",
     });
   }
 
@@ -1454,7 +1454,7 @@ function get_entry_menu_actions({
         ios: "arrowshape.turn.up.left",
       }),
       imageColor: icon_color,
-      title: "Reply...",
+      title: "Reply",
     });
   }
 
