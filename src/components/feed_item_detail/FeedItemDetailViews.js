@@ -1422,6 +1422,7 @@ function get_entry_menu_actions({
   entry_source = "feed",
   is_bookmarked = false,
   original_url = "",
+  reply_target = null,
   theme,
 }) {
   if (!entry) {
@@ -1432,6 +1433,7 @@ function get_entry_menu_actions({
   const bookmark_title =
     entry_source === "bookmark" || is_bookmarked ? "Unbookmark" : "Bookmark";
   const read_title = entry?.is_read ? "Mark as Unread" : "Mark as Read";
+  const reply_post_id = `${reply_target?.post_id || ""}`.trim();
   const actions = [];
 
   if (original_url) {
@@ -1442,6 +1444,17 @@ function get_entry_menu_actions({
       }),
       imageColor: icon_color,
       title: "New Post...",
+    });
+  }
+
+  if (reply_post_id) {
+    actions.push({
+      id: "reply",
+      image: Platform.select({
+        ios: "arrowshape.turn.up.left",
+      }),
+      imageColor: icon_color,
+      title: "Reply...",
     });
   }
 
