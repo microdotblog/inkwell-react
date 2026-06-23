@@ -401,7 +401,12 @@ function AccountScreenContent({
 
         {APP_VERSION_LABEL ? (
           <View style={styles.versionFooter}>
-            <Text style={styles.versionText}>
+            <Text
+              style={[
+                styles.versionText,
+                { color: is_dark ? '#ffffff' : '#000000' },
+              ]}
+            >
               {APP_VERSION_LABEL}
             </Text>
           </View>
@@ -680,7 +685,6 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   versionText: {
-    color: '#000000',
     fontSize: 12,
     fontWeight: '500',
     lineHeight: 16,
