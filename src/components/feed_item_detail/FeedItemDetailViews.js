@@ -13,7 +13,9 @@ import Slider from "@react-native-community/slider";
 import { MenuView } from "@react-native-menu/menu";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import * as WebBrowser from "expo-web-browser";
 import { observer } from "mobx-react";
+import { SFSymbol } from "react-native-sfsymbols";
 import { WebView } from "react-native-webview";
 import Animated, {
   FadeInDown,
@@ -85,6 +87,24 @@ import { resolve_reader_image_viewer_payload } from "./readerImagePayload";
 
 const READER_PANE_TABS_ENTERING = FadeInDown.duration(220);
 
+async function open_in_app_browser_url(raw_url = "", theme = null) {
+  const normalized_url = normalize_http_url(raw_url);
+
+  if (!normalized_url) {
+    return;
+  }
+
+  try {
+    await WebBrowser.openBrowserAsync(normalized_url, {
+      controlsColor: theme?.colors?.accent,
+      dismissButtonStyle: "close",
+    });
+  } catch (error) {
+    console.warn("Failed to open reader link", error);
+    AppStore.show_toast("We could not open this link.");
+  }
+}
+
 export function useFeedItemDetailScaledTextStyles() {
   return React.useMemo(() => {
     return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
@@ -133,6 +153,12 @@ const EntryReaderView = observer(function EntryReaderView({
   const reply_count = replies.length;
   const highlight_count = entry_highlights.length;
   const should_show_pane_tabs = reply_count > 0 || highlight_count > 0;
+  const handle_open_original_url_in_app = React.useCallback(() => {
+    open_in_app_browser_url(original_url, theme);
+  }, [original_url, theme]);
+  const handle_open_original_url_in_system_browser = React.useCallback(() => {
+    open_external_url(original_url);
+  }, [original_url]);
 
   React.useEffect(() => {
     if (resolved_entry_id) {
@@ -205,10 +231,11 @@ const EntryReaderView = observer(function EntryReaderView({
                 {formatted_date ? (
                   <MetaLink
                     color={theme.colors.inkSoft}
+                    ios_icon_name="safari"
                     label={formatted_date}
                     onPress={
                       original_url
-                        ? () => open_external_url(original_url)
+                        ? handle_open_original_url_in_system_browser
                         : null
                     }
                     style={[styles.dateLabel, scaled_text_styles.dateLabel]}
@@ -221,16 +248,40 @@ const EntryReaderView = observer(function EntryReaderView({
 
         {should_show_reader_title ? (
           <View style={styles.titleWrap}>
-            <Text
-              style={[
-                styles.title,
-                { color: theme.colors.ink },
-                title_font_size ? { fontSize: title_font_size } : null,
-                title_line_height ? { lineHeight: title_line_height } : null,
-              ]}
-            >
-              {reader_title}
-            </Text>
+            {original_url ? (
+              <Pressable
+                accessibilityLabel={`Open ${reader_title}`}
+                accessibilityRole="link"
+                hitSlop={4}
+                onPress={handle_open_original_url_in_app}
+                style={({ pressed }) => [
+                  styles.titleLink,
+                  pressed ? styles.pressedMetaLink : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.title,
+                    { color: theme.colors.ink },
+                    title_font_size ? { fontSize: title_font_size } : null,
+                    title_line_height ? { lineHeight: title_line_height } : null,
+                  ]}
+                >
+                  {reader_title}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text
+                style={[
+                  styles.title,
+                  { color: theme.colors.ink },
+                  title_font_size ? { fontSize: title_font_size } : null,
+                  title_line_height ? { lineHeight: title_line_height } : null,
+                ]}
+              >
+                {reader_title}
+              </Text>
+            )}
             {author_label ? (
               <Text
                 style={[
@@ -1756,17 +1807,40 @@ function HeaderEntryMenuButton({
   );
 }
 
-function MetaLink({ color, label, onPress, style }) {
+function MetaLink({ color, ios_icon_name = "", label, onPress, style }) {
   if (!label) {
     return null;
   }
 
+  const icon =
+    Platform.OS === "ios" && ios_icon_name ? (
+      <SFSymbol
+        color={color}
+        multicolor={false}
+        name={ios_icon_name}
+        style={styles.metaLinkSymbol}
+      />
+    ) : null;
+  const content = icon ? (
+    <View style={styles.metaLinkContent}>
+      <Text style={[style, { color }]}>{label}</Text>
+      {icon}
+    </View>
+  ) : (
+    <Text style={[style, { color }]}>{label}</Text>
+  );
+
   if (!onPress) {
-    return <Text style={[style, { color }]}>{label}</Text>;
+    return content;
   } else {
     return (
-      <Pressable accessibilityRole="link" hitSlop={6} onPress={onPress}>
-        <Text style={[style, { color }]}>{label}</Text>
+      <Pressable
+        accessibilityRole="link"
+        hitSlop={6}
+        onPress={onPress}
+        style={({ pressed }) => (pressed ? styles.pressedMetaLink : null)}
+      >
+        {content}
       </Pressable>
     );
   }
@@ -2028,10 +2102,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  metaLinkContent: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  metaLinkSymbol: {
+    height: 16,
+    width: 16,
+  },
+  pressedMetaLink: {
+    opacity: 0.72,
+  },
   title: {
     // fontFamily: "Newsreader_600SemiBold",
     fontSize: READER_TITLE_FONT_SIZE,
     lineHeight: READER_TITLE_LINE_HEIGHT,
+  },
+  titleLink: {
+    alignSelf: "flex-start",
+    maxWidth: "100%",
   },
   authorLabel: {
     fontSize: 15,
