@@ -390,7 +390,6 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
       set_reply_composer(null);
       set_reply_text("");
-      set_active_pane("replies");
       AppStore.show_toast("Reply posted", {
         top_offset: toast_top_offset,
       });
@@ -411,8 +410,11 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         });
 
         if (replies_request_token_ref.current === request_token) {
-          set_replies(normalize_conversation_replies(payload?.items));
+          const next_replies = normalize_conversation_replies(payload?.items);
+
+          set_replies(next_replies);
           set_entry_reply_target(resolve_conversation_reply_target(payload));
+          set_active_pane("replies");
         }
       } catch (error) {
         console.warn("Failed to reload conversation replies", error);
