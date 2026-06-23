@@ -49,7 +49,6 @@ import {
   READER_PANE_CONTROL_INSET,
   READER_PANE_CONTROL_RADIUS,
   READER_PANE_LAYOUT_TRANSITION,
-  READER_REPLY_CONTENT_WIDTH_OFFSET,
   READER_TEXT_SIZE_TRAY_BOTTOM_GAP,
   READER_TEXT_SIZE_TRAY_RADIUS,
   READER_TEXT_SIZE_TRAY_SHADOW_HEIGHT,
@@ -59,30 +58,25 @@ import {
   READER_TITLE_TOP_MARGIN,
   READER_WEBVIEW_CONTENT_MAX_WIDTH,
   READER_WEBVIEW_MIN_HEIGHT,
-  REPLY_AVATAR_SIZE,
   TEXT_STYLE_NAMES,
   create_reader_body_html,
   create_reader_image_viewer_document_html,
   create_reader_post_document_html,
-  create_reply_document_html,
   format_reader_date,
-  format_reply_date,
   get_highlight_count_label,
-  get_reply_author_name,
   get_reply_count_label,
   get_source_avatar_initial,
   normalize_http_url,
   open_external_url,
   resolve_host_label,
-  resolve_reply_key,
   resolve_reader_text_metrics,
   resolve_reader_text_size_backdrop_color,
   resolve_reader_title,
-  resolve_reply_html,
   sanitize_reader_html,
   with_color_opacity,
 } from "./feedItemDetailUtils";
 import { RecapReaderView } from "./ReadingRecapView";
+import RepliesListView from "./RepliesListView";
 import { resolve_reader_image_viewer_payload } from "./readerImagePayload";
 
 const READER_PANE_TABS_ENTERING = FadeInDown.duration(220);
@@ -556,33 +550,6 @@ function ReaderPaneButton({
   );
 }
 
-function RepliesListView({
-  onPressProfile,
-  onPressReply,
-  replies = [],
-  scaled_text_styles,
-  theme,
-  width = 0,
-}) {
-  return (
-    <View style={styles.repliesList}>
-      {replies.map((reply, index) => {
-        return (
-          <ReplyRow
-            key={resolve_reply_key(reply, index)}
-            onPressProfile={onPressProfile}
-            onPressReply={onPressReply}
-            reply={reply}
-            scaled_text_styles={scaled_text_styles}
-            theme={theme}
-            width={width}
-          />
-        );
-      })}
-    </View>
-  );
-}
-
 function HighlightsListView({
   deleting_highlight_id = "",
   highlights = [],
@@ -607,285 +574,6 @@ function HighlightsListView({
           />
         );
       })}
-    </View>
-  );
-}
-
-function ReplyRow({
-  onPressProfile,
-  onPressReply,
-  reply,
-  scaled_text_styles,
-  theme,
-  width = 0,
-}) {
-  const author_name = get_reply_author_name(reply);
-  const author_url = normalize_http_url(reply?.author?.url);
-  const profile_username = resolve_reply_profile_username(reply);
-  const formatted_date = format_reply_date(reply?.date_published);
-  const reply_html = resolve_reply_html(reply);
-  const can_open_profile = Boolean(profile_username && onPressProfile);
-  const can_reply = Boolean(profile_username && onPressReply);
-  const reply_post_id = `${reply?.id || ""}`.trim();
-  const should_show_footer = Boolean(formatted_date || can_reply);
-  const avatar = (
-    <FeedDetailAvatar
-      avatar_url={reply?.author?.avatar}
-      size={REPLY_AVATAR_SIZE}
-      source={author_name}
-      theme={theme}
-    />
-  );
-
-  return (
-    <View style={styles.replyRow}>
-      {can_open_profile ? (
-        <Pressable
-          accessibilityLabel={`Open @${profile_username} profile`}
-          accessibilityRole="button"
-          hitSlop={6}
-          onPress={() => {
-            onPressProfile?.({
-              avatar_url: `${reply?.author?.avatar || ""}`.trim(),
-              display_name: author_name,
-              profile_url: author_url,
-              username: profile_username,
-            });
-          }}
-          style={({ pressed }) => {
-            return {
-              opacity: pressed ? 0.78 : 1,
-            };
-          }}
-        >
-          {avatar}
-        </Pressable>
-      ) : (
-        avatar
-      )}
-      <View style={styles.replyBody}>
-        <MetaLink
-          color={theme.colors.ink}
-          label={author_name}
-          onPress={author_url ? () => open_external_url(author_url) : null}
-          style={[styles.replyAuthor, scaled_text_styles.replyAuthor]}
-        />
-        {reply_html ? (
-          <ReplyHtml html={reply_html} theme={theme} width={width} />
-        ) : null}
-        {should_show_footer ? (
-          <View style={styles.replyFooterRow}>
-            {formatted_date ? (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.replyDate,
-                  scaled_text_styles.replyDate,
-                  { color: theme.colors.inkSoft },
-                ]}
-              >
-                {formatted_date}
-              </Text>
-            ) : (
-              <View />
-            )}
-            {can_reply ? (
-              <Pressable
-                accessibilityLabel={`Reply to @${profile_username}`}
-                accessibilityRole="button"
-                disabled={!reply_post_id}
-                hitSlop={6}
-                onPress={() => {
-                  onPressReply?.({
-                    display_name: author_name,
-                    post_id: reply_post_id,
-                    username: profile_username,
-                  });
-                }}
-                style={({ pressed }) => {
-                  return [
-                    styles.replyButton,
-                    {
-                      backgroundColor: theme.colors.buttonGhost,
-                      borderColor: theme.colors.line,
-                      opacity: !reply_post_id ? 0.5 : pressed ? 0.78 : 1,
-                    },
-                  ];
-                }}
-              >
-                <Text
-                  style={[
-                    styles.replyButtonLabel,
-                    { color: theme.colors.accentStrong },
-                  ]}
-                >
-                  Reply
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function resolve_reply_profile_username(reply = null) {
-  const micro_blog_username = `${reply?.author?._microblog?.username || ""}`
-    .trim()
-    .replace(/^@+/, "");
-
-  if (micro_blog_username) {
-    return micro_blog_username;
-  }
-
-  const author_url = normalize_http_url(reply?.author?.url);
-
-  if (!author_url) {
-    return "";
-  }
-
-  try {
-    const parsed_url = new URL(author_url);
-    const hostname = `${parsed_url.hostname || ""}`.toLowerCase();
-
-    if (hostname !== "micro.blog" && hostname !== "www.micro.blog") {
-      return "";
-    }
-
-    const username = `${parsed_url.pathname || ""}`
-      .split("/")
-      .filter(Boolean)[0];
-
-    return `${username || ""}`.replace(/^@+/, "");
-  } catch {
-    return "";
-  }
-}
-
-function ReplyHtml({ html = "", theme, width = 0 }) {
-  const [content_height, set_content_height] = React.useState(
-    READER_WEBVIEW_MIN_HEIGHT,
-  );
-  const content_width = Math.max(
-    Math.min(
-      width - READER_HORIZONTAL_PADDING * 2 - READER_REPLY_CONTENT_WIDTH_OFFSET,
-      READER_COLUMN_MAX_WIDTH,
-    ),
-    0,
-  );
-  const resolved_base_url = "https://example.com/";
-  const document_html = React.useMemo(() => {
-    return create_reply_document_html({
-      base_url: resolved_base_url,
-      content_max_width: Math.max(
-        Math.min(content_width, READER_WEBVIEW_CONTENT_MAX_WIDTH),
-        0,
-      ),
-      html,
-      theme,
-    });
-  }, [
-    content_width,
-    html,
-    resolved_base_url,
-    theme.colors.accentStrong,
-    theme.colors.badge,
-    theme.colors.inkSoft,
-    theme.colors.line,
-  ]);
-  const webview_source = React.useMemo(() => {
-    return {
-      baseUrl: resolved_base_url,
-      html: document_html,
-    };
-  }, [document_html, resolved_base_url]);
-
-  React.useEffect(() => {
-    set_content_height(READER_WEBVIEW_MIN_HEIGHT);
-  }, [document_html]);
-
-  const handle_message = React.useCallback((event) => {
-    const raw_data = `${event?.nativeEvent?.data || ""}`.trim();
-
-    if (!raw_data) {
-      return;
-    }
-
-    try {
-      const payload = JSON.parse(raw_data);
-
-      if (payload?.type === "height") {
-        const next_height = Number(payload?.value);
-
-        if (Number.isFinite(next_height)) {
-          set_content_height(Math.max(Math.ceil(next_height), 1));
-        }
-        return;
-      }
-
-      if (payload?.type === "link") {
-        open_external_url(payload?.href);
-        return;
-      }
-
-      if (payload?.type === "image") {
-        open_external_url(payload?.image_url || payload?.image_src);
-      }
-    } catch {
-      // Ignore malformed bridge events from the embedded document.
-    }
-  }, []);
-
-  const handle_should_start = React.useCallback((request) => {
-    const request_url = `${request?.url || ""}`.trim();
-    const navigation_type = `${request?.navigationType || ""}`
-      .trim()
-      .toLowerCase();
-
-    if (
-      !request_url ||
-      request_url.startsWith("about:") ||
-      request_url.startsWith("data:text/html") ||
-      request_url === resolved_base_url ||
-      (navigation_type && navigation_type !== "click")
-    ) {
-      return true;
-    }
-
-    const normalized_url = normalize_http_url(request_url, {
-      base_url: resolved_base_url,
-    });
-
-    if (!normalized_url) {
-      return false;
-    }
-
-    open_external_url(normalized_url);
-    return false;
-  }, []);
-
-  return (
-    <View style={styles.replyWebViewFrame}>
-      <WebView
-        androidLayerType="hardware"
-        automaticallyAdjustContentInsets={false}
-        bounces={false}
-        javaScriptEnabled
-        onMessage={handle_message}
-        onShouldStartLoadWithRequest={handle_should_start}
-        originWhitelist={["*"]}
-        scrollEnabled={false}
-        setSupportMultipleWindows={false}
-        showsVerticalScrollIndicator={false}
-        source={webview_source}
-        style={[
-          styles.replyWebView,
-          {
-            height: content_height,
-          },
-        ]}
-      />
     </View>
   );
 }
@@ -2238,28 +1926,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 16,
   },
-  repliesList: {
-    gap: 18,
-  },
   highlightsList: {
     gap: 16,
-  },
-  replyRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 12,
-  },
-  replyBody: {
-    flex: 1,
-    gap: 6,
-    minWidth: 0,
-  },
-  replyWebViewFrame: {
-    width: "100%",
-  },
-  replyWebView: {
-    backgroundColor: "transparent",
-    width: "100%",
   },
   replyAuthor: {
     fontSize: 14,
@@ -2270,26 +1938,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     lineHeight: 18,
-  },
-  replyFooterRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  replyButton: {
-    alignItems: "center",
-    borderRadius: 999,
-    borderWidth: 1,
-    justifyContent: "center",
-    minHeight: 30,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  replyButtonLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 16,
   },
   recapSettingsCard: {
     borderRadius: 22,
