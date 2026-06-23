@@ -12,6 +12,11 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
+import { with_color_opacity } from "./feedItemDetailUtils";
+
+const REPLY_MODAL_NAV_BUTTON_HEIGHT = 40;
+const REPLY_MODAL_NAV_BUTTON_RADIUS = REPLY_MODAL_NAV_BUTTON_HEIGHT / 2;
+
 function ReplyComposerModal({
   input_ref,
   is_posting = false,
@@ -27,6 +32,14 @@ function ReplyComposerModal({
 }) {
   const [initial_selection, set_initial_selection] = React.useState(null);
   const can_post = `${value || ""}`.trim().length > 0 && !is_posting;
+  const nav_button_background_color = with_color_opacity(
+    theme?.colors?.canvas || "#ffffff",
+    theme?.isDark ? 0.18 : 0.82,
+  );
+  const nav_button_border_color = with_color_opacity(
+    theme?.colors?.line || "#d2d2d7",
+    theme?.isDark ? 0.34 : 0.76,
+  );
 
   React.useEffect(() => {
     if (!visible) {
@@ -71,7 +84,6 @@ function ReplyComposerModal({
           style={[
             styles.replyModalHeader,
             {
-              borderBottomColor: theme.colors.line,
               paddingTop: safe_area_top + 8,
             },
           ]}
@@ -87,6 +99,8 @@ function ReplyComposerModal({
                 styles.replyModalHeaderButton,
                 styles.replyModalCloseButton,
                 {
+                  backgroundColor: nav_button_background_color,
+                  borderColor: nav_button_border_color,
                   opacity: is_posting ? 0.5 : pressed ? 0.72 : 1,
                 },
               ];
@@ -95,7 +109,7 @@ function ReplyComposerModal({
             <MaterialIcons
               color={theme.colors.ink}
               name="close"
-              size={24}
+              size={20}
             />
           </Pressable>
 
@@ -120,6 +134,8 @@ function ReplyComposerModal({
                 styles.replyModalHeaderButton,
                 styles.replyModalPostButton,
                 {
+                  backgroundColor: nav_button_background_color,
+                  borderColor: nav_button_border_color,
                   opacity: !can_post ? 0.5 : pressed ? 0.72 : 1,
                 },
               ];
@@ -191,26 +207,32 @@ const styles = StyleSheet.create({
   },
   replyModalHeader: {
     alignItems: "center",
-    borderBottomWidth: 1,
     flexDirection: "row",
-    minHeight: 58,
+    justifyContent: "space-between",
+    minHeight: 56,
     paddingBottom: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 18,
+    position: "relative",
   },
   replyModalHeaderButton: {
     alignItems: "center",
-    height: 44,
+    borderRadius: REPLY_MODAL_NAV_BUTTON_RADIUS,
+    borderWidth: 1,
+    height: REPLY_MODAL_NAV_BUTTON_HEIGHT,
     justifyContent: "center",
-    minWidth: 60,
+    zIndex: 1,
   },
   replyModalCloseButton: {
-    alignItems: "flex-start",
+    width: REPLY_MODAL_NAV_BUTTON_HEIGHT,
   },
   replyModalPostButton: {
-    alignItems: "flex-end",
+    minWidth: 64,
+    paddingHorizontal: 16,
   },
   replyModalTitle: {
-    flex: 1,
+    left: 84,
+    position: "absolute",
+    right: 84,
     fontSize: 17,
     fontWeight: "700",
     lineHeight: 22,
