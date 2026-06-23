@@ -2011,7 +2011,7 @@ function get_empty_state_body(
   } else if (active_segment === 'fading') {
     return 'Older unread entries from the last week will collect here automatically.';
   } else {
-    return 'Fresh posts published today will show up here as soon as your feeds update.';
+    return 'New posts published today will show up here as soon as your feeds update.';
   }
 }
 

@@ -22,6 +22,11 @@ import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { RectButton } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SFSymbol } from 'react-native-sfsymbols';
+import Animated, {
+  FadeInDown,
+  FadeOutUp,
+  LinearTransition,
+} from 'react-native-reanimated';
 
 import AuthBackground from '../components/auth/AuthBackground';
 import AuthCard from '../components/auth/AuthCard';
@@ -37,6 +42,9 @@ const SCREEN_HORIZONTAL_PADDING = 16;
 const LIST_TOP_PADDING = 0;
 const LIST_BOTTOM_PADDING = 28;
 const COPIED_FEEDBACK_DURATION_MS = 1600;
+const SEARCH_LAYOUT_TRANSITION = LinearTransition.duration(220);
+const SEARCH_ENTERING = FadeInDown.duration(220);
+const SEARCH_EXITING = FadeOutUp.duration(160);
 const TEXT_STYLE_NAMES = [
   'searchInput',
   'stateTitle',
@@ -433,13 +441,19 @@ function HighlightsHeader({
   return (
     <View style={styles.headerContent}>
       {is_search_open ? (
-        <SearchField
-          autoFocus={true}
-          onChangeText={onChangeSearch}
-          scaled_text_styles={scaled_text_styles}
-          theme={theme}
-          value={search_query}
-        />
+        <Animated.View
+          entering={SEARCH_ENTERING}
+          exiting={SEARCH_EXITING}
+          layout={SEARCH_LAYOUT_TRANSITION}
+        >
+          <SearchField
+            autoFocus={true}
+            onChangeText={onChangeSearch}
+            scaled_text_styles={scaled_text_styles}
+            theme={theme}
+            value={search_query}
+          />
+        </Animated.View>
       ) : null}
     </View>
   );
