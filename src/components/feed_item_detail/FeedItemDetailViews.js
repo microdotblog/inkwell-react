@@ -119,6 +119,7 @@ const EntryReaderView = observer(function EntryReaderView({
   onDeleteHighlight,
   onPostHighlight,
   onPressFeedAvatar,
+  onPressReply,
   onPressReplyProfile,
   onReaderActiveHighlightChange,
   onReaderImagePress,
@@ -320,6 +321,7 @@ const EntryReaderView = observer(function EntryReaderView({
         {active_pane === "replies" ? (
           <RepliesListView
             onPressProfile={onPressReplyProfile}
+            onPressReply={onPressReply}
             replies={replies}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
@@ -556,6 +558,7 @@ function ReaderPaneButton({
 
 function RepliesListView({
   onPressProfile,
+  onPressReply,
   replies = [],
   scaled_text_styles,
   theme,
@@ -568,6 +571,7 @@ function RepliesListView({
           <ReplyRow
             key={resolve_reply_key(reply, index)}
             onPressProfile={onPressProfile}
+            onPressReply={onPressReply}
             reply={reply}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
@@ -609,6 +613,7 @@ function HighlightsListView({
 
 function ReplyRow({
   onPressProfile,
+  onPressReply,
   reply,
   scaled_text_styles,
   theme,
@@ -620,6 +625,9 @@ function ReplyRow({
   const formatted_date = format_reply_date(reply?.date_published);
   const reply_html = resolve_reply_html(reply);
   const can_open_profile = Boolean(profile_username && onPressProfile);
+  const can_reply = Boolean(profile_username && onPressReply);
+  const reply_post_id = `${reply?.id || ""}`.trim();
+  const should_show_footer = Boolean(formatted_date || can_reply);
   const avatar = (
     <FeedDetailAvatar
       avatar_url={reply?.author?.avatar}
@@ -665,16 +673,57 @@ function ReplyRow({
         {reply_html ? (
           <ReplyHtml html={reply_html} theme={theme} width={width} />
         ) : null}
-        {formatted_date ? (
-          <Text
-            style={[
-              styles.replyDate,
-              scaled_text_styles.replyDate,
-              { color: theme.colors.inkSoft },
-            ]}
-          >
-            {formatted_date}
-          </Text>
+        {should_show_footer ? (
+          <View style={styles.replyFooterRow}>
+            {formatted_date ? (
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.replyDate,
+                  scaled_text_styles.replyDate,
+                  { color: theme.colors.inkSoft },
+                ]}
+              >
+                {formatted_date}
+              </Text>
+            ) : (
+              <View />
+            )}
+            {can_reply ? (
+              <Pressable
+                accessibilityLabel={`Reply to @${profile_username}`}
+                accessibilityRole="button"
+                disabled={!reply_post_id}
+                hitSlop={6}
+                onPress={() => {
+                  onPressReply?.({
+                    display_name: author_name,
+                    post_id: reply_post_id,
+                    username: profile_username,
+                  });
+                }}
+                style={({ pressed }) => {
+                  return [
+                    styles.replyButton,
+                    {
+                      backgroundColor: theme.colors.buttonGhost,
+                      borderColor: theme.colors.line,
+                      opacity: !reply_post_id ? 0.5 : pressed ? 0.78 : 1,
+                    },
+                  ];
+                }}
+              >
+                <Text
+                  style={[
+                    styles.replyButtonLabel,
+                    { color: theme.colors.accentStrong },
+                  ]}
+                >
+                  Reply
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </View>
     </View>
@@ -2218,8 +2267,29 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   replyDate: {
+    flex: 1,
     fontSize: 12,
     lineHeight: 18,
+  },
+  replyFooterRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  replyButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 30,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  replyButtonLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 16,
   },
   recapSettingsCard: {
     borderRadius: 22,

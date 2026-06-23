@@ -508,6 +508,55 @@ export async function fetch_micro_blog_conversation_replies({
   }
 }
 
+export async function create_micro_blog_reply({
+  token = '',
+  post_id = '',
+  content = '',
+} = {}) {
+  const trimmed_token = `${token || ''}`.trim();
+  const normalized_post_id = `${post_id || ''}`.trim() || '0';
+  const content_string = `${content || ''}`;
+
+  if (!content_string.length) {
+    throw create_request_error('Reply content is required.');
+  }
+
+  const url = new URL('/posts/reply', `${MICRO_BLOG_FEEDS_BASE_URL}/`);
+  const headers = new Headers({
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Accept: 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  });
+  const body = new URLSearchParams({
+    id: normalized_post_id,
+    content: content_string,
+  });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: body.toString(),
+  });
+  const response_text = await response.text();
+
+  if (!response.ok) {
+    throw create_request_error(
+      'Micro.blog reply request failed.',
+      response.status,
+      response_text,
+    );
+  }
+
+  if (!response_text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(response_text);
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function fetch_micro_blog_user_profile({
   username = '',
 } = {}) {
