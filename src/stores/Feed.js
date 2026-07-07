@@ -76,7 +76,7 @@ const HIDE_READ_POSTS_SETTINGS_KEY = 'HideReadPosts';
 const FEED_TIMELINE_CACHE_DIRECTORY_NAME = 'inkwell';
 const FEED_TIMELINE_CACHE_FILENAME_PREFIX = 'RecentEntries';
 const FEED_ICONS_CACHE_FILENAME = 'Icons.json';
-const FEED_TIMELINE_CACHE_VERSION = 1;
+const FEED_TIMELINE_CACHE_VERSION = 2;
 const FEED_TIMELINE_CACHE_WRITE_DELAY_MS = 240;
 const FEED_ICONS_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -2979,21 +2979,55 @@ function get_subscription_host(subscription = null) {
 
 function resolve_published_at(entry = null) {
   const normalized_published_at = normalize_string(entry?.published_at);
+  const created_at = normalize_string(entry?.created_at);
+
   if (normalized_published_at) {
-    return normalized_published_at;
+    return resolve_effective_timeline_date(
+      normalized_published_at,
+      created_at,
+    );
   }
 
   const published_at = normalize_string(entry?.published);
   if (published_at) {
-    return published_at;
-  }
-
-  const created_at = normalize_string(entry?.created_at);
-  if (created_at) {
+    return resolve_effective_timeline_date(published_at, created_at);
+  } else if (created_at) {
     return created_at;
   }
 
   return new Date().toISOString();
+}
+
+function resolve_effective_timeline_date(
+  published_at = '',
+  created_at = '',
+) {
+  if (created_at && is_future_timeline_day(published_at)) {
+    return created_at;
+  } else {
+    return published_at;
+  }
+}
+
+function is_future_timeline_day(raw_date = '') {
+  const date = new Date(raw_date);
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  const now = new Date();
+  const today_midnight = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const entry_midnight = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  );
+
+  return entry_midnight.getTime() > today_midnight.getTime();
 }
 
 function resolve_entry_read_state(
