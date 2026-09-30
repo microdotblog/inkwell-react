@@ -2200,6 +2200,10 @@ function normalize_timeline_cache_payload(timeline_cache_payload = null) {
     typeof timeline_cache_payload !== 'object'
   ) {
     return null;
+  } else if (Number(payload?.version || 0) === 1) {
+    // V1 snapshots lack the original created_at needed to fix future dates.
+    // Discard those entries, but keep local actions so bootstrap can retry them.
+    entries = [];
   } else if (Number(payload?.version || 0) !== FEED_TIMELINE_CACHE_VERSION) {
     return null;
   } else if (Array.isArray(payload?.entries)) {
