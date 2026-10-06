@@ -434,11 +434,7 @@ export async function delete_micro_blog_highlight({
   }
 }
 
-export async function fetch_micro_blog_conversation_replies({
-  token = '',
-  post_url = '',
-} = {}) {
-  const trimmed_token = `${token || ''}`.trim();
+export async function fetch_micro_blog_conversation_replies({ post_url = '' } = {}) {
   const trimmed_post_url = `${post_url || ''}`.trim();
 
   if (!trimmed_post_url) {
@@ -459,7 +455,6 @@ export async function fetch_micro_blog_conversation_replies({
   );
   const headers = new Headers({
     Accept: 'application/json',
-    Authorization: `Bearer ${trimmed_token}`,
   });
   const response = await fetch(url, {
     method: 'GET',

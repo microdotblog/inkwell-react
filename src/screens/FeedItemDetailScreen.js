@@ -238,15 +238,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
     async function load_replies() {
       try {
-        await Tokens.hydrate();
-        const user_token = Tokens.get_user_token();
-
-        if (!user_token) {
-          return;
-        }
-
         const payload = await fetch_micro_blog_conversation_replies({
-          token: user_token,
           post_url: original_url,
         });
 
@@ -296,15 +288,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
 
     async function reload_replies_after_post() {
       try {
-        await Tokens.hydrate();
-        const user_token = Tokens.get_user_token();
-
-        if (!user_token) {
-          return;
-        }
-
         const payload = await fetch_micro_blog_conversation_replies({
-          token: user_token,
           post_url: original_url,
         });
 
