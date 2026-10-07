@@ -3,15 +3,14 @@ const MICRO_BLOG_WEB_POST_BASE_URL = 'https://micro.blog/post?text=';
 
 export function build_highlight_post_markdown(highlight = null, fallback = {}) {
   const highlight_text = normalize_string(highlight?.text);
-  const post_link_markdown = build_micro_blog_post_link_markdown(
-    highlight,
-    fallback,
-  );
 
-  if (!highlight_text || !post_link_markdown) {
+  if (!highlight_text) {
     return '';
   }
 
+  const post_link_markdown =
+    build_micro_blog_post_link_markdown(highlight, fallback) ||
+    resolve_micro_blog_post_title(highlight, fallback);
   const quoted_text = format_highlight_quote_markdown(highlight_text);
 
   if (!quoted_text) {
