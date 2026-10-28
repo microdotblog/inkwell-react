@@ -52,5 +52,8 @@
   "devDependencies": {
     "babel-preset-expo": "~57.0.0"
   },
-  "private": true
+  "private": true,
+  "patchedDependencies": {
+    "@react-native-menu/menu@2.0.0": "patches/@react-native-menu%2Fmenu@2.0.0.patch"
+  }
 }

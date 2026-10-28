@@ -1,0 +1,149 @@
+diff --git a/android/src/main/java/com/reactnativemenu/MenuView.kt b/android/src/main/java/com/reactnativemenu/MenuView.kt
+index c45f5cc8ee16db610686fe5b6bef9f3372c6944b..bcb4c71c04423942eb91ed9fa67a7a3d2112b1e0 100644
+--- a/android/src/main/java/com/reactnativemenu/MenuView.kt
++++ b/android/src/main/java/com/reactnativemenu/MenuView.kt
+@@ -9,7 +9,8 @@ import android.text.Spannable
+ import android.text.SpannableStringBuilder
+ import android.text.style.ForegroundColorSpan
+ import android.view.*
+-import android.widget.PopupMenu
++import androidx.appcompat.widget.PopupMenu
++import androidx.core.view.MenuCompat
+ import com.facebook.react.bridge.*
+ import com.facebook.react.uimanager.UIManagerHelper
+ import com.facebook.react.views.view.ReactViewGroup
+@@ -142,13 +143,7 @@ class MenuView(private val mContext: ReactContext) : ReactViewGroup(mContext) {
+       }
+       menuItem.isEnabled = !disabled
+       if (!menuItem.isEnabled) {
+-        val disabledColor = 0x77888888
+-        menuItem.title = getMenuItemTextWithColor(menuItem.title.toString(), disabledColor)
+-        if (imageName != null) {
+-          val icon = menuItem.icon
+-          icon?.setTintList(ColorStateList.valueOf(disabledColor))
+-          menuItem.icon = icon
+-        }
++        disableMenuItem(menuItem)
+       }
+ 
+       // actions.attributes.hidden
+@@ -195,16 +190,7 @@ class MenuView(private val mContext: ReactContext) : ReactViewGroup(mContext) {
+             prepareMenuItem(subMenuItem, subMenuConfig)
+             subMenuItem.setOnMenuItemClickListener {
+               if (!it.hasSubMenu()) {
+-                mIsMenuDisplayed = false
+-                if (!subactions.isNull(it.order)) {
+-                  val selectedItem = subactions.getMap(it.order)
+-                  val dispatcher =
+-                    UIManagerHelper.getEventDispatcherForReactTag(mContext, id)
+-                  val surfaceId: Int = UIManagerHelper.getSurfaceId(this)
+-                  dispatcher?.dispatchEvent(
+-                    MenuOnPressActionEvent(surfaceId, id, selectedItem?.getString("id"), id)
+-                  )
+-                }
++                dispatchMenuAction(subMenuConfig)
+                 true
+               } else {
+                 false
+@@ -217,9 +203,47 @@ class MenuView(private val mContext: ReactContext) : ReactViewGroup(mContext) {
+     }
+   }
+ 
++  private fun hasFlag(config: ReadableMap?, key: String): Boolean {
++    return config != null && config.hasKey(key) && !config.isNull(key) && config.getBoolean(key)
++  }
++
++  private fun disableMenuItem(menuItem: MenuItem) {
++    val disabledColor = 0x77888888
++    menuItem.isEnabled = false
++    menuItem.title = getMenuItemTextWithColor(menuItem.title.toString(), disabledColor)
++    menuItem.icon?.setTintList(ColorStateList.valueOf(disabledColor))
++  }
++
++  private fun dispatchMenuAction(config: ReadableMap?) {
++    mIsMenuDisplayed = false
++    val dispatcher = UIManagerHelper.getEventDispatcherForReactTag(mContext, id)
++    val surfaceId: Int = UIManagerHelper.getSurfaceId(this)
++    dispatcher?.dispatchEvent(
++      MenuOnPressActionEvent(surfaceId, id, config?.getString("id"), id)
++    )
++  }
++
++  private fun addMenuAction(config: ReadableMap?, groupId: Int, order: Int): MenuItem {
++    val menuItem = when (config != null && config.hasKey("subactions") && !config.isNull("subactions")) {
++      true -> mPopupMenu.menu.addSubMenu(groupId, order, order, config.getString("title")).item
++      else -> mPopupMenu.menu.add(groupId, order, order, config?.getString("title"))
++    }
++    prepareMenuItem(menuItem, config)
++    menuItem.setOnMenuItemClickListener {
++      if (!it.hasSubMenu()) {
++        dispatchMenuAction(config)
++        true
++      } else {
++        false
++      }
++    }
++    return menuItem
++  }
++
+   private fun prepareMenu() {
+     if (getActionsCount > 0) {
+       mPopupMenu.menu.clear()
++      MenuCompat.setGroupDividerEnabled(mPopupMenu.menu, true)
+       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+         mPopupMenu.gravity = when (mIsAnchoredToRight) {
+           true -> Gravity.RIGHT
+@@ -230,30 +254,35 @@ class MenuView(private val mContext: ReactContext) : ReactViewGroup(mContext) {
+         mPopupMenu.setForceShowIcon(true)
+       }
+       var i = 0
++      var groupId = 0
++      var order = 0
+       while (i < getActionsCount) {
+         if (!mActions.isNull(i)) {
+           val item = mActions.getMap(i)
+-          val menuItem = when (item != null && item.hasKey("subactions") && !item.isNull("subactions")) {
+-            true -> mPopupMenu.menu.addSubMenu(Menu.NONE, Menu.NONE, i, item.getString("title")).item
+-            else -> mPopupMenu.menu.add(Menu.NONE, Menu.NONE, i, item?.getString("title"))
++          val subactions = when (item != null && item.hasKey("subactions") && !item.isNull("subactions")) {
++            true -> item.getArray("subactions")
++            else -> null
+           }
+-          prepareMenuItem(menuItem, item)
+-          menuItem.setOnMenuItemClickListener {
+-            if (!it.hasSubMenu()) {
+-              mIsMenuDisplayed = false
+-              if (!mActions.isNull(it.order)) {
+-                val selectedItem = mActions.getMap(it.order)
+-                val dispatcher =
+-                  UIManagerHelper.getEventDispatcherForReactTag(mContext, id)
+-                val surfaceId: Int = UIManagerHelper.getSurfaceId(this)
+-                dispatcher?.dispatchEvent(
+-                  MenuOnPressActionEvent(surfaceId, id, selectedItem?.getString("id"), id)
+-                )
++          if (subactions != null && hasFlag(item, "displayInline")) {
++            val attributes = when (item != null && item.hasKey("attributes") && !item.isNull("attributes")) {
++              true -> item.getMap("attributes")
++              else -> null
++            }
++            if (!hasFlag(attributes, "hidden") && subactions.size() > 0) {
++              // Distinct native groups draw dividers without adding selectable rows.
++              groupId++
++              for (childIndex in 0 until subactions.size()) {
++                if (!subactions.isNull(childIndex)) {
++                  val menuItem = addMenuAction(subactions.getMap(childIndex), groupId, order++)
++                  if (hasFlag(attributes, "disabled")) {
++                    disableMenuItem(menuItem)
++                  }
++                }
+               }
+-              true
+-            } else {
+-              false
++              groupId++
+             }
++          } else {
++            addMenuAction(item, groupId, order++)
+           }
+         }
+         i++

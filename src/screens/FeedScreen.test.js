@@ -163,7 +163,7 @@ describe('profile menu actions', () => {
     it(`matches the iOS order on Android with read posts ${hide_read_posts ? 'hidden' : 'visible'}`, () => {
       const props = { hide_read_posts };
       const ios_actions = flatten_menu_actions(avatar_fixture({ platform: 'ios' })(props).props.actions);
-      const android_actions = avatar_fixture({ platform: 'android' })(props).props.actions;
+      const android_actions = flatten_menu_actions(avatar_fixture({ platform: 'android' })(props).props.actions);
 
       expect(android_actions.map((action) => action.id)).toEqual(expected_ids);
       expect(android_actions.map(({ id, title }) => ({ id, title })))
@@ -173,16 +173,18 @@ describe('profile menu actions', () => {
     });
   });
 
-  it('preserves the three inline groups and trailing New Feed action on iOS', () => {
-    const actions = avatar_fixture({ platform: 'ios' })().props.actions;
-    expect(actions).toHaveLength(4);
-    expect(actions.slice(0, 3).map((action) => action.displayInline)).toEqual([true, true, true]);
-    expect(actions.slice(0, 3).map((action) => action.subactions.map((item) => item.id))).toEqual([
-      ['settings'],
-      ['mark_all_as_read', 'toggle_hide_read_posts'],
-      ['bookmarks', 'highlights', 'subscriptions'],
-    ]);
-    expect(actions[3].id).toBe('new_feed');
+  ['ios', 'android'].forEach((platform) => {
+    it(`provides the three inline groups and trailing New Feed action on ${platform}`, () => {
+      const actions = avatar_fixture({ platform })().props.actions;
+      expect(actions).toHaveLength(4);
+      expect(actions.slice(0, 3).map((action) => action.displayInline)).toEqual([true, true, true]);
+      expect(actions.slice(0, 3).map((action) => action.subactions.map((item) => item.id))).toEqual([
+        ['settings'],
+        ['mark_all_as_read', 'toggle_hide_read_posts'],
+        ['bookmarks', 'highlights', 'subscriptions'],
+      ]);
+      expect(actions[3].id).toBe('new_feed');
+    });
   });
 
   ['ios', 'android'].forEach((platform) => {

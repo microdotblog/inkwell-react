@@ -167,41 +167,29 @@ function get_profile_menu_actions(
     imageColor: icon_color,
   };
 
-  if (Platform.OS === 'ios') {
-    return [
-      {
-        displayInline: true,
-        subactions: [settings_action],
-        title: '',
-      },
-      {
-        displayInline: true,
-        subactions: [
-          mark_all_as_read_action,
-          hide_read_posts_action,
-        ],
-        title: '',
-      },
-      {
-        displayInline: true,
-        subactions: [
-          bookmarks_action,
-          highlights_action,
-          subscriptions_action,
-        ],
-        title: '',
-      },
-      new_feed_action,
-    ];
-  }
-
   return [
-    settings_action,
-    mark_all_as_read_action,
-    hide_read_posts_action,
-    bookmarks_action,
-    highlights_action,
-    subscriptions_action,
+    {
+      displayInline: true,
+      subactions: [settings_action],
+      title: '',
+    },
+    {
+      displayInline: true,
+      subactions: [
+        mark_all_as_read_action,
+        hide_read_posts_action,
+      ],
+      title: '',
+    },
+    {
+      displayInline: true,
+      subactions: [
+        bookmarks_action,
+        highlights_action,
+        subscriptions_action,
+      ],
+      title: '',
+    },
     new_feed_action,
   ];
 }
