@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toastOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     elevation: 10,
     justifyContent: 'flex-start',
