@@ -101,10 +101,12 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <BookmarksScreen
-            {...screen_props}
-            isDark={isDark}
-          />
+          <SafeAreaView edges={{ left: true, right: true }}>
+            <BookmarksScreen
+              {...screen_props}
+              isDark={isDark}
+            />
+          </SafeAreaView>
         )}
       </Stack.Screen>
       <Stack.Screen
@@ -115,10 +117,12 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <SubscriptionsScreen
-            {...screen_props}
-            isDark={isDark}
-          />
+          <SafeAreaView edges={{ left: true, right: true }}>
+            <SubscriptionsScreen
+              {...screen_props}
+              isDark={isDark}
+            />
+          </SafeAreaView>
         )}
       </Stack.Screen>
       <Stack.Screen
@@ -145,10 +149,12 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <HighlightsScreen
-            {...screen_props}
-            isDark={isDark}
-          />
+          <SafeAreaView edges={{ left: true, right: true }}>
+            <HighlightsScreen
+              {...screen_props}
+              isDark={isDark}
+            />
+          </SafeAreaView>
         )}
       </Stack.Screen>
       <Stack.Screen
@@ -159,10 +165,12 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <FeedItemDetailScreen
-            {...screen_props}
-            isDark={isDark}
-          />
+          <SafeAreaView edges={{ left: true, right: true }}>
+            <FeedItemDetailScreen
+              {...screen_props}
+              isDark={isDark}
+            />
+          </SafeAreaView>
         )}
       </Stack.Screen>
       <Stack.Screen

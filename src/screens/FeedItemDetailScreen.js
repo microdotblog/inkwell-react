@@ -68,7 +68,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const scaled_text_styles = useFeedItemDetailScaledTextStyles();
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width: window_width } = useWindowDimensions();
   const detail_mode = resolve_detail_mode(route?.params?.mode);
   const entry_source = resolve_entry_source(route?.params?.entry_source);
   const entry_id = `${route?.params?.entry_id || ""}`.trim();
@@ -119,6 +119,11 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     detail_mode === "recap"
       ? recap_horizontal_padding
       : READER_HORIZONTAL_PADDING;
+  const [layout_width, set_layout_width] = React.useState(null);
+  const width = layout_width ?? Math.max(
+    window_width - insets.left - insets.right,
+    0,
+  );
   const [active_pane, set_active_pane] = React.useState("post");
   const [deleting_highlight_id, set_deleting_highlight_id] = React.useState("");
   const [, set_is_loading_replies] = React.useState(false);
@@ -335,6 +340,14 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       set_active_pane("post");
     }
   }, [active_pane, highlight_count, reply_count]);
+
+  const handle_layout = React.useCallback((event) => {
+    const next_width = event.nativeEvent.layout.width;
+
+    if (next_width > 0) {
+      set_layout_width(next_width);
+    }
+  }, []);
 
   const handle_post_pane_press = React.useCallback(() => {
     set_active_pane("post");
@@ -979,7 +992,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   ]);
 
   return (
-    <View style={{ backgroundColor: screen_background_color, flex: 1 }}>
+    <View
+      onLayout={handle_layout}
+      style={{ backgroundColor: screen_background_color, flex: 1 }}
+    >
       <AuthBackground
         intensity={background_intensity}
         theme={theme}

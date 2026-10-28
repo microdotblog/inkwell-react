@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { MenuView } from '@react-native-menu/menu';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { observer } from 'mobx-react';
@@ -44,8 +45,6 @@ const MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS = 160;
 const COMPOSER_LAYOUT_TRANSITION = LinearTransition.duration(220);
 const COMPOSER_ENTERING = FadeInDown.duration(220);
 const COMPOSER_EXITING = FadeOutUp.duration(160);
-const IOS_TRANSPARENT_HEADER_HEIGHT = 44;
-const ANDROID_TRANSPARENT_HEADER_HEIGHT = 56;
 const TEXT_STYLE_NAMES = [
   'avatarInitial',
   'choiceSubtitle',
@@ -75,6 +74,7 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
   const scaled_text_styles = React.useMemo(() => {
     return createScaledTextStyles(styles, TEXT_STYLE_NAMES);
   }, []);
+  const header_offset = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const subscriptions = Feed.subscription_snapshots();
   const subscriptions_error_message = Feed.subscriptions_error_message;
@@ -84,7 +84,6 @@ function SubscriptionsScreen({ navigation, route, isDark = false }) {
     !subscriptions_error_message;
   const is_refreshing =
     Feed.is_loading_subscriptions && subscriptions.length > 0;
-  const header_offset = resolve_transparent_header_offset(insets);
   const content_top_padding = header_offset + LIST_TOP_PADDING;
   const list_bottom_inset = insets.bottom + LIST_BOTTOM_PADDING;
   const toast_top_offset = header_offset + 10;
@@ -2047,15 +2046,3 @@ function resolve_status_color(theme, tone = 'info') {
 }
 
 export default observer(SubscriptionsScreen);
-
-function resolve_transparent_header_offset(
-  insets = { top: 0 },
-  platform = Platform.OS,
-) {
-  return (
-    (Number.isFinite(insets?.top) ? insets.top : 0) +
-    (platform === 'ios'
-      ? IOS_TRANSPARENT_HEADER_HEIGHT
-      : ANDROID_TRANSPARENT_HEADER_HEIGHT)
-  );
-}

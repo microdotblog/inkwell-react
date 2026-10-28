@@ -39,7 +39,7 @@ import { getAuthTheme } from '../theme/authTheme';
 import { createScaledTextStyles } from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 16;
-const LIST_TOP_PADDING = 0;
+const LIST_TOP_PADDING = 12;
 const LIST_BOTTOM_PADDING = 28;
 const COPIED_FEEDBACK_DURATION_MS = 1600;
 const SEARCH_LAYOUT_TRANSITION = LinearTransition.duration(220);
