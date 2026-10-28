@@ -302,15 +302,78 @@ export async function delete_micro_blog_feed_subscription({
 }
 
 export async function fetch_micro_blog_bookmarks({ token = '' } = {}) {
-  return fetch_micro_blog_feeds_json('/posts/bookmarks', {
-    token,
-  });
+  const items = [];
+  const seen_ids = new Set();
+  let first_payload = null;
+  let before_id = '';
+
+  while (true) {
+    const path = before_id
+      ? `/posts/bookmarks?before_id=${encodeURIComponent(before_id)}`
+      : '/posts/bookmarks';
+    const payload = await fetch_micro_blog_feeds_json(path, { token });
+    first_payload = first_payload || payload;
+    const page_items = Array.isArray(payload?.items) ? payload.items : [];
+    const previous_count = items.length;
+
+    page_items.forEach((item) => {
+      const id = `${item?.id || ''}`.trim();
+
+      if (id && !seen_ids.has(id)) {
+        seen_ids.add(id);
+        items.push(item);
+      }
+    });
+
+    if (page_items.length === 0 || items.length === previous_count) {
+      break;
+    }
+
+    // Post.get accepts f-prefixed Favorite IDs, avoiding collisions with posts.
+    const last_id = `${page_items[page_items.length - 1]?.id || ''}`.trim();
+    before_id = last_id.startsWith('f') ? last_id : `f${last_id}`;
+  }
+
+  return { ...first_payload, items };
 }
 
 export async function fetch_micro_blog_highlights({ token = '' } = {}) {
-  return fetch_micro_blog_feeds_json('/feeds/highlights', {
-    token,
-  });
+  const items = [];
+  const seen_ids = new Set();
+  let first_payload = null;
+  let offset = 0;
+
+  while (true) {
+    const payload = await fetch_micro_blog_feeds_json(
+      `/feeds/highlights?limit=100&offset=${offset}`,
+      { token },
+    );
+    first_payload = first_payload || payload;
+    const page_items = Array.isArray(payload?.items) ? payload.items : [];
+    const previous_count = items.length;
+
+    page_items.forEach((item) => {
+      const id = `${item?.id || ''}`.trim();
+
+      if (id && !seen_ids.has(id)) {
+        seen_ids.add(id);
+        items.push(item);
+      }
+    });
+
+    offset += page_items.length;
+    const total_count = Number(payload?._microblog?.count);
+
+    if (
+      page_items.length < 100 ||
+      items.length === previous_count ||
+      (Number.isFinite(total_count) && offset >= total_count)
+    ) {
+      break;
+    }
+  }
+
+  return { ...first_payload, items };
 }
 
 export async function create_micro_blog_highlight({

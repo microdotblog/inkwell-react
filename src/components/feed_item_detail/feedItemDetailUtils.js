@@ -1,4 +1,5 @@
 import { Linking, Platform } from "react-native";
+import { Parser } from "htmlparser2";
 import {
   FadeInDown,
   FadeOutUp,
@@ -1814,6 +1815,41 @@ function decorate_recap_html(markup = "", options = {}) {
   );
 }
 
+const READER_HTML_TAGS = new Set(
+  (
+    "a abbr address article aside b bdi bdo blockquote br caption cite code col colgroup " +
+    "dd del details dfn div dl dt em figcaption figure footer h1 h2 h3 h4 h5 h6 header " +
+    "hgroup hr i img ins kbd li main mark nav ol p picture pre q rp rt ruby s samp section " +
+    "small source span strong sub summary sup table tbody td tfoot th thead time tr u ul var video wbr"
+  ).split(" "),
+);
+const READER_VOID_TAGS = new Set("br col hr img source wbr".split(" "));
+const READER_DISCARDED_TAGS = new Set(
+  (
+    "script style iframe embed object form input button select textarea audio link meta base " +
+    "svg math template noscript xmp title plaintext noembed noframes head"
+  ).split(" "),
+);
+const READER_HTML_ATTRIBUTES = new Set(
+  "class style title lang dir role".split(" "),
+);
+const READER_TAG_ATTRIBUTES = {
+  a: ["href"],
+  img: ["src", "alt", "width", "height", "loading"],
+  video: [
+    "src", "poster", "controls", "loop", "muted", "preload", "width", "height",
+  ],
+  source: ["src", "type", "media"],
+  ol: ["start", "reversed", "type"],
+  li: ["value"],
+  td: ["colspan", "rowspan"],
+  th: ["colspan", "rowspan", "scope"],
+  col: ["span"],
+  colgroup: ["span"],
+  time: ["datetime"],
+  details: ["open"],
+};
+
 function sanitize_reader_html(markup = "", options = {}) {
   const trimmed_markup = `${markup || ""}`.trim();
   const base_url =
@@ -1823,44 +1859,44 @@ function sanitize_reader_html(markup = "", options = {}) {
     return "";
   }
 
-  const stripped_markup = trimmed_markup
-    .replace(
-      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|audio|link|meta|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1>/gi,
-      "",
-    )
-    .replace(
-      /<\s*(script|style|iframe|embed|object|form|input|button|select|textarea|audio|link|meta|base)\b[^>]*\/?>/gi,
-      "",
-    )
-    .replace(/<!--[\s\S]*?-->/g, "");
+  const output = [];
+  const discarded_stack = [];
+  const parser = new Parser({
+    onopentag(tag_name, attributes) {
+      const is_discarded =
+        discarded_stack[discarded_stack.length - 1] === true ||
+        READER_DISCARDED_TAGS.has(tag_name);
+      discarded_stack.push(is_discarded);
 
-  return stripped_markup.replace(
-    /<([a-z0-9:-]+)(\s[^<>]*?)?(\/?)>/gi,
-    (match, tag_name, raw_attributes = "", self_closing_marker = "") => {
-      const normalized_tag_name = `${tag_name || ""}`.toLowerCase();
-
-      if (!normalized_tag_name) {
-        return "";
-      }
-
-      const normalized_attributes = sanitize_reader_html_attributes(
-        raw_attributes,
-        {
+      if (!is_discarded && READER_HTML_TAGS.has(tag_name)) {
+        const safe_attributes = sanitize_reader_html_attributes(attributes, {
           base_url,
-        },
-      );
-      const media_attributes =
-        normalized_tag_name === "video"
-          ? append_missing_video_attributes(normalized_attributes)
-          : normalized_attributes;
-
-      if (self_closing_marker === "/") {
-        return `<${normalized_tag_name}${media_attributes} />`;
+          tag_name,
+        });
+        output.push(`<${tag_name}${safe_attributes}>`);
       }
-
-      return `<${normalized_tag_name}${media_attributes}>`;
     },
-  );
+    ontext(text) {
+      if (discarded_stack[discarded_stack.length - 1] !== true) {
+        output.push(escape_html(text));
+      }
+    },
+    onclosetag(tag_name) {
+      const is_discarded = discarded_stack.pop();
+
+      if (
+        !is_discarded &&
+        READER_HTML_TAGS.has(tag_name) &&
+        !READER_VOID_TAGS.has(tag_name)
+      ) {
+        output.push(`</${tag_name}>`);
+      }
+    },
+  });
+
+  // Always serialize parsed tokens; unmatched markup must never pass through.
+  parser.end(trimmed_markup);
+  return output.join("");
 }
 
 function resolve_detail_mode(raw_mode = "") {
@@ -1885,6 +1921,14 @@ function resolve_entry_source(raw_source = "") {
   } else {
     return "feed";
   }
+}
+
+function resolve_highlight_post_id(entry_id = "", entry_source = "feed") {
+  if (resolve_entry_source(entry_source) === "bookmark") {
+    return "";
+  }
+
+  return `${entry_id || ""}`.trim();
 }
 
 function resolve_reader_title(entry = null) {
@@ -2109,56 +2153,35 @@ function highlight_matches_identifier(highlight = null, identifier = "") {
   );
 }
 
-function sanitize_reader_html_attributes(raw_attributes = "", options = {}) {
+function sanitize_reader_html_attributes(attributes = {}, options = {}) {
   const sanitized_attributes = [];
-  const base_url =
-    typeof options === "string" ? options : options?.base_url || "";
-  const attribute_pattern =
-    /([^\s"'<>\/=]+)(?:\s*=\s*(".*?"|'.*?'|[^\s"'=<>`]+))?/g;
-  let attribute_match = attribute_pattern.exec(raw_attributes);
+  const { base_url = "", tag_name = "" } = options;
 
-  while (attribute_match) {
-    const attribute_name = `${attribute_match[1] || ""}`.trim();
-    const normalized_attribute_name = attribute_name.toLowerCase();
-    let attribute_value = attribute_match[2];
-
+  Object.entries(attributes).forEach(([attribute_name, attribute_value]) => {
     if (
-      normalized_attribute_name &&
-      !normalized_attribute_name.startsWith("on") &&
-      normalized_attribute_name !== "target" &&
-      normalized_attribute_name !== "rel" &&
-      normalized_attribute_name !== "srcdoc" &&
-      normalized_attribute_name !== "srcset"
+      READER_HTML_ATTRIBUTES.has(attribute_name) ||
+      /^aria-[a-z-]+$/.test(attribute_name) ||
+      /^data-[a-z-]+$/.test(attribute_name) ||
+      READER_TAG_ATTRIBUTES[tag_name]?.includes(attribute_name)
     ) {
-      if (attribute_value === undefined) {
-        sanitized_attributes.push(attribute_name);
-      } else {
-        attribute_value = attribute_value.replace(/^['"]|['"]$/g, "");
+      if (["href", "src", "poster"].includes(attribute_name)) {
+        const safe_url = normalize_http_url(attribute_value, { base_url });
 
-        if (
-          normalized_attribute_name === "href" ||
-          normalized_attribute_name === "src"
-        ) {
-          const safe_url = normalize_http_url(attribute_value, {
-            base_url,
-          });
-
-          if (safe_url) {
-            sanitized_attributes.push(
-              `${attribute_name}="${escape_html_attribute(safe_url)}"`,
-            );
-          }
-        } else {
+        if (safe_url) {
           sanitized_attributes.push(
-            `${attribute_name}="${escape_html_attribute(
-              decode_html_entities(attribute_value),
-            )}"`,
+            `${attribute_name}="${escape_html_attribute(safe_url)}"`,
           );
         }
+      } else {
+        sanitized_attributes.push(
+          `${attribute_name}="${escape_html_attribute(attribute_value)}"`,
+        );
       }
     }
+  });
 
-    attribute_match = attribute_pattern.exec(raw_attributes);
+  if (tag_name === "video") {
+    sanitized_attributes.push("playsinline", "webkit-playsinline");
   }
 
   if (sanitized_attributes.length === 0) {
@@ -2166,21 +2189,6 @@ function sanitize_reader_html_attributes(raw_attributes = "", options = {}) {
   }
 
   return ` ${sanitized_attributes.join(" ")}`;
-}
-
-function append_missing_video_attributes(attributes = "") {
-  const normalized_attributes = `${attributes || ""}`;
-  let next_attributes = normalized_attributes;
-
-  if (!/\bplaysinline\b/i.test(next_attributes)) {
-    next_attributes = `${next_attributes} playsinline`;
-  }
-
-  if (!/\bwebkit-playsinline\b/i.test(next_attributes)) {
-    next_attributes = `${next_attributes} webkit-playsinline`;
-  }
-
-  return next_attributes;
 }
 
 function normalize_http_url(raw_url = "", options = {}) {
@@ -2280,13 +2288,17 @@ function decode_html_entities(value = "") {
       } else if (normalized_entity.startsWith("#x")) {
         const code_point = Number.parseInt(normalized_entity.slice(2), 16);
 
-        if (Number.isInteger(code_point)) {
+        if (
+          Number.isInteger(code_point) && code_point >= 0 && code_point <= 0x10ffff
+        ) {
           return String.fromCodePoint(code_point);
         }
       } else if (normalized_entity.startsWith("#")) {
         const code_point = Number.parseInt(normalized_entity.slice(1), 10);
 
-        if (Number.isInteger(code_point)) {
+        if (
+          Number.isInteger(code_point) && code_point >= 0 && code_point <= 0x10ffff
+        ) {
           return String.fromCodePoint(code_point);
         }
       }
@@ -2363,5 +2375,6 @@ export {
   resolve_reader_title,
   resolve_reply_html,
   sanitize_reader_html,
+  resolve_highlight_post_id,
   with_color_opacity,
 };

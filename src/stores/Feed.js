@@ -79,6 +79,40 @@ const FEED_ICONS_CACHE_FILENAME = 'Icons.json';
 const FEED_TIMELINE_CACHE_VERSION = 2;
 const FEED_TIMELINE_CACHE_WRITE_DELAY_MS = 240;
 const FEED_ICONS_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const ENTRY_SYNC_ACTIONS = {
+  read: {
+    local: 'local_read_entry_ids',
+    pending: 'pending_read_sync_entry_ids',
+    opposite: 'unread',
+    field: 'is_read',
+    value: true,
+    request: mark_micro_blog_feed_entries_read,
+  },
+  unread: {
+    local: 'local_unread_entry_ids',
+    pending: 'pending_unread_sync_entry_ids',
+    opposite: 'read',
+    field: 'is_read',
+    value: false,
+    request: mark_micro_blog_feed_entries_unread,
+  },
+  bookmark: {
+    local: 'local_bookmarked_entry_ids',
+    pending: 'pending_bookmark_sync_entry_ids',
+    opposite: 'unbookmark',
+    field: 'is_bookmarked',
+    value: true,
+    request: bookmark_micro_blog_feed_entries,
+  },
+  unbookmark: {
+    local: 'local_unbookmarked_entry_ids',
+    pending: 'pending_unbookmark_sync_entry_ids',
+    opposite: 'bookmark',
+    field: 'is_bookmarked',
+    value: false,
+    request: unbookmark_micro_blog_feed_entries,
+  },
+};
 
 const Feed = types
   .model('Feed', {
@@ -126,6 +160,9 @@ const Feed = types
     local_unbookmarked_entry_ids: new Set(),
     pending_bookmark_sync_entry_ids: new Set(),
     pending_unbookmark_sync_entry_ids: new Set(),
+    entry_state_revision: 0,
+    entry_state_generation: 0,
+    entry_state_changes: new Map(),
     recap_request_token: 0,
     recap_email_request_token: 0,
     recap_bookmark_request_token: 0,
@@ -167,6 +204,8 @@ const Feed = types
     },
 
     clear_local_entry_state() {
+      self.entry_state_generation += 1;
+      self.entry_state_changes.clear();
       self.clear_local_read_state();
       self.clear_local_bookmark_state();
     },
@@ -363,6 +402,7 @@ const Feed = types
           return false;
         }
 
+        const state_revision = self.entry_state_revision;
         const [entries_result, unread_result, starred_result] =
           yield Promise.allSettled([
             fetch_micro_blog_feed_entries_for_feed({
@@ -416,7 +456,10 @@ const Feed = types
         self.feed_filter_entries.replace(
           merge_normalized_timeline_entries(
             known_entries,
-            normalized_entries,
+            self.reconcile_entry_state_changes(
+              normalized_entries,
+              state_revision,
+            ),
           ),
         );
         self.has_loaded_feed_filter = true;
@@ -784,6 +827,7 @@ const Feed = types
       starred_entry_ids = [],
       entries = [],
       icons = [],
+      state_revision = self.entry_state_revision,
     ) {
       const unread_ids = Array.isArray(unread_entry_ids)
         ? unread_entry_ids
@@ -803,7 +847,9 @@ const Feed = types
       );
 
       self.apply_subscriptions(subscriptions, icons);
-      self.timeline_entries.replace(normalized_entries);
+      self.timeline_entries.replace(
+        self.reconcile_entry_state_changes(normalized_entries, state_revision),
+      );
       self.is_loading_subscriptions = false;
       self.error_message = null;
     },
@@ -1266,6 +1312,7 @@ const Feed = types
           return false;
         }
 
+        const state_revision = self.entry_state_revision;
         const [entries_result, unread_result, starred_result] =
           yield Promise.allSettled([
             fetch_micro_blog_feed_entries_for_feed({
@@ -1315,7 +1362,9 @@ const Feed = types
           { filter_timeline_window: false },
         );
 
-        self.subscription_feed_entries.replace(normalized_entries);
+        self.subscription_feed_entries.replace(
+          self.reconcile_entry_state_changes(normalized_entries, state_revision),
+        );
         self.has_loaded_subscription_feed = true;
         self.subscription_feed_error_message = null;
         self.sync_active_subscription_feed_metadata();
@@ -1377,6 +1426,7 @@ const Feed = types
         const existing_entries = self.timeline_entries.map((entry) => {
           return getSnapshot(entry);
         });
+        const state_revision = self.entry_state_revision;
         const [
           subscriptions_result,
           unread_entry_ids_result,
@@ -1434,9 +1484,10 @@ const Feed = types
           starred_entry_ids,
           entries,
           icons,
+          state_revision,
         );
-        self.retry_unsynced_local_reads(unread_entry_ids);
-        self.retry_unsynced_local_bookmarks(starred_entry_ids);
+        self.retry_unsynced_local_reads(unread_entry_ids, state_revision);
+        self.retry_unsynced_local_bookmarks(starred_entry_ids, state_revision);
         yield self.persist_timeline_cache(user_token);
         self.has_bootstrapped = true;
         return true;
@@ -1460,6 +1511,67 @@ const Feed = types
     retry_bootstrap: flow(function* () {
       return yield self.bootstrap();
     }),
+
+    record_entry_state_change(entry_id, field, value) {
+      self.entry_state_revision += 1;
+      self.entry_state_changes.set(`${field}:${entry_id}`, {
+        revision: self.entry_state_revision,
+        value,
+      });
+    },
+
+    reconcile_entry_state_changes(entries, state_revision) {
+      // Acknowledged actions only override fetches started before the change.
+      return entries.map((entry) => {
+        const snapshot = { ...entry };
+
+        ['is_read', 'is_bookmarked'].forEach((field) => {
+          const change = self.entry_state_changes.get(`${field}:${entry.id}`);
+
+          if (change && change.revision > state_revision) {
+            snapshot[field] = change.value;
+          }
+        });
+
+        return snapshot;
+      });
+    },
+
+    acknowledge_entry_state(action, entry_ids) {
+      const config = ENTRY_SYNC_ACTIONS[action];
+      let did_change = false;
+
+      entry_ids.forEach((entry_id) => {
+        if (self[config.local].delete(entry_id)) {
+          self.record_entry_state_change(entry_id, config.field, config.value);
+          did_change = true;
+        }
+      });
+
+      if (did_change) {
+        self.schedule_timeline_cache_persist();
+      }
+    },
+
+    acknowledge_matching_entry_state(
+      action,
+      server_ids,
+      server_has_value,
+      state_revision,
+    ) {
+      const config = ENTRY_SYNC_ACTIONS[action];
+      const opposite = ENTRY_SYNC_ACTIONS[config.opposite];
+      const matching_ids = [...self[config.local]].filter((entry_id) => {
+        const change = self.entry_state_changes.get(`${config.field}:${entry_id}`);
+        return (
+          (!change || change.revision <= state_revision) &&
+          server_ids.has(entry_id) === server_has_value &&
+          !self[config.pending].has(entry_id) &&
+          !self[opposite.pending].has(entry_id)
+        );
+      });
+      self.acknowledge_entry_state(action, matching_ids);
+    },
 
     set_entry_read_state_locally(entry_id = '', next_is_read = false) {
       const normalized_entry_id = normalize_string(entry_id);
@@ -1492,6 +1604,7 @@ const Feed = types
         return false;
       }
 
+      self.record_entry_state_change(normalized_entry_id, 'is_read', next_is_read);
       if (next_is_read) {
         self.local_read_entry_ids.add(normalized_entry_id);
         self.local_unread_entry_ids.delete(normalized_entry_id);
@@ -1537,6 +1650,11 @@ const Feed = types
         return false;
       }
 
+      self.record_entry_state_change(
+        normalized_entry_id,
+        'is_bookmarked',
+        next_is_bookmarked,
+      );
       if (next_is_bookmarked) {
         self.local_bookmarked_entry_ids.add(normalized_entry_id);
         self.local_unbookmarked_entry_ids.delete(normalized_entry_id);
@@ -1638,13 +1756,22 @@ const Feed = types
       return true;
     },
 
-    retry_unsynced_local_reads(unread_entry_ids = []) {
+    retry_unsynced_local_reads(
+      unread_entry_ids = [],
+      state_revision = self.entry_state_revision,
+    ) {
       const unread_id_set = new Set(
         (Array.isArray(unread_entry_ids) ? unread_entry_ids : [])
           .map((entry_id) => {
             return normalize_string(entry_id);
           })
           .filter(Boolean),
+      );
+      self.acknowledge_matching_entry_state(
+        'read', unread_id_set, false, state_revision,
+      );
+      self.acknowledge_matching_entry_state(
+        'unread', unread_id_set, true, state_revision,
       );
       const unsynced_read_entry_ids = [...self.local_read_entry_ids].filter(
         (entry_id) => {
@@ -1674,13 +1801,22 @@ const Feed = types
       }
     },
 
-    retry_unsynced_local_bookmarks(starred_entry_ids = []) {
+    retry_unsynced_local_bookmarks(
+      starred_entry_ids = [],
+      state_revision = self.entry_state_revision,
+    ) {
       const starred_id_set = new Set(
         (Array.isArray(starred_entry_ids) ? starred_entry_ids : [])
           .map((entry_id) => {
             return normalize_string(entry_id);
           })
           .filter(Boolean),
+      );
+      self.acknowledge_matching_entry_state(
+        'bookmark', starred_id_set, true, state_revision,
+      );
+      self.acknowledge_matching_entry_state(
+        'unbookmark', starred_id_set, false, state_revision,
       );
       const unsynced_bookmarked_entry_ids = [...self.local_bookmarked_entry_ids]
         .filter((entry_id) => {
@@ -1709,151 +1845,73 @@ const Feed = types
       }
     },
 
-    sync_read_entries: flow(function* (entry_ids = []) {
+    sync_read_entries(entry_ids = []) {
+      return self.sync_entry_state('read', entry_ids);
+    },
+
+    sync_unread_entries(entry_ids = []) {
+      return self.sync_entry_state('unread', entry_ids);
+    },
+
+    sync_bookmarked_entries(entry_ids = []) {
+      return self.sync_entry_state('bookmark', entry_ids);
+    },
+
+    sync_unbookmarked_entries(entry_ids = []) {
+      return self.sync_entry_state('unbookmark', entry_ids);
+    },
+
+    sync_entry_state: flow(function* (action, entry_ids = []) {
+      const config = ENTRY_SYNC_ACTIONS[action];
+      const opposite = ENTRY_SYNC_ACTIONS[config.opposite];
+      const user_token = Tokens.get_user_token();
+      const generation = self.entry_state_generation;
       const normalized_entry_ids = normalize_unique_entry_ids(entry_ids).filter(
         (entry_id) => {
-          return !self.pending_read_sync_entry_ids.has(entry_id);
+          return (
+            self[config.local].has(entry_id) &&
+            !self[config.pending].has(entry_id) &&
+            !self[opposite.pending].has(entry_id)
+          );
         },
       );
 
-      if (normalized_entry_ids.length === 0) {
+      if (!user_token || normalized_entry_ids.length === 0) {
         return false;
       }
 
       normalized_entry_ids.forEach((entry_id) => {
-        self.pending_read_sync_entry_ids.add(entry_id);
+        self[config.pending].add(entry_id);
       });
 
       try {
-        const user_token = Tokens.get_user_token();
-
-        if (!user_token) {
-          return false;
-        }
-
-        yield mark_micro_blog_feed_entries_read({
+        yield config.request({
           token: user_token,
           entry_ids: normalized_entry_ids,
         });
 
-        return true;
-      } catch (error) {
-        return false;
-      } finally {
-        normalized_entry_ids.forEach((entry_id) => {
-          self.pending_read_sync_entry_ids.delete(entry_id);
-        });
-      }
-    }),
-
-    sync_unread_entries: flow(function* (entry_ids = []) {
-      const normalized_entry_ids = normalize_unique_entry_ids(entry_ids).filter(
-        (entry_id) => {
-          return !self.pending_unread_sync_entry_ids.has(entry_id);
-        },
-      );
-
-      if (normalized_entry_ids.length === 0) {
-        return false;
-      }
-
-      normalized_entry_ids.forEach((entry_id) => {
-        self.pending_unread_sync_entry_ids.add(entry_id);
-      });
-
-      try {
-        const user_token = Tokens.get_user_token();
-
-        if (!user_token) {
+        if (
+          generation !== self.entry_state_generation ||
+          user_token !== Tokens.get_user_token()
+        ) {
           return false;
         }
 
-        yield mark_micro_blog_feed_entries_unread({
-          token: user_token,
-          entry_ids: normalized_entry_ids,
-        });
-
+        self.acknowledge_entry_state(action, normalized_entry_ids);
         return true;
       } catch (error) {
         return false;
       } finally {
-        normalized_entry_ids.forEach((entry_id) => {
-          self.pending_unread_sync_entry_ids.delete(entry_id);
-        });
-      }
-    }),
+        if (generation === self.entry_state_generation) {
+          normalized_entry_ids.forEach((entry_id) => {
+            self[config.pending].delete(entry_id);
+          });
 
-    sync_bookmarked_entries: flow(function* (entry_ids = []) {
-      const normalized_entry_ids = normalize_unique_entry_ids(entry_ids).filter(
-        (entry_id) => {
-          return !self.pending_bookmark_sync_entry_ids.has(entry_id);
-        },
-      );
-
-      if (normalized_entry_ids.length === 0) {
-        return false;
-      }
-
-      normalized_entry_ids.forEach((entry_id) => {
-        self.pending_bookmark_sync_entry_ids.add(entry_id);
-      });
-
-      try {
-        const user_token = Tokens.get_user_token();
-
-        if (!user_token) {
-          return false;
+          // A newer opposite intent waits until this request has finished.
+          if (user_token === Tokens.get_user_token()) {
+            self.sync_entry_state(config.opposite, normalized_entry_ids);
+          }
         }
-
-        yield bookmark_micro_blog_feed_entries({
-          token: user_token,
-          entry_ids: normalized_entry_ids,
-        });
-
-        return true;
-      } catch (error) {
-        return false;
-      } finally {
-        normalized_entry_ids.forEach((entry_id) => {
-          self.pending_bookmark_sync_entry_ids.delete(entry_id);
-        });
-      }
-    }),
-
-    sync_unbookmarked_entries: flow(function* (entry_ids = []) {
-      const normalized_entry_ids = normalize_unique_entry_ids(entry_ids).filter(
-        (entry_id) => {
-          return !self.pending_unbookmark_sync_entry_ids.has(entry_id);
-        },
-      );
-
-      if (normalized_entry_ids.length === 0) {
-        return false;
-      }
-
-      normalized_entry_ids.forEach((entry_id) => {
-        self.pending_unbookmark_sync_entry_ids.add(entry_id);
-      });
-
-      try {
-        const user_token = Tokens.get_user_token();
-
-        if (!user_token) {
-          return false;
-        }
-
-        yield unbookmark_micro_blog_feed_entries({
-          token: user_token,
-          entry_ids: normalized_entry_ids,
-        });
-
-        return true;
-      } catch (error) {
-        return false;
-      } finally {
-        normalized_entry_ids.forEach((entry_id) => {
-          self.pending_unbookmark_sync_entry_ids.delete(entry_id);
-        });
       }
     }),
   }))

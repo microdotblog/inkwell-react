@@ -41,6 +41,7 @@ import {
   resolve_detail_mode,
   resolve_entry_source,
   resolve_highlight_identifier,
+  resolve_highlight_post_id,
   sanitize_reader_html,
 } from "../components/feed_item_detail/feedItemDetailUtils";
 import { resolve_reader_image_viewer_payload } from "../components/feed_item_detail/readerImagePayload";
@@ -78,6 +79,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       : null;
   const recap = detail_mode === "recap" ? Feed.active_recap_snapshot() : null;
   const resolved_entry_id = `${entry?.id || entry_id || ""}`.trim();
+  const highlight_post_id = resolve_highlight_post_id(
+    resolved_entry_id,
+    entry_source,
+  );
   const source_label = `${entry?.source || "Feed"}`.trim() || "Feed";
   const entry_feed_id = `${entry?.feed_id || ""}`.trim();
   const source_url = normalize_http_url(entry?.source_url);
@@ -137,10 +142,10 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
   const replies_request_token_ref = React.useRef(0);
   const reader_post_ref = React.useRef(null);
   const active_reader_highlight = Highlights.entry_highlight_snapshot_by_identifier(
-    resolved_entry_id,
+    highlight_post_id,
     active_reader_highlight_id,
   );
-  const highlight_count = Highlights.entry_highlight_entries(resolved_entry_id).length;
+  const highlight_count = Highlights.entry_highlight_entries(highlight_post_id).length;
   const reply_count = replies.length;
   const reader_image_url = `${reader_image_viewer?.image_url || ""}`.trim();
   const is_reader_image_viewer_visible = Boolean(reader_image_url);
@@ -549,7 +554,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     if (
       is_creating_highlight ||
       !entry ||
-      !resolved_entry_id ||
+      !highlight_post_id ||
       !reader_post_ref.current
     ) {
       return;
@@ -573,7 +578,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
         post_has_title:
           Boolean(normalized_post_title) &&
           normalized_post_title.toLowerCase() !== "untitled",
-        post_id: resolved_entry_id,
+        post_id: highlight_post_id,
         post_published_at: entry?.published_at,
         post_source: source_label,
         post_title: entry?.title,
@@ -600,9 +605,9 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     }
   }, [
     entry,
+    highlight_post_id,
     is_creating_highlight,
     original_url,
-    resolved_entry_id,
     source_label,
     toast_top_offset,
   ]);
@@ -997,6 +1002,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
             active_pane={active_pane}
             deleting_highlight_id={deleting_highlight_id}
             entry={entry}
+            entry_source={entry_source}
             onCopyHighlight={handle_copy_highlight}
             onDeleteHighlight={handle_delete_highlight}
             onPressFeedAvatar={
@@ -1076,13 +1082,17 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
                   },
                 ]
               : [
-                  {
-                    is_disabled: is_opening_reader_post,
-                    is_loading: is_creating_highlight,
-                    label: "Highlight",
-                    loading_label: "Saving...",
-                    onPress: handle_create_highlight,
-                  },
+                  ...(highlight_post_id
+                    ? [
+                        {
+                          is_disabled: is_opening_reader_post,
+                          is_loading: is_creating_highlight,
+                          label: "Highlight",
+                          loading_label: "Saving...",
+                          onPress: handle_create_highlight,
+                        },
+                      ]
+                    : []),
                   {
                     is_disabled: is_creating_highlight,
                     is_loading: is_opening_reader_post,

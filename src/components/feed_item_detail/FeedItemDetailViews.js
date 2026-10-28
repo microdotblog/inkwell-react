@@ -69,6 +69,7 @@ import {
   normalize_http_url,
   open_external_url,
   resolve_host_label,
+  resolve_highlight_post_id,
   resolve_reader_text_metrics,
   resolve_reader_text_size_backdrop_color,
   resolve_reader_title,
@@ -109,6 +110,7 @@ const EntryReaderView = observer(function EntryReaderView({
   active_pane = "post",
   deleting_highlight_id = "",
   entry,
+  entry_source = "feed",
   onCopyHighlight,
   onDeleteHighlight,
   onPostHighlight,
@@ -129,7 +131,7 @@ const EntryReaderView = observer(function EntryReaderView({
   width = 0,
 }) {
   const reader_text_scale = AppStore.reader_text_scale;
-  const resolved_entry_id = `${entry?.id || ""}`.trim();
+  const highlight_post_id = resolve_highlight_post_id(entry?.id, entry_source);
   const source_label = `${entry?.source || "Feed"}`.trim() || "Feed";
   const reader_title = resolve_reader_title(entry);
   const author_label = resolve_entry_author_label(entry, source_label);
@@ -143,8 +145,8 @@ const EntryReaderView = observer(function EntryReaderView({
     base_url: reader_base_url,
   });
   const has_renderable_body = Boolean(reader_html);
-  const entry_highlights = Highlights.entry_highlight_entries(resolved_entry_id);
-  const reader_highlights = Highlights.entry_highlight_ranges(resolved_entry_id);
+  const entry_highlights = Highlights.entry_highlight_entries(highlight_post_id);
+  const reader_highlights = Highlights.entry_highlight_ranges(highlight_post_id);
   const reply_count = replies.length;
   const highlight_count = entry_highlights.length;
   const should_show_pane_tabs = reply_count > 0 || highlight_count > 0;
@@ -156,10 +158,10 @@ const EntryReaderView = observer(function EntryReaderView({
   }, [original_url]);
 
   React.useEffect(() => {
-    if (resolved_entry_id) {
+    if (highlight_post_id) {
       Highlights.load();
     }
-  }, [resolved_entry_id]);
+  }, [highlight_post_id]);
 
   const title_font_size = scaleTextMetric(
     READER_TITLE_FONT_SIZE,
