@@ -458,7 +458,7 @@ function WelcomeLinkButton({
       style={({ pressed }) => [
         styles.linkButton,
         {
-          backgroundColor: color_with_opacity(theme.colors.buttonGhost, 0.25),
+          backgroundColor: color_with_opacity(theme.colors.buttonGhost, 0.5),
         },
         pressed ? styles.pressedLinkButton : null,
       ]}

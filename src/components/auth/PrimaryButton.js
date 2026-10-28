@@ -1,13 +1,14 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { observer } from 'mobx-react';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
+
+import { getAuthTheme } from '../../theme/authTheme';
 
 function darkenHexColor(hex_color, amount = 0) {
   const normalized_hex = `${hex_color || ''}`.trim().replace('#', '');
@@ -24,6 +25,25 @@ function darkenHexColor(hex_color, amount = 0) {
   const blue = clamp_channel(parseInt(normalized_hex.slice(4, 6), 16));
 
   return `#${[red, green, blue].map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function contrastingLabelColor(background_color = '') {
+  const hex = background_color.replace('#', '');
+  const channels = [0, 2, 4].map((offset) => {
+    const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+
+    if (channel <= 0.04045) {
+      return channel / 12.92;
+    } else {
+      return ((channel + 0.055) / 1.055) ** 2.4;
+    }
+  });
+  const luminance =
+    channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  const white_contrast = 1.05 / (luminance + 0.05);
+  const black_contrast = (luminance + 0.05) / 0.05;
+
+  return white_contrast >= black_contrast ? '#ffffff' : '#000000';
 }
 
 function PrimaryButton({
@@ -96,13 +116,12 @@ function PrimaryButton({
     onLongPress(event);
   }
 
-  const solid_gradient_colors = theme.isDark
-    ? [
-        darkenHexColor(theme.colors.accent, 0.18),
-        theme.colors.accent,
-        darkenHexColor(theme.colors.accent, 0.08),
-      ]
-    : [theme.colors.accentStrong, theme.colors.accent, theme.colors.accentStrong];
+  const solid_background_color = theme.isDark
+    ? getAuthTheme(false, theme.accent_palette_id).colors.accent
+    : theme.colors.accent;
+  const solid_label_color = theme.isDark
+    ? theme.colors.white
+    : contrastingLabelColor(solid_background_color);
 
   return (
     <Animated.View style={[animatedStyle, style]}>
@@ -128,9 +147,10 @@ function PrimaryButton({
                 styles.solidButton,
                 theme.isDark ? styles.darkSolidButton : styles.lightSolidButton,
                 {
+                  backgroundColor: solid_background_color,
                   shadowColor: theme.colors.glow,
                   borderColor: theme.isDark
-                    ? darkenHexColor(theme.colors.accent, 0.08)
+                    ? darkenHexColor(solid_background_color, 0.08)
                     : theme.colors.accentStrong,
                 },
               ],
@@ -138,14 +158,6 @@ function PrimaryButton({
           disabled ? styles.disabled : null,
         ]}
       >
-        {variant === 'solid' ? (
-          <LinearGradient
-            colors={solid_gradient_colors}
-            end={{ x: 1, y: 1 }}
-            start={{ x: 0, y: 0 }}
-            style={styles.solidFill}
-          />
-        ) : null}
         <View style={styles.content}>
           {leadingIconSource ? (
             <Image
@@ -160,7 +172,7 @@ function PrimaryButton({
               styles.label,
               variant === 'ghost'
                 ? [styles.ghostLabel, { color: theme.colors.ink }]
-                : styles.solidLabel,
+                : { color: solid_label_color },
               textStyle,
             ]}
           >
@@ -212,10 +224,6 @@ const styles = StyleSheet.create({
   ghostButton: {
     borderWidth: 1,
   },
-  solidFill: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-  },
   pressed: {
     opacity: 0.96,
   },
@@ -230,9 +238,6 @@ const styles = StyleSheet.create({
   leadingIcon: {
     width: 20,
     height: 20,
-  },
-  solidLabel: {
-    color: '#ffffff',
   },
   ghostLabel: {},
 });
