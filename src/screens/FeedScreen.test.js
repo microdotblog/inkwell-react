@@ -149,41 +149,62 @@ function flatten_menu_actions(actions) {
 }
 
 describe('profile menu actions', () => {
-  const expected_ids = [
-    'settings',
-    'mark_all_as_read',
-    'toggle_hide_read_posts',
-    'bookmarks',
-    'highlights',
-    'subscriptions',
-    'new_feed',
-  ];
+  const expected_ids = {
+    ios: [
+      'settings',
+      'mark_all_as_read',
+      'toggle_hide_read_posts',
+      'bookmarks',
+      'highlights',
+      'subscriptions',
+      'new_feed',
+    ],
+    android: [
+      'new_feed',
+      'subscriptions',
+      'highlights',
+      'bookmarks',
+      'toggle_hide_read_posts',
+      'mark_all_as_read',
+      'settings',
+    ],
+  };
 
   [false, true].forEach((hide_read_posts) => {
-    it(`matches the iOS order on Android with read posts ${hide_read_posts ? 'hidden' : 'visible'}`, () => {
+    it(`matches the bottom-anchored iOS display order on Android with read posts ${hide_read_posts ? 'hidden' : 'visible'}`, () => {
       const props = { hide_read_posts };
       const ios_actions = flatten_menu_actions(avatar_fixture({ platform: 'ios' })(props).props.actions);
       const android_actions = flatten_menu_actions(avatar_fixture({ platform: 'android' })(props).props.actions);
 
-      expect(android_actions.map((action) => action.id)).toEqual(expected_ids);
+      expect(ios_actions.map((action) => action.id)).toEqual(expected_ids.ios);
+      expect(android_actions.map((action) => action.id)).toEqual(expected_ids.android);
       expect(android_actions.map(({ id, title }) => ({ id, title })))
-        .toEqual(ios_actions.map(({ id, title }) => ({ id, title })));
-      expect(android_actions[2].title).toBe(hide_read_posts ? 'Show Read Posts' : 'Hide Read Posts');
+        .toEqual(ios_actions.map(({ id, title }) => ({ id, title })).reverse());
+      expect(android_actions.find((action) => action.id === 'toggle_hide_read_posts').title)
+        .toBe(hide_read_posts ? 'Show Read Posts' : 'Hide Read Posts');
       expect(android_actions.every((action) => action.title && !action.subactions)).toBe(true);
     });
   });
 
   ['ios', 'android'].forEach((platform) => {
-    it(`provides the three inline groups and trailing New Feed action on ${platform}`, () => {
+    it(`preserves the three inline groups and standalone New Feed action on ${platform}`, () => {
       const actions = avatar_fixture({ platform })().props.actions;
-      expect(actions).toHaveLength(4);
-      expect(actions.slice(0, 3).map((action) => action.displayInline)).toEqual([true, true, true]);
-      expect(actions.slice(0, 3).map((action) => action.subactions.map((item) => item.id))).toEqual([
+      const groups = actions.filter((action) => action.displayInline);
+      const expected_groups = platform === 'android' ? [
+        ['subscriptions', 'highlights', 'bookmarks'],
+        ['toggle_hide_read_posts', 'mark_all_as_read'],
+        ['settings'],
+      ] : [
         ['settings'],
         ['mark_all_as_read', 'toggle_hide_read_posts'],
         ['bookmarks', 'highlights', 'subscriptions'],
-      ]);
-      expect(actions[3].id).toBe('new_feed');
+      ];
+
+      expect(actions).toHaveLength(4);
+      expect(groups.map((action) => action.subactions.map((item) => item.id))).toEqual(expected_groups);
+      const new_feed_action = actions[platform === 'android' ? 0 : 3];
+      expect(new_feed_action.id).toBe('new_feed');
+      expect(new_feed_action.subactions).toBeUndefined();
     });
   });
 
@@ -196,7 +217,7 @@ describe('profile menu actions', () => {
       for (const action of flatten_menu_actions(button.props.actions)) {
         button.props.onPressAction({ nativeEvent: { event: action.id } });
       }
-      expect(selected_ids).toEqual(expected_ids);
+      expect(selected_ids).toEqual(expected_ids[platform]);
     });
   });
 });

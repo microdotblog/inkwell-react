@@ -167,7 +167,7 @@ function get_profile_menu_actions(
     imageColor: icon_color,
   };
 
-  return [
+  const actions = [
     {
       displayInline: true,
       subactions: [settings_action],
@@ -192,6 +192,22 @@ function get_profile_menu_actions(
     },
     new_feed_action,
   ];
+
+  if (Platform.OS === 'android') {
+    // UIKit displays this bottom-anchored menu in reverse priority order.
+    return actions.reverse().map((action) => {
+      if (action.displayInline) {
+        return {
+          ...action,
+          subactions: [...action.subactions].reverse(),
+        };
+      } else {
+        return action;
+      }
+    });
+  } else {
+    return actions;
+  }
 }
 
 function clear_feed_search_focus(
