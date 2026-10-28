@@ -143,3 +143,58 @@ describe('timeline account avatar', () => {
     expect(find_component(button, 'Text').props.children).toBe('A');
   });
 });
+
+function flatten_menu_actions(actions) {
+  return actions.flatMap((action) => action.subactions || [action]);
+}
+
+describe('profile menu actions', () => {
+  const expected_ids = [
+    'settings',
+    'mark_all_as_read',
+    'toggle_hide_read_posts',
+    'bookmarks',
+    'highlights',
+    'subscriptions',
+    'new_feed',
+  ];
+
+  [false, true].forEach((hide_read_posts) => {
+    it(`matches the iOS order on Android with read posts ${hide_read_posts ? 'hidden' : 'visible'}`, () => {
+      const props = { hide_read_posts };
+      const ios_actions = flatten_menu_actions(avatar_fixture({ platform: 'ios' })(props).props.actions);
+      const android_actions = avatar_fixture({ platform: 'android' })(props).props.actions;
+
+      expect(android_actions.map((action) => action.id)).toEqual(expected_ids);
+      expect(android_actions.map(({ id, title }) => ({ id, title })))
+        .toEqual(ios_actions.map(({ id, title }) => ({ id, title })));
+      expect(android_actions[2].title).toBe(hide_read_posts ? 'Show Read Posts' : 'Hide Read Posts');
+      expect(android_actions.every((action) => action.title && !action.subactions)).toBe(true);
+    });
+  });
+
+  it('preserves the three inline groups and trailing New Feed action on iOS', () => {
+    const actions = avatar_fixture({ platform: 'ios' })().props.actions;
+    expect(actions).toHaveLength(4);
+    expect(actions.slice(0, 3).map((action) => action.displayInline)).toEqual([true, true, true]);
+    expect(actions.slice(0, 3).map((action) => action.subactions.map((item) => item.id))).toEqual([
+      ['settings'],
+      ['mark_all_as_read', 'toggle_hide_read_posts'],
+      ['bookmarks', 'highlights', 'subscriptions'],
+    ]);
+    expect(actions[3].id).toBe('new_feed');
+  });
+
+  ['ios', 'android'].forEach((platform) => {
+    it(`dispatches every ${platform} selection using its action ID`, () => {
+      const selected_ids = [];
+      const button = avatar_fixture({ platform })({
+        onMenuAction: (id) => selected_ids.push(id),
+      });
+      for (const action of flatten_menu_actions(button.props.actions)) {
+        button.props.onPressAction({ nativeEvent: { event: action.id } });
+      }
+      expect(selected_ids).toEqual(expected_ids);
+    });
+  });
+});

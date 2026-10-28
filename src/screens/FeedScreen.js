@@ -196,13 +196,13 @@ function get_profile_menu_actions(
   }
 
   return [
-    new_feed_action,
+    settings_action,
+    mark_all_as_read_action,
+    hide_read_posts_action,
     bookmarks_action,
     highlights_action,
     subscriptions_action,
-    mark_all_as_read_action,
-    hide_read_posts_action,
-    settings_action,
+    new_feed_action,
   ];
 }
 
