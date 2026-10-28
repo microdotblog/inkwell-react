@@ -28,6 +28,7 @@ import { resolve_bookmark_timeline_entry_content } from '../components/timeline/
 import AppStore from '../stores/App';
 import Bookmarks from '../stores/Bookmarks';
 import { getAuthTheme } from '../theme/authTheme';
+import { useSwipeableMotion } from '../theme/swipeableMotion';
 import { createScaledTextStyles } from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 16;
@@ -317,6 +318,7 @@ function BookmarkSwipeRow({
 }) {
   const swipeable_ref = React.useRef(null);
   const [is_action_pressed, set_is_action_pressed] = React.useState(false);
+  const swipeable_motion = useSwipeableMotion();
 
   if (Platform.OS !== 'ios' || is_busy) {
     return <View style={styles.rowWrap}>{children}</View>;
@@ -324,12 +326,10 @@ function BookmarkSwipeRow({
 
   return (
     <Swipeable
+      {...swipeable_motion}
       ref={swipeable_ref}
       containerStyle={[styles.rowWrap, styles.rowSwipeContainer]}
       enableTrackpadTwoFingerGesture={true}
-      friction={1}
-      overshootFriction={8}
-      overshootRight={false}
       renderRightActions={(progress) => {
         const action_opacity = progress.interpolate({
           inputRange: [0, 0.2, 0.85, 1],

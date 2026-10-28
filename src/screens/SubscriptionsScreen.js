@@ -34,6 +34,7 @@ import PrimaryButton from '../components/auth/PrimaryButton';
 import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
+import { useSwipeableMotion } from '../theme/swipeableMotion';
 import { createScaledTextStyles } from '../theme/textScale';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
@@ -1005,6 +1006,7 @@ function SubscriptionRow({
   const detail_label = resolve_subscription_detail_label(subscription);
   const swipeable_ref = React.useRef(null);
   const [is_action_pressed, set_is_action_pressed] = React.useState(false);
+  const swipeable_motion = useSwipeableMotion();
   const row_menu_actions = React.useMemo(() => {
     return get_subscription_row_actions(theme);
   }, [theme]);
@@ -1245,12 +1247,10 @@ function SubscriptionRow({
 
   return (
     <Swipeable
+      {...swipeable_motion}
       ref={swipeable_ref}
       containerStyle={[styles.rowWrap, styles.rowSwipeContainer]}
       enableTrackpadTwoFingerGesture={true}
-      friction={1}
-      overshootFriction={8}
-      overshootRight={false}
       renderRightActions={(progress) => {
         const action_opacity = progress.interpolate({
           inputRange: [0, 0.2, 0.85, 1],

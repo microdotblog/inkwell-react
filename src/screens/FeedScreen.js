@@ -50,6 +50,7 @@ import Auth from '../stores/Auth';
 import AppStore from '../stores/App';
 import Feed from '../stores/Feed';
 import { getAuthTheme } from '../theme/authTheme';
+import { useSwipeableMotion } from '../theme/swipeableMotion';
 import { createScaledTextStyles } from '../theme/textScale';
 
 const SEGMENT_OPTIONS = [
@@ -1369,6 +1370,7 @@ function FeedEntrySwipeRow({
 }) {
   const swipeable_ref = React.useRef(null);
   const [is_action_pressed, set_is_action_pressed] = React.useState(false);
+  const swipeable_motion = useSwipeableMotion();
   const action_title = entry?.is_read ? 'Mark as Unread' : 'Mark as Read';
   const ios_symbol_name = get_entry_read_action_image(entry);
   const android_icon_name = get_entry_read_action_material_icon_name(entry);
@@ -1379,12 +1381,10 @@ function FeedEntrySwipeRow({
 
   return (
     <Swipeable
+      {...swipeable_motion}
       ref={swipeable_ref}
       containerStyle={styles.rowSwipeContainer}
       enableTrackpadTwoFingerGesture={true}
-      friction={1}
-      overshootFriction={8}
-      overshootRight={false}
       renderRightActions={(progress) => {
         const action_opacity = progress.interpolate({
           inputRange: [0, 0.2, 0.85, 1],
