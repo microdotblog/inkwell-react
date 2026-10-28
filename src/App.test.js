@@ -68,9 +68,15 @@ describe('status toast layout', () => {
       const render = toast_fixture();
       const theme = getAuthTheme(is_dark);
 
-      ['Marked as unread', 'Marked as read', 'Bookmarked'].forEach((toast_message, toast_key) => {
+      [
+        'Marked as unread',
+        'Marked as read',
+        'Bookmarked',
+        'Your Micro.blog session expired. Please sign in again.',
+      ].forEach((toast_message, toast_key) => {
         const overlay = render({ theme, toast_message, toast_key });
         const style = flatten_style(overlay.props.style);
+        const card_style = flatten_style(overlay.props.children.props.style);
         expect(style.position).toBe('absolute');
         for (const edge of ['top', 'right', 'bottom', 'left']) {
           expect(style[edge]).toBe(0);
@@ -80,6 +86,8 @@ describe('status toast layout', () => {
         expect(overlay.props.pointerEvents).toBe('box-none');
         expect(overlay.props.children.props.pointerEvents).toBe('none');
         expect(overlay.props.children.key).toBe(`${toast_key}`);
+        expect(card_style.maxWidth).toBe(320);
+        expect(card_style.width).toBe('100%');
       });
     });
   });

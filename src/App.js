@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     justifyContent: 'flex-start',
-    maxWidth: 360,
+    maxWidth: 320,
     minHeight: 56,
     paddingHorizontal: 14,
     paddingVertical: 10,
