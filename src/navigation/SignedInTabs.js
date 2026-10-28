@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react';
+import { SafeAreaView } from 'react-native-screens/experimental';
 
 import AccountScreen from '../screens/AccountScreen';
 import BookmarksScreen from '../screens/BookmarksScreen';
@@ -70,10 +71,12 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <FeedScreen
-            {...screen_props}
-            isDark={isDark}
-          />
+          <SafeAreaView edges={{ left: true, right: true }}>
+            <FeedScreen
+              {...screen_props}
+              isDark={isDark}
+            />
+          </SafeAreaView>
         )}
       </Stack.Screen>
       <Stack.Screen
@@ -126,10 +129,12 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <SubscriptionFeedScreen
-            {...screen_props}
-            isDark={isDark}
-          />
+          <SafeAreaView edges={{ left: true, right: true }}>
+            <SubscriptionFeedScreen
+              {...screen_props}
+              isDark={isDark}
+            />
+          </SafeAreaView>
         )}
       </Stack.Screen>
       <Stack.Screen
