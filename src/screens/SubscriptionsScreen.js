@@ -1641,7 +1641,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuDismissTouchOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 4,
   },
   listContent: {
@@ -1717,7 +1717,7 @@ const styles = StyleSheet.create({
     width: 44,
   },
   rowSwipeActionCirclePressed: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.18)',
     borderRadius: 22,
   },

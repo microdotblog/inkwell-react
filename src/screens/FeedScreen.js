@@ -2101,7 +2101,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   searchFooterOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'flex-end',
     zIndex: 4,
   },
@@ -2114,17 +2114,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
   },
   footerBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
   footerTouchShield: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
   menuDismissTouchOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 5,
   },
   headerControlsRow: {
@@ -2183,7 +2183,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   accountAvatarPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2193,7 +2193,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   accountAvatarImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   segmentedControl: {
     position: 'relative',
@@ -2376,7 +2376,7 @@ const styles = StyleSheet.create({
     width: 44,
   },
   rowSwipeActionCirclePressed: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.18)',
     borderRadius: 22,
   },

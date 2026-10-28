@@ -712,7 +712,7 @@ const styles = StyleSheet.create({
     width: 44,
   },
   rowSwipeActionCirclePressed: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.18)',
     borderRadius: 22,
   },

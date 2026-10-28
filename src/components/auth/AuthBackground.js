@@ -211,11 +211,11 @@ function BackgroundLayer({ glow_shift, theme, wave_shift }) {
 
 const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },
   canvas: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   waveLayer: {
     position: 'absolute',
@@ -228,10 +228,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   glowLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   transitionOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   immediateTransitionOverlay: {
     opacity: 1,

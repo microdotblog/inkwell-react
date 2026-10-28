@@ -339,12 +339,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   sourceAvatarPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sourceAvatarImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   sourceAvatarInitial: {
     fontFamily: 'Newsreader_700Bold',

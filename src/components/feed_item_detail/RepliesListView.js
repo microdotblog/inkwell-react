@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   avatarPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -474,6 +474,6 @@ const styles = StyleSheet.create({
     fontFamily: "Newsreader_700Bold",
   },
   avatarImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
 });

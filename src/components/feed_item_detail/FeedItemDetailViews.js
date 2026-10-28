@@ -1807,7 +1807,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   headerBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   readerColumn: {
     maxWidth: READER_COLUMN_MAX_WIDTH,
@@ -2062,7 +2062,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   recapFaviconImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   recapTopics: {
     alignItems: "center",
@@ -2177,12 +2177,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   readerTextSizeOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "flex-end",
     zIndex: 4,
   },
   readerImageViewerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   readerImageViewerHeader: {
     left: 0,
@@ -2206,12 +2206,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   readerImageViewerLoading: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },
   readerImageViewerError: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 32,
@@ -2224,7 +2224,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   readerHighlightActionWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "flex-end",
     paddingHorizontal: READER_HORIZONTAL_PADDING,
@@ -2304,7 +2304,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   readerTextSizeBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   readerTextSizeTrayWrap: {
     paddingHorizontal: READER_HORIZONTAL_PADDING,
@@ -2367,7 +2367,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   avatarPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2375,7 +2375,7 @@ const styles = StyleSheet.create({
     fontFamily: "Newsreader_700Bold",
   },
   avatarImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
 });
 

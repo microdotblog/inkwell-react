@@ -1062,7 +1062,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuDismissTouchOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 4,
   },
   listContent: {

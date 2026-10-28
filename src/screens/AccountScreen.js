@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   paletteSwatchLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   paletteSwatchWaveFrame: {
     top: -8,

@@ -208,7 +208,7 @@ function SignedInTabs({ isDark = false }) {
 
 const styles = StyleSheet.create({
   headerBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
 });
 
