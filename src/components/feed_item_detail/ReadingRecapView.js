@@ -324,10 +324,7 @@ function RecapEmailSettingsCard({
     >
       <View style={styles.recapSettingsHeader}>
         <View style={styles.recapSettingsCopy}>
-          <Animated.View
-            layout={RECAP_SETTINGS_LAYOUT_TRANSITION}
-            style={styles.recapSettingsTitleRow}
-          >
+          <View style={styles.recapSettingsTitleRow}>
             <Text
               style={[
                 styles.recapSettingsTitle,
@@ -380,7 +377,7 @@ function RecapEmailSettingsCard({
                 </Animated.View>
               )}
             </View>
-          </Animated.View>
+          </View>
           {is_expanded ? (
             <Text
               style={[
@@ -606,13 +603,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     justifyContent: "space-between",
+    width: "100%",
   },
   recapSettingsTitleActions: {
     alignItems: "center",
     flexDirection: "row",
     gap: 8,
+    marginLeft: "auto",
   },
   recapSettingsTitle: {
+    flexShrink: 1,
     fontSize: 18,
     lineHeight: 28,
   },

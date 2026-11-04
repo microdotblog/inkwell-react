@@ -5,9 +5,10 @@ import React from 'react';
 import { parseSync, transformSync } from '@babel/core';
 import { getAuthTheme } from '../theme/authTheme';
 
-function screen_fixture(name, { header_height = 88, mode = 'entry', loading = false } = {}) {
+function screen_fixture(name, { header_height = 88, mode = 'entry', loading = false, export_name = 'default' } = {}) {
   const source = readFileSync(new URL(`./${name}.js`, import.meta.url), 'utf8');
-  const { code } = transformSync(source, {
+  const fixture_source = export_name === 'default' ? source : `${source}\nexport { ${export_name} };`;
+  const { code } = transformSync(fixture_source, {
     configFile: false,
     babelrc: false,
     plugins: [
@@ -44,6 +45,7 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
           StyleSheet: { create: (styles) => styles },
           View: 'View', ScrollView: 'ScrollView', FlatList: 'FlatList',
           Pressable: 'Pressable', RefreshControl: 'RefreshControl',
+          Text: 'Text', ActivityIndicator: 'ActivityIndicator',
           useWindowDimensions: () => ({ width: 900 }),
         };
       }
@@ -54,7 +56,10 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
         return { useSafeAreaInsets: () => ({ top: 0, bottom: 20, left: 12, right: 68 }) };
       }
       if (dependency === 'react-native-reanimated') {
-        return { FadeInDown: animation, FadeOutUp: animation, LinearTransition: animation };
+        return {
+          __esModule: true, default: { View: 'Animated.View' },
+          FadeInDown: animation, FadeOutUp: animation, LinearTransition: animation,
+        };
       }
       if (dependency === '../theme/authTheme') return { getAuthTheme };
       if (dependency === '../theme/textScale') {
@@ -91,6 +96,12 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
       if (dependency.endsWith('/feedItemDetailUtils')) {
         return {
           READER_BOTTOM_PADDING: 32, READER_HORIZONTAL_PADDING: 20,
+          READER_COLUMN_MAX_WIDTH: 760,
+          RECAP_EMAIL_DAYS: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+          RECAP_SETTINGS_LAYOUT_TRANSITION: animation,
+          RECAP_SETTINGS_ROW_ENTERING: animation, RECAP_SETTINGS_ROW_EXITING: animation,
+          get_recap_day_chip_label: (day) => day.slice(0, 3),
+          get_recap_day_summary_label: (day) => day,
           create_reader_body_html: () => '<p>Article</p>',
           normalize_http_url: (url) => url || '', sanitize_reader_html: (html) => html,
           resolve_detail_mode: (value) => value || 'entry',
@@ -101,9 +112,9 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
     },
   };
   vm.runInNewContext(code, context);
-  return () => {
+  return (props = {}) => {
     state_index = 0;
-    return context.exports.default({ navigation: {}, route: { params: { mode, entry_id: '123' } } });
+    return context.exports[export_name]({ navigation: {}, route: { params: { mode, entry_id: '123' } }, ...props });
   };
 }
 
@@ -189,6 +200,57 @@ describe('absolute overlay layout', () => {
 });
 
 describe('reader and list layout', () => {
+  [false, true].forEach((is_dark) => {
+    it(`keeps the recap email header full-width while toggling and updating in ${is_dark ? 'dark' : 'light'} mode`, () => {
+      const render = screen_fixture('../components/feed_item_detail/ReadingRecapView', {
+        export_name: 'RecapEmailSettingsCard',
+      });
+      const props = {
+        is_enabled: true, selected_day: 'Monday',
+        scaled_text_styles: {}, theme: getAuthTheme(is_dark),
+      };
+
+      function header_parts(card) {
+        const header = card.props.children[0];
+        const copy = header.props.children[0];
+        const row = copy.props.children[0];
+        const actions = row.props.children[1];
+        const selector = actions.props.children[1].props.children;
+
+        expect(row.type).toBe('View');
+        expect(row.props.layout).toBeUndefined();
+        expect(flatten_style(row.props.style).width).toBe('100%');
+        expect(flatten_style(row.props.children[0].props.style).flexShrink).toBe(1);
+        expect(flatten_style(actions.props.style).marginLeft).toBe('auto');
+        expect(card.props.layout).toBeDefined();
+        return { copy, selector };
+      }
+
+      let card = render(props);
+      let { selector } = header_parts(card);
+      expect(selector.props.label).toBe('Monday');
+      expect(card.props.children[1]).toBeNull();
+
+      selector.props.onPress();
+      card = render(props);
+      ({ selector } = header_parts(card));
+      expect(selector.props.icon_name).toBe('expand-less');
+      expect(card.props.children[1].props.children.flat().filter(Boolean)).toHaveLength(8);
+      expect(header_parts(card).copy.props.children[1].props.children).toContain('weekly email');
+
+      selector.props.onPress();
+      card = render({ ...props, selected_day: 'Wednesday' });
+      expect(header_parts(card).selector.props.label).toBe('Wednesday');
+      expect(card.props.children[1]).toBeNull();
+
+      for (const busy_state of [{ is_loading: true }, { is_saving: true }]) {
+        card = render({ ...props, ...busy_state });
+        expect(header_parts(card).selector.props.disabled).toBe(true);
+        expect(find_component(card, 'ActivityIndicator')).not.toBeNull();
+      }
+    });
+  });
+
   ['entry', 'recap'].forEach((mode) => {
     it(`sizes the ${mode} reader using the safe-area viewport and subsequent layout changes`, () => {
       const render = screen_fixture('FeedItemDetailScreen', { mode });
