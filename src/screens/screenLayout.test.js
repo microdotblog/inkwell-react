@@ -51,6 +51,7 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
       }
       if (dependency === 'mobx-react') return { observer: (component) => component };
       if (dependency === '@react-navigation/elements') return { useHeaderHeight: () => header_height };
+      if (dependency === '@expo/vector-icons') return { MaterialIcons: 'MaterialIcons' };
       if (dependency === '@react-navigation/native') return { useNavigation: () => ({}) };
       if (dependency === 'react-native-safe-area-context') {
         return { useSafeAreaInsets: () => ({ top: 0, bottom: 20, left: 12, right: 68 }) };
@@ -74,6 +75,7 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
           is_loading_subscriptions: loading,
           timeline_entry_snapshot: () => entry,
           active_recap_snapshot: () => ({ html: '<p>Recap</p>' }),
+          show_posts_for_feed: () => {},
         } };
       }
       if (dependency === '../stores/Highlights') {
@@ -269,6 +271,25 @@ describe('reader and list layout', () => {
       screen.props.onLayout({ nativeEvent: { layout: { width: 0 } } });
       expect(find_component(render(), component).props.width).toBe(1100);
     });
+  });
+
+  it('renders the embedded post header and actions at the pane width', () => {
+    const render = screen_fixture('FeedItemDetailScreen');
+    const screen = render({ is_embedded: true, pane_width: 456 });
+
+    expect(find_component(screen, 'EntryReaderView').props.width).toBe(456);
+    expect(find_component(screen, 'HeaderEntryMenuButton')).not.toBeNull();
+    expect(find_component(screen, 'Text').props.children).toBe('Article');
+    expect(find_component(screen, 'Pressable')).toBeNull();
+
+    let did_close = false;
+    const compact = render({
+      is_embedded: true,
+      pane_width: 360,
+      onCloseReader: () => { did_close = true; },
+    });
+    find_component(compact, 'Pressable').props.onPress();
+    expect(did_close).toBe(true);
   });
 
   ['SubscriptionsScreen', 'HighlightsScreen'].forEach((name) => {

@@ -284,7 +284,14 @@ function get_entry_menu_actions({ entry = null, theme }) {
   return actions;
 }
 
-function FeedScreen({ navigation, isDark = false }) {
+function FeedScreen({
+  navigation,
+  isDark = false,
+  is_sidebar = false,
+  onOpenLibrary,
+  onOpenReader,
+  selected_entry_id = '',
+}) {
   const accent_palette_id = AppStore.accent_palette_id;
   const theme = getAuthTheme(isDark, accent_palette_id);
   const scaled_text_styles = React.useMemo(() => {
@@ -304,7 +311,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const has_bootstrapped = Feed.has_bootstrapped;
   const has_restored_cache = Feed.has_restored_cache;
   const has_any_timeline_entries = Feed.timeline_entries.length > 0;
-  const visible_timeline_entries = Feed.visible_timeline_entries();
+  const visible_timeline_entries = Feed.visible_timeline_entries(selected_entry_id);
   const recap_timeline_entries = Feed.fading_recap_timeline_entries();
   const is_fading_locked =
     !is_feed_filter_active &&
@@ -316,7 +323,7 @@ function FeedScreen({ navigation, isDark = false }) {
   const recap_error_message = Feed.recap_error_message;
   const is_generating_recap = Feed.is_generating_recap;
   const background_intensity = display_timeline_entries.length > 0 ? 0.14 : 1;
-  const list_top_inset = insets.top + LIST_TOP_PADDING;
+  const list_top_inset = is_sidebar ? LIST_TOP_PADDING : insets.top + LIST_TOP_PADDING;
   const top_status_scrim_height = insets.top + TOP_STATUS_SCRIM_EXTRA_HEIGHT;
   const top_status_scrim_color = resolve_top_status_scrim_color(theme);
   const top_status_scrim_mid_color = with_color_opacity(
@@ -329,12 +336,13 @@ function FeedScreen({ navigation, isDark = false }) {
   );
   const toast_top_offset = insets.top + 12;
   const footer_bottom_inset = insets.bottom + FOOTER_FLOAT_GAP;
-  const list_bottom_inset =
-    footer_bottom_inset +
-    FOOTER_TOP_PADDING +
-    SEGMENT_WRAP_MAX_HEIGHT +
-    (is_feed_filter_active ? FEED_FILTER_BAR_VERTICAL_SPACE : 0) +
-    LIST_TOP_GAP;
+  const list_bottom_inset = is_sidebar
+    ? insets.bottom + LIST_TOP_GAP
+    : footer_bottom_inset +
+      FOOTER_TOP_PADDING +
+      SEGMENT_WRAP_MAX_HEIGHT +
+      (is_feed_filter_active ? FEED_FILTER_BAR_VERTICAL_SPACE : 0) +
+      LIST_TOP_GAP;
   const search_footer_open_offset = Math.max(
     footer_bottom_inset - FOOTER_FLOAT_GAP - SEARCH_KEYBOARD_GAP,
     0,
@@ -385,6 +393,10 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const on_scroll = useAnimatedScrollHandler({
     onScroll: (event) => {
+      if (is_sidebar) {
+        return;
+      }
+
       const next_scroll_y = Math.max(event.contentOffset.y, 0);
       const scroll_delta = next_scroll_y - previous_scroll_y.value;
       const viewport_bottom =
@@ -525,11 +537,14 @@ function FeedScreen({ navigation, isDark = false }) {
       }
 
       Feed.open_entry(entry_id);
-      navigation.navigate('FeedItemDetail', {
-        entry_id,
-      });
+      if (onOpenReader) {
+        clear_feed_search_focus(search_input_ref, true);
+        onOpenReader({ entry_id });
+      } else {
+        navigation.navigate('FeedItemDetail', { entry_id });
+      }
     },
-    [navigation],
+    [navigation, onOpenReader],
   );
 
   const handle_entry_menu_action = React.useCallback(
@@ -637,20 +652,22 @@ function FeedScreen({ navigation, isDark = false }) {
 
   const handle_profile_menu_action = React.useCallback(
     (menu_action_id = '') => {
+      const open_library = onOpenLibrary || ((name, params) => navigation.navigate(name, params));
+
       if (menu_action_id === 'new_feed') {
-        navigation.navigate('Subscriptions', {
+        open_library('Subscriptions', {
           mode: 'subscribe',
           open_request_id: Date.now(),
         });
       } else if (menu_action_id === 'subscriptions') {
-        navigation.navigate('Subscriptions', {
+        open_library('Subscriptions', {
           mode: 'manage',
           open_request_id: Date.now(),
         });
       } else if (menu_action_id === 'bookmarks') {
-        navigation.navigate('Bookmarks');
+        open_library('Bookmarks');
       } else if (menu_action_id === 'highlights') {
-        navigation.navigate('Highlights');
+        open_library('Highlights');
       } else if (menu_action_id === 'mark_all_as_read') {
         const unread_display_entry_ids = display_timeline_entries
           .filter((entry) => {
@@ -681,7 +698,7 @@ function FeedScreen({ navigation, isDark = false }) {
         }
       }
     },
-    [display_timeline_entries, navigation, toast_top_offset],
+    [display_timeline_entries, navigation, onOpenLibrary, toast_top_offset],
   );
 
   useFocusEffect(
@@ -701,10 +718,12 @@ function FeedScreen({ navigation, isDark = false }) {
       return;
     }
 
-    navigation.navigate('FeedItemDetail', {
-      mode: 'recap',
-    });
-  }, [is_using_ai, navigation]);
+    if (onOpenReader) {
+      onOpenReader({ mode: 'recap' });
+    } else {
+      navigation.navigate('FeedItemDetail', { mode: 'recap' });
+    }
+  }, [is_using_ai, navigation, onOpenReader]);
 
   const handle_open_micro_blog_plans = React.useCallback(async () => {
     try {
@@ -911,9 +930,57 @@ function FeedScreen({ navigation, isDark = false }) {
     };
   }, []);
 
+  const controls = (
+    <FeedControlsRow
+      active_segment={active_segment}
+      active_segment_style={active_segment_style}
+      hide_read_posts={hide_read_posts}
+      input_ref={search_input_ref}
+      is_feed_filter_active={is_feed_filter_active}
+      is_search_active={is_search_active}
+      is_dark={isDark}
+      is_sidebar={is_sidebar}
+      onProfileMenuAction={handle_profile_menu_action}
+      onProfileMenuClose={handle_any_menu_close}
+      onProfileMenuOpen={handle_profile_menu_open}
+      onSearchQueryChange={handle_search_query_change}
+      onSearchTogglePress={handle_search_toggle_press}
+      onSegmentPress={handle_segment_press}
+      profile_name={profile.name}
+      profile_photo={profile.photo}
+      search_query={search_query}
+      scaled_text_styles={scaled_text_styles}
+      theme={theme}
+      update_segment_frame={update_segment_frame}
+    />
+  );
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
+      {is_sidebar ? (
+        <View
+          style={[
+            styles.sidebarHeader,
+            {
+              backgroundColor: theme.colors.paper,
+              borderColor: theme.colors.line,
+              paddingTop: insets.top + 10,
+            },
+          ]}
+        >
+          {controls}
+          {is_feed_filter_active ? (
+            <FeedFilterBar
+              is_sidebar
+              label={active_feed_filter_label}
+              onClear={handle_clear_feed_filter}
+              scaled_text_styles={scaled_text_styles}
+              theme={theme}
+            />
+          ) : null}
+        </View>
+      ) : null}
       <Animated.View
         collapsable={false}
         style={[styles.contentSurface, content_nudge_style]}
@@ -924,6 +991,7 @@ function FeedScreen({ navigation, isDark = false }) {
             is_feed_filter_active,
             is_loading_feed_filter: Feed.is_loading_feed_filter,
             is_search_active,
+            is_sidebar,
             list_bottom_inset,
             list_top_inset,
             on_scroll,
@@ -946,33 +1014,34 @@ function FeedScreen({ navigation, isDark = false }) {
             recap_error_message,
             recap_timeline_entries,
             search_results_spacer_style,
+            selected_entry_id,
             visible_timeline_entries: display_timeline_entries,
             scaled_text_styles,
           })}
       </Animated.View>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.topStatusScrim,
-          {
-            height: top_status_scrim_height,
-          },
-          top_status_scrim_style,
-        ]}
-      >
-        <LinearGradient
-          colors={[
-            top_status_scrim_color,
-            top_status_scrim_mid_color,
-            top_status_scrim_transparent_color,
+      {!is_sidebar ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.topStatusScrim,
+            { height: top_status_scrim_height },
+            top_status_scrim_style,
           ]}
-          end={{ x: 0.5, y: 1 }}
-          locations={[0, 0.58, 1]}
-          start={{ x: 0.5, y: 0 }}
-          style={styles.topStatusScrimGradient}
-        />
-      </Animated.View>
-      {is_search_active && !is_feed_filter_active ? (
+        >
+          <LinearGradient
+            colors={[
+              top_status_scrim_color,
+              top_status_scrim_mid_color,
+              top_status_scrim_transparent_color,
+            ]}
+            end={{ x: 0.5, y: 1 }}
+            locations={[0, 0.58, 1]}
+            start={{ x: 0.5, y: 0 }}
+            style={styles.topStatusScrimGradient}
+          />
+        </Animated.View>
+      ) : null}
+      {is_sidebar ? null : is_search_active && !is_feed_filter_active ? (
         <View pointerEvents="box-none" style={styles.searchFooterOverlay}>
           <KeyboardStickyView
             offset={{
@@ -991,29 +1060,7 @@ function FeedScreen({ navigation, isDark = false }) {
                 },
               ]}
             >
-              <View style={styles.footerWrap}>
-                <FeedFooterControlsRow
-                  active_segment={active_segment}
-                  active_segment_style={active_segment_style}
-                  hide_read_posts={hide_read_posts}
-                  input_ref={search_input_ref}
-                  is_feed_filter_active={is_feed_filter_active}
-                  is_search_active={is_search_active}
-                  is_dark={isDark}
-                  onProfileMenuAction={handle_profile_menu_action}
-                  onProfileMenuClose={handle_any_menu_close}
-                  onProfileMenuOpen={handle_profile_menu_open}
-                  onSearchQueryChange={handle_search_query_change}
-                  onSearchTogglePress={handle_search_toggle_press}
-                  onSegmentPress={handle_segment_press}
-                  profile_name={profile.name}
-                  profile_photo={profile.photo}
-                  search_query={search_query}
-                  scaled_text_styles={scaled_text_styles}
-                  theme={theme}
-                  update_segment_frame={update_segment_frame}
-                />
-              </View>
+              <View style={styles.footerWrap}>{controls}</View>
             </View>
           </KeyboardStickyView>
         </View>
@@ -1071,27 +1118,7 @@ function FeedScreen({ navigation, isDark = false }) {
               style={styles.footerTouchShield}
             />
             <Animated.View style={[styles.footerWrap, footer_wrap_style]}>
-              <FeedFooterControlsRow
-                active_segment={active_segment}
-                active_segment_style={active_segment_style}
-                hide_read_posts={hide_read_posts}
-                input_ref={search_input_ref}
-                is_feed_filter_active={is_feed_filter_active}
-                is_search_active={is_search_active}
-                is_dark={isDark}
-                onProfileMenuAction={handle_profile_menu_action}
-                onProfileMenuClose={handle_any_menu_close}
-                onProfileMenuOpen={handle_profile_menu_open}
-                onSearchQueryChange={handle_search_query_change}
-                onSearchTogglePress={handle_search_toggle_press}
-                onSegmentPress={handle_segment_press}
-                profile_name={profile.name}
-                profile_photo={profile.photo}
-                search_query={search_query}
-                scaled_text_styles={scaled_text_styles}
-                theme={theme}
-                update_segment_frame={update_segment_frame}
-              />
+              {controls}
             </Animated.View>
           </View>
         </View>
@@ -1115,6 +1142,7 @@ function render_content({
   is_feed_filter_active,
   is_loading_feed_filter,
   is_search_active,
+  is_sidebar,
   list_bottom_inset,
   list_top_inset,
   on_scroll,
@@ -1138,6 +1166,7 @@ function render_content({
   recap_timeline_entries,
   search_results_spacer_style,
   scaled_text_styles,
+  selected_entry_id,
   visible_timeline_entries,
 }) {
   if (is_loading_initial) {
@@ -1169,6 +1198,7 @@ function render_content({
         contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[
           styles.listContent,
+          is_sidebar && styles.sidebarListContent,
           {
             paddingBottom: list_bottom_inset,
             paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
@@ -1179,6 +1209,10 @@ function render_content({
             : null,
         ]}
         data={visible_timeline_entries}
+        extraData={selected_entry_id}
+        keyboardShouldPersistTaps={
+          is_sidebar && is_search_active ? 'handled' : undefined
+        }
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
           is_fading_locked ? (
@@ -1331,6 +1365,8 @@ function render_content({
                 accessibility_label={`Open ${timeline_entry_content.display_title}`}
                 avatar_url={item.avatar_url}
                 display_title={timeline_entry_content.display_title}
+                is_compact={is_sidebar}
+                is_selected={item.id === selected_entry_id}
                 is_unread={!item?.is_read}
                 menu_actions={get_entry_menu_actions({
                   entry: item,
@@ -1465,7 +1501,7 @@ function FeedEntrySwipeRow({
   );
 }
 
-function FeedFooterControlsRow({
+function FeedControlsRow({
   active_segment = 'today',
   active_segment_style,
   hide_read_posts = false,
@@ -1473,6 +1509,7 @@ function FeedFooterControlsRow({
   is_feed_filter_active = false,
   is_dark = false,
   is_search_active = false,
+  is_sidebar = false,
   onProfileMenuAction,
   onProfileMenuClose,
   onProfileMenuOpen,
@@ -1488,7 +1525,7 @@ function FeedFooterControlsRow({
 }) {
   return (
     <View style={styles.footerControlStack}>
-      <View style={styles.headerControlsRow}>
+      <View style={[styles.headerControlsRow, is_sidebar && styles.sidebarControlsRow]}>
         <AccountHeaderButton
           hide_read_posts={hide_read_posts}
           is_dark={is_dark}
@@ -1537,7 +1574,7 @@ function FeedFooterControlsRow({
 
               return (
                 <Pressable
-                  accessibilityRole="button"
+                  accessibilityRole={is_sidebar ? 'tab' : 'button'}
                   accessibilityState={{
                     disabled: is_feed_filter_active,
                     selected: is_active,
@@ -1551,7 +1588,7 @@ function FeedFooterControlsRow({
                     );
                   }}
                   onPress={() => onSegmentPress(option.key)}
-                  style={[styles.segmentButton]}
+                  style={[styles.segmentButton, is_sidebar && styles.sidebarSegmentButton]}
                 >
                   <Text
                     maxFontSizeMultiplier={SEGMENT_LABEL_MAX_FONT_SIZE_MULTIPLIER}
@@ -1586,6 +1623,7 @@ function FeedFooterControlsRow({
 }
 
 function FeedFilterBar({
+  is_sidebar = false,
   label = '',
   onClear,
   scaled_text_styles,
@@ -1597,6 +1635,7 @@ function FeedFilterBar({
     <View
       style={[
         styles.feedFilterBar,
+        is_sidebar && styles.sidebarFilterBar,
         {
           backgroundColor: resolve_feed_filter_bar_background_color(theme),
           borderColor: theme.colors.line,
@@ -1604,7 +1643,7 @@ function FeedFilterBar({
         },
       ]}
     >
-      <View style={styles.feedFilterBarContent}>
+      <View style={[styles.feedFilterBarContent, is_sidebar && styles.sidebarFilterBarContent]}>
         <Text
           numberOfLines={1}
           style={[
@@ -1641,14 +1680,16 @@ function FeedFilterBar({
           </Text>
         </Pressable>
       </View>
-      <LinearGradient
-        colors={[
-          with_color_opacity(theme.colors.shadow, 0),
-          with_color_opacity(theme.colors.shadow, theme.isDark ? 0.1 : 0.055),
-        ]}
-        pointerEvents="none"
-        style={styles.feedFilterBottomStopShadow}
-      />
+      {!is_sidebar ? (
+        <LinearGradient
+          colors={[
+            with_color_opacity(theme.colors.shadow, 0),
+            with_color_opacity(theme.colors.shadow, theme.isDark ? 0.1 : 0.055),
+          ]}
+          pointerEvents="none"
+          style={styles.feedFilterBottomStopShadow}
+        />
+      ) : null}
     </View>
   );
 }
@@ -2078,6 +2119,34 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     zIndex: 0,
+  },
+  sidebarHeader: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    paddingBottom: 10,
+    paddingHorizontal: 10,
+    zIndex: 3,
+  },
+  sidebarControlsRow: {
+    gap: 6,
+  },
+  sidebarSegmentButton: {
+    paddingHorizontal: 2,
+  },
+  sidebarListContent: {
+    gap: 8,
+  },
+  sidebarFilterBar: {
+    borderBottomWidth: 1,
+    borderRadius: 8,
+    elevation: 0,
+    height: 34,
+    paddingBottom: 0,
+    paddingTop: 0,
+    shadowOpacity: 0,
+  },
+  sidebarFilterBarContent: {
+    paddingHorizontal: 8,
   },
   topStatusScrim: {
     position: 'absolute',

@@ -12,6 +12,8 @@ export default function FeedTimelineCard({
   accessibility_label = '',
   avatar_url = '',
   display_title = '',
+  is_compact = false,
+  is_selected = false,
   is_unread = false,
   menu_actions = [],
   onMenuAction,
@@ -28,11 +30,16 @@ export default function FeedTimelineCard({
   timestamp = '',
 }) {
   const android_menu_ref = React.useRef(null);
+  const display_opacity = is_selected ? 1 : row_opacity;
+  const secondary_color = is_selected ? theme.colors.ink : theme.colors.inkSoft;
+  const background_color = is_selected
+    ? theme.colors.accentSoft
+    : resolve_row_background_color(theme, is_unread);
   const row_content = (
     <View style={styles.rowContentWrap}>
       <FeedSourceAvatar
         avatar_url={avatar_url}
-        row_opacity={row_opacity}
+        row_opacity={display_opacity}
         scaled_text_styles={scaled_text_styles}
         source={source_label}
         theme={theme}
@@ -50,11 +57,11 @@ export default function FeedTimelineCard({
         </Text>
         {summary ? (
           <Text
-            numberOfLines={3}
+            numberOfLines={is_compact ? 1 : 3}
             style={[
               styles.rowSummary,
               scaled_text_styles.rowSummary,
-              { color: theme.colors.inkSoft },
+              { color: secondary_color },
             ]}
           >
             {summary}
@@ -66,7 +73,7 @@ export default function FeedTimelineCard({
             style={[
               styles.rowSourceLabel,
               scaled_text_styles.rowSourceLabel,
-              { color: theme.colors.inkSoft },
+              { color: secondary_color },
             ]}
           >
             {secondary_source_label}
@@ -79,7 +86,7 @@ export default function FeedTimelineCard({
                 style={[
                   styles.timestamp,
                   scaled_text_styles.timestamp,
-                  { color: theme.colors.inkSoft },
+                  { color: secondary_color },
                 ]}
               >
                 {timestamp}
@@ -90,7 +97,7 @@ export default function FeedTimelineCard({
             {show_bookmark_indicator ? (
               <View style={styles.bookmarkIndicator}>
                 <MaterialIcons
-                  color={theme.colors.inkSoft}
+                  color={secondary_color}
                   name="star"
                   size={16}
                 />
@@ -99,7 +106,7 @@ export default function FeedTimelineCard({
                     styles.timestamp,
                     scaled_text_styles.timestamp,
                     styles.bookmarkLabel,
-                    { color: theme.colors.inkSoft },
+                    { color: secondary_color },
                   ]}
                 >
                   Bookmarked
@@ -141,17 +148,19 @@ export default function FeedTimelineCard({
       <Pressable
         accessibilityLabel={accessibility_label || display_title}
         accessibilityRole="button"
+        accessibilityState={is_selected ? { selected: true } : undefined}
         onLongPress={on_long_press}
         onPress={onPress}
         style={({ pressed }) => {
           return [
             styles.rowCard,
+            is_compact && styles.compactRowCard,
             {
-              backgroundColor: resolve_row_background_color(theme, is_unread),
-              borderColor: theme.colors.line,
+              backgroundColor: background_color,
+              borderColor: is_selected ? theme.colors.accent : theme.colors.line,
               opacity: pressed
-                ? Math.max(row_opacity - 0.08, 0.42)
-                : row_opacity,
+                ? Math.max(display_opacity - 0.08, 0.42)
+                : display_opacity,
             },
           ];
         }}
@@ -323,6 +332,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 18,
     paddingVertical: 16,
+  },
+  compactRowCard: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
   rowContentWrap: {
     flexDirection: 'row',

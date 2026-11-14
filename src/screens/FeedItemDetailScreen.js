@@ -3,10 +3,13 @@ import {
   Alert,
   Pressable,
   ScrollView,
+  StyleSheet,
+  Text,
   View,
   useWindowDimensions,
 } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { MaterialIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { observer } from "mobx-react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -58,13 +61,23 @@ import {
 
 const MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS = 160;
 
-function FeedItemDetailScreen({ navigation, route, isDark = false }) {
+function FeedItemDetailScreen({
+  navigation,
+  route,
+  isDark = false,
+  is_embedded = false,
+  onCloseReader,
+  pane_width,
+}) {
   const accent_palette_id = AppStore.accent_palette_id;
   const reader_text_scale = AppStore.reader_text_scale;
   const reader_text_scale_slider_index = React.useMemo(() => {
     return getTextScaleSliderIndex(reader_text_scale);
   }, [reader_text_scale]);
-  const theme = getAuthTheme(isDark, accent_palette_id);
+  const theme = React.useMemo(
+    () => getAuthTheme(isDark, accent_palette_id),
+    [isDark, accent_palette_id],
+  );
   const scaled_text_styles = useFeedItemDetailScaledTextStyles();
   const header_height = useHeaderHeight();
   const insets = useSafeAreaInsets();
@@ -98,6 +111,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     }),
   );
   const header_title = detail_mode === "recap" ? "Reading Recap" : source_label;
+  const pane_title = `${entry?.title || ""}`.trim() || header_title;
   const has_entry_menu =
     detail_mode === "entry" && Boolean(entry) && Boolean(resolved_entry_id);
   const is_entry_bookmarked =
@@ -112,7 +126,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       : theme.colors.canvas;
   const background_intensity =
     detail_mode === "recap" ? 0 : entry ? 0.1 : 1;
-  const toast_top_offset = header_height + 10;
+  const toast_top_offset = is_embedded ? insets.top + 10 : header_height + 10;
   const content_top_padding = 12;
   const recap_horizontal_padding = 16;
   const content_horizontal_padding =
@@ -120,7 +134,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       ? recap_horizontal_padding
       : READER_HORIZONTAL_PADDING;
   const [layout_width, set_layout_width] = React.useState(null);
-  const width = layout_width ?? Math.max(
+  const width = layout_width ?? pane_width ?? Math.max(
     window_width - insets.left - insets.right,
     0,
   );
@@ -415,8 +429,12 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
       hostname: report_blog_username,
       label: source_label,
     });
-    navigation.navigate("Feed");
-  }, [entry_feed_id, navigation, report_blog_username, source_label]);
+    if (!is_embedded) {
+      navigation.navigate("Feed", undefined, { pop: true });
+    } else {
+      onCloseReader?.();
+    }
+  }, [entry_feed_id, is_embedded, navigation, onCloseReader, report_blog_username, source_label]);
 
   const handle_highlights_pane_press = React.useCallback(() => {
     if (highlight_count === 0) {
@@ -964,42 +982,84 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     };
   }, []);
 
-  React.useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: has_entry_menu
-        ? () => (
-            <HeaderEntryMenuButton
-              is_dark={isDark}
-              menu_actions={entry_menu_actions}
-              onMenuAction={handle_entry_menu_action}
-              onMenuClose={handle_entry_menu_close}
-              onMenuOpen={handle_entry_menu_open}
-              theme={theme}
-            />
-          )
-        : undefined,
-      title: header_title,
-    });
+  const render_entry_menu = React.useCallback(() => {
+    return (
+      <HeaderEntryMenuButton
+        is_dark={isDark}
+        menu_actions={entry_menu_actions}
+        onMenuAction={handle_entry_menu_action}
+        onMenuClose={handle_entry_menu_close}
+        onMenuOpen={handle_entry_menu_open}
+        theme={theme}
+      />
+    );
   }, [
     entry_menu_actions,
     handle_entry_menu_action,
     handle_entry_menu_close,
     handle_entry_menu_open,
+    isDark,
+    theme,
+  ]);
+
+  React.useLayoutEffect(() => {
+    if (is_embedded) {
+      return;
+    }
+
+    navigation.setOptions({
+      headerRight: has_entry_menu ? render_entry_menu : undefined,
+      title: header_title,
+    });
+  }, [
     header_title,
     has_entry_menu,
-    isDark,
+    is_embedded,
     navigation,
+    render_entry_menu,
   ]);
 
   return (
     <View
       onLayout={handle_layout}
-      style={{ backgroundColor: screen_background_color, flex: 1 }}
+      style={{ backgroundColor: is_embedded ? undefined : screen_background_color, flex: 1 }}
     >
-      <AuthBackground
-        intensity={background_intensity}
-        theme={theme}
-      />
+      {!is_embedded ? (
+        <AuthBackground intensity={background_intensity} theme={theme} />
+      ) : null}
+      {is_embedded ? (
+        <View
+          style={[
+            styles.paneHeader,
+            {
+              borderColor: theme.colors.line,
+              minHeight: insets.top + 60,
+              paddingTop: insets.top,
+            },
+          ]}
+        >
+          {onCloseReader ? (
+            <Pressable
+              accessibilityLabel="Back to posts"
+              accessibilityRole="button"
+              onPress={onCloseReader}
+              style={styles.paneBackButton}
+            >
+              <MaterialIcons name="arrow-back" size={24} color={theme.colors.ink} />
+            </Pressable>
+          ) : null}
+          <Text
+            accessibilityRole="header"
+            numberOfLines={1}
+            style={[styles.paneTitle, { color: theme.colors.ink }]}
+          >
+            {pane_title}
+          </Text>
+          {has_entry_menu ? (
+            <View style={styles.paneActions}>{render_entry_menu()}</View>
+          ) : null}
+        </View>
+      ) : null}
       <ScrollView
         alwaysBounceVertical
         bounces
@@ -1012,6 +1072,7 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
           paddingTop: content_top_padding,
         }}
         showsVerticalScrollIndicator={false}
+        scrollsToTop={!is_embedded || Boolean(onCloseReader)}
       >
         {detail_mode === "entry" && entry ? (
           <EntryReaderView
@@ -1165,6 +1226,32 @@ function FeedItemDetailScreen({ navigation, route, isDark = false }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  paneHeader: {
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: READER_HORIZONTAL_PADDING,
+  },
+  paneBackButton: {
+    alignItems: "center",
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  paneTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  paneActions: {
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 44,
+  },
+});
 
 function resolve_detail_entry_snapshot(entry_id = "", entry_source = "feed") {
   if (!entry_id) {

@@ -1,7 +1,10 @@
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from 'react-native-screens/experimental';
 
 import AccountScreen from '../screens/AccountScreen';
@@ -17,6 +20,170 @@ import AppStore from '../stores/App';
 import { getAuthTheme } from '../theme/authTheme';
 
 const Stack = createNativeStackNavigator();
+const LibraryStack = createNativeStackNavigator();
+
+function use_workspace_width() {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const available_width = Math.max(width - insets.left - insets.right, 0);
+  // An unfolded Duo can have a large inset for its system controls.
+  const is_split =
+    Platform.OS === 'ios' &&
+    (Platform.isPad
+      ? available_width >= 700
+      : width >= 600 && height >= 560 && available_width >= 580);
+
+  return { available_width, is_split };
+}
+
+function FeedWorkspace({ navigation, route, isDark, theme }) {
+  const { available_width, is_split } = use_workspace_width();
+  const sidebar_width = Math.round(
+    Math.min(360, Math.max(284, available_width * 0.32)),
+  );
+  const { entry_id = '', mode } = route.params || {};
+  const has_reader = Boolean(entry_id) || mode === 'recap';
+  const shows_reader_pane = is_split || has_reader;
+  const shows_timeline = is_split || !has_reader;
+  const reader_background_color = isDark
+    ? mode === 'recap' ? '#000000' : theme.colors.canvas
+    : theme.colors.white;
+
+  const open_reader = React.useCallback((params) => {
+    navigation.setParams({ entry_id: '', mode: 'entry', reply_posted_at: 0, ...params });
+  }, [navigation]);
+
+  const close_reader = React.useCallback(() => {
+    open_reader({});
+  }, [open_reader]);
+
+  const open_library = React.useCallback((section, params) => {
+    navigation.navigate('Library', { section, section_params: params });
+  }, [navigation]);
+
+  return (
+    <SafeAreaView edges={{ left: true, right: !is_split }} style={styles.workspace}>
+      <View
+        accessibilityElementsHidden={!shows_timeline}
+        importantForAccessibility={shows_timeline ? 'auto' : 'no-hide-descendants'}
+        style={[
+          styles.timelinePane,
+          is_split && styles.sidebarPane,
+          is_split && { width: sidebar_width, borderColor: theme.colors.line },
+          !shows_timeline && styles.hiddenPane,
+        ]}
+      >
+        <FeedScreen
+          navigation={navigation}
+          route={route}
+          isDark={isDark}
+          is_sidebar={is_split}
+          onOpenLibrary={is_split ? open_library : undefined}
+          onOpenReader={is_split ? open_reader : undefined}
+          selected_entry_id={is_split ? entry_id : ''}
+        />
+      </View>
+      {shows_reader_pane ? (
+        <View style={[styles.readerPane, { backgroundColor: reader_background_color }]}>
+          <SafeAreaView edges={{ right: is_split }}>
+            {has_reader ? (
+              <FeedItemDetailScreen
+                key={mode === 'recap' ? 'recap' : `entry-${entry_id}`}
+                navigation={navigation}
+                route={route}
+                isDark={isDark}
+                is_embedded
+                onCloseReader={is_split ? undefined : close_reader}
+                pane_width={available_width - (is_split ? sidebar_width : 0)}
+              />
+            ) : (
+              <View style={styles.emptyReader}>
+                <MaterialIcons name="article" color={theme.colors.inkSoft} size={32} />
+                <Text style={[styles.emptyReaderLabel, { color: theme.colors.inkSoft }]}>No post selected</Text>
+              </View>
+            )}
+          </SafeAreaView>
+        </View>
+      ) : null}
+    </SafeAreaView>
+  );
+}
+
+function TimelineStackReader({ navigation, route, isDark }) {
+  const { is_split } = use_workspace_width();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!is_split) {
+        return;
+      }
+
+      const { index, routes } = navigation.getState();
+      if (routes[index - 1]?.name === 'Feed') {
+        navigation.navigate('Feed', route.params, { pop: true });
+      }
+    }, [is_split, navigation, route.params]),
+  );
+
+  return <FeedItemDetailScreen navigation={navigation} route={route} isDark={isDark} />;
+}
+
+function ReaderStackScreen({ component: Component, inset = false, ...props }) {
+  const screen = <Component {...props} />;
+
+  return inset ? (
+    <SafeAreaView edges={{ left: true, right: true }}>{screen}</SafeAreaView>
+  ) : screen;
+}
+
+function LibrarySheet({ route, navigation, isDark, screen_options, screens, theme }) {
+  const { section, section_params } = route.params;
+  const visible_screens = screens.filter(({ name }) => (
+    name === section ||
+    (section === 'Subscriptions' && name === 'SubscriptionFeed') ||
+    (section !== 'Highlights' && ['FeedItemDetail', 'UserProfile', 'ReplyComposer'].includes(name))
+  ));
+
+  return (
+    <SafeAreaProvider style={styles.timelinePane}>
+      <LibraryStack.Navigator
+        initialRouteName={section}
+        screenOptions={screen_options}
+      >
+        {visible_screens.map(({ name, component, options, inset }) => (
+          <LibraryStack.Screen
+            key={name}
+            name={name}
+            initialParams={name === section ? section_params : undefined}
+            options={name === section
+              ? {
+                  ...options,
+                  headerBackVisible: false,
+                  unstable_headerLeftItems: () => [{
+                    accessibilityLabel: 'Close',
+                    type: 'button',
+                    label: 'Close',
+                    icon: { type: 'sfSymbol', name: 'xmark' },
+                    onPress: () => navigation.goBack(),
+                    tintColor: theme.colors.ink,
+                  }],
+                }
+              : options}
+          >
+            {(screen_props) => (
+              <ReaderStackScreen
+                {...screen_props}
+                component={component}
+                inset={inset}
+                isDark={isDark}
+              />
+            )}
+          </LibraryStack.Screen>
+        ))}
+      </LibraryStack.Navigator>
+    </SafeAreaProvider>
+  );
+}
 
 function SignedInTabs({ isDark = false }) {
   const accent_palette_id = AppStore.accent_palette_id;
@@ -49,20 +216,64 @@ function SignedInTabs({ isDark = false }) {
     },
     headerTransparent: true,
   };
+  const screen_options = {
+    contentStyle: { backgroundColor: theme.colors.canvas },
+    headerBackButtonDisplayMode: 'minimal',
+    headerStyle: { backgroundColor: theme.colors.paper },
+    headerTintColor: theme.colors.ink,
+  };
+  const screens = [
+    {
+      name: 'Account',
+      component: AccountScreen,
+      options: { ...translucent_header_options, title: 'Settings' },
+    },
+    {
+      name: 'Bookmarks',
+      component: BookmarksScreen,
+      inset: true,
+      options: { ...translucent_header_options, title: 'Bookmarks' },
+    },
+    {
+      name: 'Subscriptions',
+      component: SubscriptionsScreen,
+      inset: true,
+      options: { ...translucent_header_options, title: 'Subscriptions' },
+    },
+    {
+      name: 'SubscriptionFeed',
+      component: SubscriptionFeedScreen,
+      inset: true,
+      options: { ...translucent_header_options, title: 'Feed' },
+    },
+    {
+      name: 'Highlights',
+      component: HighlightsScreen,
+      inset: true,
+      options: { ...translucent_header_options, title: 'Highlights' },
+    },
+    {
+      name: 'FeedItemDetail',
+      component: FeedItemDetailScreen,
+      inset: true,
+      options: { ...feed_item_detail_header_options, title: '' },
+    },
+    {
+      name: 'UserProfile',
+      component: UserProfileScreen,
+      options: { ...feed_item_detail_header_options, title: '' },
+    },
+    {
+      name: 'ReplyComposer',
+      component: ReplyComposerScreen,
+      options: { headerBackVisible: false, presentation: 'modal', title: 'Reply' },
+    },
+  ];
 
   return (
     <Stack.Navigator
       initialRouteName="Feed"
-      screenOptions={{
-        contentStyle: {
-          backgroundColor: theme.colors.canvas,
-        },
-        headerBackButtonDisplayMode: 'minimal',
-        headerStyle: {
-          backgroundColor: theme.colors.paper,
-        },
-        headerTintColor: theme.colors.ink,
-      }}
+      screenOptions={screen_options}
     >
       <Stack.Screen
         name="Feed"
@@ -71,142 +282,67 @@ function SignedInTabs({ isDark = false }) {
         }}
       >
         {(screen_props) => (
-          <SafeAreaView edges={{ left: true, right: true }}>
-            <FeedScreen
+          <FeedWorkspace {...screen_props} isDark={isDark} theme={theme} />
+        )}
+      </Stack.Screen>
+      {screens.map(({ name, component, options, inset }) => (
+        <Stack.Screen key={name} name={name} options={options}>
+          {(screen_props) => (
+            <ReaderStackScreen
               {...screen_props}
+              component={name === 'FeedItemDetail' ? TimelineStackReader : component}
+              inset={inset}
               isDark={isDark}
             />
-          </SafeAreaView>
-        )}
-      </Stack.Screen>
-      <Stack.Screen
-        name="Account"
-        options={{
-          ...translucent_header_options,
-          title: 'Settings',
-        }}
-      >
-        {(screen_props) => (
-          <AccountScreen
-            {...screen_props}
-            isDark={isDark}
-          />
-        )}
-      </Stack.Screen>
-      <Stack.Screen
-        name="Bookmarks"
-        options={{
-          ...translucent_header_options,
-          title: 'Bookmarks',
-        }}
-      >
-        {(screen_props) => (
-          <SafeAreaView edges={{ left: true, right: true }}>
-            <BookmarksScreen
+          )}
+        </Stack.Screen>
+      ))}
+      {Platform.OS === 'ios' ? (
+        <Stack.Screen name="Library" options={{ headerShown: false, presentation: 'pageSheet' }}>
+          {(screen_props) => (
+            <LibrarySheet
               {...screen_props}
               isDark={isDark}
+              screen_options={screen_options}
+              screens={screens}
+              theme={theme}
             />
-          </SafeAreaView>
-        )}
-      </Stack.Screen>
-      <Stack.Screen
-        name="Subscriptions"
-        options={{
-          ...translucent_header_options,
-          title: 'Subscriptions',
-        }}
-      >
-        {(screen_props) => (
-          <SafeAreaView edges={{ left: true, right: true }}>
-            <SubscriptionsScreen
-              {...screen_props}
-              isDark={isDark}
-            />
-          </SafeAreaView>
-        )}
-      </Stack.Screen>
-      <Stack.Screen
-        name="SubscriptionFeed"
-        options={{
-          ...translucent_header_options,
-          title: 'Feed',
-        }}
-      >
-        {(screen_props) => (
-          <SafeAreaView edges={{ left: true, right: true }}>
-            <SubscriptionFeedScreen
-              {...screen_props}
-              isDark={isDark}
-            />
-          </SafeAreaView>
-        )}
-      </Stack.Screen>
-      <Stack.Screen
-        name="Highlights"
-        options={{
-          ...translucent_header_options,
-          title: 'Highlights',
-        }}
-      >
-        {(screen_props) => (
-          <SafeAreaView edges={{ left: true, right: true }}>
-            <HighlightsScreen
-              {...screen_props}
-              isDark={isDark}
-            />
-          </SafeAreaView>
-        )}
-      </Stack.Screen>
-      <Stack.Screen
-        name="FeedItemDetail"
-        options={{
-          ...feed_item_detail_header_options,
-          title: '',
-        }}
-      >
-        {(screen_props) => (
-          <SafeAreaView edges={{ left: true, right: true }}>
-            <FeedItemDetailScreen
-              {...screen_props}
-              isDark={isDark}
-            />
-          </SafeAreaView>
-        )}
-      </Stack.Screen>
-      <Stack.Screen
-        name="UserProfile"
-        options={{
-          ...feed_item_detail_header_options,
-          title: '',
-        }}
-      >
-        {(screen_props) => (
-          <UserProfileScreen
-            {...screen_props}
-            isDark={isDark}
-          />
-        )}
-      </Stack.Screen>
-      <Stack.Screen
-        name="ReplyComposer"
-        options={{
-          headerBackVisible: false,
-          presentation: 'modal',
-          title: 'Reply',
-        }}
-      >
-        {(screen_props) => (
-          <ReplyComposerScreen
-            {...screen_props}
-            isDark={isDark}
-          />
-        )}
-      </Stack.Screen>
+          )}
+        </Stack.Screen>
+      ) : null}
     </Stack.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
+  workspace: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  timelinePane: {
+    flex: 1,
+  },
+  readerPane: {
+    flex: 1,
+  },
+  sidebarPane: {
+    borderRightWidth: StyleSheet.hairlineWidth,
+    flex: 0,
+  },
+  hiddenPane: {
+    display: 'none',
+  },
+  emptyReader: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  emptyReaderLabel: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
   headerBackdrop: {
     ...StyleSheet.absoluteFill,
   },

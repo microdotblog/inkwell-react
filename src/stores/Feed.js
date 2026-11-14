@@ -1991,7 +1991,7 @@ const Feed = types
         .sort(compare_timeline_entries_by_published_at);
     },
 
-    visible_timeline_entries() {
+    visible_timeline_entries(selected_entry_id = '') {
       const normalized_search_query = normalize_search_query(self.search_query);
       let timeline_entries = self.timeline_entries;
 
@@ -2027,7 +2027,7 @@ const Feed = types
 
       if (self.hide_read_posts) {
         timeline_entries = timeline_entries.filter((timeline_entry) => {
-          return !timeline_entry.is_read;
+          return !timeline_entry.is_read || timeline_entry.id === selected_entry_id;
         });
       }
 

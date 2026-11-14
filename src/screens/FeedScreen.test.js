@@ -6,7 +6,7 @@ import { transformSync } from '@babel/core';
 import { getAuthTheme } from '../theme/authTheme';
 
 const source = readFileSync(new URL('./FeedScreen.js', import.meta.url), 'utf8');
-const { code } = transformSync(`${source}\nexport { AccountHeaderButton };`, {
+const { code } = transformSync(`${source}\nexport { AccountHeaderButton, FeedControlsRow };`, {
   configFile: false,
   babelrc: false,
   plugins: [
@@ -15,7 +15,11 @@ const { code } = transformSync(`${source}\nexport { AccountHeaderButton };`, {
   ],
 });
 
-function avatar_fixture({ platform = 'ios', is_dark = false } = {}) {
+function avatar_fixture({
+  platform = 'ios',
+  is_dark = false,
+  component = 'AccountHeaderButton',
+} = {}) {
   const states = [];
   const effect_dependencies = [];
   let hook_index = 0;
@@ -45,7 +49,7 @@ function avatar_fixture({ platform = 'ios', is_dark = false } = {}) {
       if (name === 'react-native') {
         return {
           Platform: { OS: platform, select: (options) => options[platform] },
-          View: 'View', Text: 'Text',
+          View: 'View', Text: 'Text', Pressable: 'Pressable',
           StyleSheet: {
             create: (styles) => styles,
             absoluteFill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
@@ -66,7 +70,7 @@ function avatar_fixture({ platform = 'ios', is_dark = false } = {}) {
   return (props = {}) => {
     hook_index = 0;
     effects = [];
-    const result = context.exports.AccountHeaderButton({
+    const result = context.exports[component]({
       profile_name: 'Manton',
       profile_photo: 'https://example.com/avatar.jpg',
       scaled_text_styles: {},
@@ -220,4 +224,24 @@ describe('profile menu actions', () => {
       expect(selected_ids).toEqual(expected_ids[platform]);
     });
   });
+});
+
+it('replaces the sidebar tabs with search without removing the profile menu', () => {
+  const render = avatar_fixture({ component: 'FeedControlsRow' });
+  const selected = [];
+  const props = { is_sidebar: true, onSegmentPress: (key) => selected.push(key) };
+  const row = render(props).props.children;
+  const [account, segmented_control] = row.props.children;
+  const tabs = segmented_control.props.children[1];
+
+  expect(tabs.map((tab) => tab.props.children.props.children)).toEqual(['Today', 'Recent', 'Fading']);
+  expect(tabs.every((tab) => tab.props.accessibilityRole === 'tab')).toBe(true);
+  tabs[1].props.onPress();
+  expect(selected).toEqual(['recent']);
+
+  const [search_account, search_field, search_toggle] =
+    render({ ...props, is_search_active: true, search_query: 'RSS' }).props.children.props.children;
+  expect(search_account.type).toBe(account.type);
+  expect(search_field.props.value).toBe('RSS');
+  expect(search_toggle.props.is_search_active).toBe(true);
 });

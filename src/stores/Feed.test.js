@@ -265,6 +265,27 @@ function seed_entry(is_read = false, is_bookmarked = false) {
   );
 }
 
+it('keeps only the selected read post visible when read posts are hidden', () => {
+  const created_at = new Date().toISOString();
+  Feed.apply_bootstrap_payload([], ['unread'], [], [
+    ...entry_payload(),
+    { id: 'read', title: 'Read elsewhere', created_at },
+    { id: 'unread', title: 'Still unread', created_at },
+  ], []);
+  Feed.set_active_segment('today');
+  Feed.set_hide_read_posts(true);
+
+  try {
+    expect(Feed.visible_timeline_entries('123').map((entry) => entry.id).sort())
+      .toEqual(['123', 'unread']);
+    expect(Feed.visible_timeline_entries().map((entry) => entry.id)).toEqual(['unread']);
+    Feed.set_active_segment('fading');
+    expect(Feed.visible_timeline_entries('123')).toEqual([]);
+  } finally {
+    Feed.set_hide_read_posts(false);
+  }
+});
+
 describe('local entry synchronization', () => {
   const scenarios = [
     { action: 'mark_entry_read', sync: 'read', field: 'is_read', initial: false, local: 'local_read_entry_ids' },
