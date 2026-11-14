@@ -29,7 +29,11 @@ const { code } = transformSync(source, {
   plugins: ["@babel/plugin-transform-modules-commonjs"],
 });
 vm.runInNewContext(code, context);
-const { sanitize_reader_html, resolve_highlight_post_id } = context.exports;
+const {
+  create_reader_post_document_html,
+  resolve_highlight_post_id,
+  sanitize_reader_html,
+} = context.exports;
 const options = { base_url: "https://example.com/articles/123" };
 
 describe("reader HTML sanitization", () => {
@@ -97,5 +101,46 @@ describe("reader highlight identifiers", () => {
     expect(resolve_highlight_post_id("123", "feed")).toBe("123");
     expect(resolve_highlight_post_id("123", "subscription_feed")).toBe("123");
     expect(resolve_highlight_post_id("", "feed")).toBe("");
+  });
+});
+
+describe("reader post bridge", () => {
+  it("immediately measures the current article, independent of the previous viewport", () => {
+    const messages = [];
+    const styles = {};
+    const content = { scrollHeight: 99, getBoundingClientRect: () => ({ height: 99.5 }) };
+    const sandbox = {
+      document: {
+        addEventListener() {},
+        documentElement: {
+          scrollHeight: 1000,
+          style: { setProperty: (key, value) => { styles[key] = value; } },
+        },
+        querySelector: () => content,
+        scrollingElement: { scrollHeight: 1000, clientHeight: 1000, scrollTop: 0 },
+      },
+      window: {
+        addEventListener() {},
+        getSelection: () => null,
+        ReactNativeWebView: {
+          postMessage: (message) => { messages.push(JSON.parse(message)); },
+        },
+      },
+      setTimeout() {},
+    };
+    const html = create_reader_post_document_html({ document_id: 7, html: "<p>Next post</p>" });
+    const script = html.split("<script>")[1].split("</script>")[0];
+    vm.runInNewContext(script, sandbox);
+    const bridge = sandbox.window.inkwellDetail;
+
+    expect(bridge.documentID).toBe(7);
+    expect(messages).toEqual([{ document_id: 7, type: "height", value: 99.5 }]);
+
+    bridge.applyTextScale({ content_font_size: 20 });
+    expect(styles["--content-font-size"]).toBe("20px");
+    bridge.requestSelectionPayload("selection-1");
+    expect(messages.at(-1)).toEqual({
+      document_id: 7, type: "selection_payload", request_id: "selection-1", value: null,
+    });
   });
 });

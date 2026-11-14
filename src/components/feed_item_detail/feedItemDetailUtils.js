@@ -132,9 +132,9 @@ function create_reader_post_document_html({
   base_url = "",
   caption_font_size = 16,
   caption_line_height = 25,
-  content_max_width = READER_WEBVIEW_CONTENT_MAX_WIDTH,
   content_font_size = 18,
   content_line_height = 29,
+  document_id = 0,
   html = "",
   theme,
 }) {
@@ -191,6 +191,7 @@ function create_reader_post_document_html({
 
     .content {
       box-sizing: border-box;
+      display: flow-root;
       width: 100%;
     }
 
@@ -299,7 +300,7 @@ function create_reader_post_document_html({
     <article class="post-content">${html}</article>
   </div>
   <script>
-    ${create_reader_post_bridge_script()}
+    ${create_reader_post_bridge_script(document_id)}
   </script>
 </body>
 </html>`;
@@ -1052,13 +1053,14 @@ function create_reader_image_viewer_document_html({
 </html>`;
 }
 
-function create_reader_post_bridge_script() {
+function create_reader_post_bridge_script(document_id) {
   return `(function() {
     if (window.__inkwellReaderBridgeInstalled) {
       return;
     }
 
     window.__inkwellReaderBridgeInstalled = true;
+    var documentID = ${JSON.stringify(document_id)};
 
     function postBridgeMessage(type, payload) {
       if (
@@ -1072,6 +1074,7 @@ function create_reader_post_bridge_script() {
         window.ReactNativeWebView.postMessage(
           JSON.stringify({
             type: type,
+            document_id: documentID,
             ...(payload || {}),
           })
         );
@@ -1081,13 +1084,11 @@ function create_reader_post_bridge_script() {
     }
 
     function currentHeight() {
-      var bodyHeight = document.body ? document.body.scrollHeight : 0;
-      var docHeight = document.documentElement
-        ? document.documentElement.scrollHeight
-        : 0;
       var content = document.querySelector('.content');
-      var contentHeight = content ? content.scrollHeight : 0;
-      return Math.max(bodyHeight, docHeight, contentHeight, 1);
+      // The WebView viewport may still be as tall as the previous measurement.
+      return content
+        ? Math.max(content.getBoundingClientRect().height, content.scrollHeight, 1)
+        : 1;
     }
 
     function contentElement() {
@@ -1104,13 +1105,16 @@ function create_reader_post_bridge_script() {
     }
 
     function currentScrollFraction() {
-      var currentMaxScrollTop = maxScrollTop();
+      var scrollElement = document.scrollingElement;
+      var currentMaxScrollTop = scrollElement
+        ? scrollElement.scrollHeight - scrollElement.clientHeight
+        : 0;
 
       if (currentMaxScrollTop <= 0) {
         return 0;
       }
 
-      return Math.max(0, Math.min(1, currentScrollTop() / currentMaxScrollTop));
+      return Math.max(0, Math.min(1, scrollElement.scrollTop / currentMaxScrollTop));
     }
 
     function restoreScrollFraction(scrollFraction) {
@@ -1120,7 +1124,10 @@ function create_reader_post_bridge_script() {
         return;
       }
 
-      var currentMaxScrollTop = maxScrollTop();
+      var scrollElement = document.scrollingElement;
+      var currentMaxScrollTop = scrollElement
+        ? scrollElement.scrollHeight - scrollElement.clientHeight
+        : 0;
 
       if (currentMaxScrollTop <= 0) {
         return;
@@ -1745,8 +1752,18 @@ function create_reader_post_bridge_script() {
     setTimeout(postHeight, 240);
 
     window.inkwellDetail = {
+      documentID: documentID,
       applyTextScale: applyTextScale,
       clearSelection: clearSelection,
+      deactivate: function() {
+        pendingTouchHighlightID = '';
+        tappedHighlightID = '';
+        clearSelection();
+        postSelectionState();
+        Array.prototype.forEach.call(document.querySelectorAll('video'), function(video) {
+          video.pause();
+        });
+      },
       getSelectionPayload: getSelectionPayload,
       requestSelectionPayload: function(requestId) {
         postBridgeMessage('selection_payload', {
@@ -1761,6 +1778,7 @@ function create_reader_post_bridge_script() {
       },
       postHeight: postHeight,
     };
+    postHeight();
   })();`;
 }
 

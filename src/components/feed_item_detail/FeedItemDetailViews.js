@@ -56,7 +56,6 @@ import {
   READER_TITLE_FONT_SIZE,
   READER_TITLE_LINE_HEIGHT,
   READER_TITLE_TOP_MARGIN,
-  READER_WEBVIEW_CONTENT_MAX_WIDTH,
   READER_WEBVIEW_MIN_HEIGHT,
   TEXT_STYLE_NAMES,
   create_reader_body_html,
@@ -111,6 +110,7 @@ const EntryReaderView = observer(function EntryReaderView({
   deleting_highlight_id = "",
   entry,
   entry_source = "feed",
+  keep_post_mounted = false,
   onCopyHighlight,
   onDeleteHighlight,
   onPostHighlight,
@@ -125,7 +125,6 @@ const EntryReaderView = observer(function EntryReaderView({
   onReaderSelectionChange,
   replies = [],
   reader_post_ref,
-  reader_webview_reload_key = 0,
   scaled_text_styles,
   theme,
   width = 0,
@@ -145,6 +144,7 @@ const EntryReaderView = observer(function EntryReaderView({
     base_url: reader_base_url,
   });
   const has_renderable_body = Boolean(reader_html);
+  const shows_post_body = active_pane === "post" && has_renderable_body;
   const entry_highlights = Highlights.entry_highlight_entries(highlight_post_id);
   const reader_highlights = Highlights.entry_highlight_ranges(highlight_post_id);
   const reply_count = replies.length;
@@ -308,12 +308,32 @@ const EntryReaderView = observer(function EntryReaderView({
       ) : null}
 
       <Animated.View
-        layout={READER_PANE_LAYOUT_TRANSITION}
+        layout={
+          keep_post_mounted && active_pane === "post"
+            ? undefined
+            : READER_PANE_LAYOUT_TRANSITION
+        }
         style={[
           styles.bodySection,
           should_show_pane_tabs ? styles.bodySectionWithPaneTabs : null,
         ]}
       >
+        {keep_post_mounted || shows_post_body ? (
+          <ReaderPostWebView
+            base_url={reader_base_url}
+            entry_id={highlight_post_id || entry.id}
+            highlight_payload={reader_highlights}
+            html={reader_html}
+            is_visible={shows_post_body}
+            onActiveHighlightChange={onReaderActiveHighlightChange}
+            onImagePress={onReaderImagePress}
+            onSelectionChange={onReaderSelectionChange}
+            ref={reader_post_ref}
+            theme={theme}
+            text_scale={reader_text_scale}
+          />
+        ) : null}
+
         {active_pane === "replies" ? (
           <RepliesListView
             onPressProfile={onPressReplyProfile}
@@ -332,21 +352,7 @@ const EntryReaderView = observer(function EntryReaderView({
             onPostHighlight={onPostHighlight}
             theme={theme}
           />
-        ) : has_renderable_body ? (
-          <ReaderPostWebView
-            base_url={reader_base_url}
-            highlight_payload={reader_highlights}
-            html={reader_html}
-            onActiveHighlightChange={onReaderActiveHighlightChange}
-            onImagePress={onReaderImagePress}
-            onSelectionChange={onReaderSelectionChange}
-            reload_key={reader_webview_reload_key}
-            ref={reader_post_ref}
-            theme={theme}
-            text_scale={reader_text_scale}
-            width={width}
-          />
-        ) : (
+        ) : !has_renderable_body ? (
           <UnavailableBodyCard
             body="This item doesn't include readable body content in the current timeline payload."
             can_open_original={Boolean(original_url)}
@@ -355,7 +361,7 @@ const EntryReaderView = observer(function EntryReaderView({
             theme={theme}
             title="No readable preview yet."
           />
-        )}
+        ) : null}
       </Animated.View>
     </View>
   );
@@ -1135,29 +1141,22 @@ function ReaderImageViewerModal({
 const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
   {
     base_url = "",
+    entry_id = "",
     highlight_payload = [],
     html = "",
+    is_visible = true,
     onActiveHighlightChange,
     onImagePress,
     onSelectionChange,
-    reload_key = 0,
     theme,
     text_scale = 1,
-    width = 0,
   },
   forwarded_ref,
 ) {
   const webview_ref = React.useRef(null);
   const pending_selection_request_ref = React.useRef(null);
   const selection_request_id_ref = React.useRef(0);
-  const [content_height, set_content_height] = React.useState(
-    READER_WEBVIEW_MIN_HEIGHT,
-  );
-  const [did_finish_load, set_did_finish_load] = React.useState(false);
-  const content_width = Math.max(
-    Math.min(width - READER_HORIZONTAL_PADDING * 2, READER_COLUMN_MAX_WIDTH),
-    0,
-  );
+  const [measurement, set_measurement] = React.useState(null);
   const serialized_highlight_payload = JSON.stringify(
     Array.isArray(highlight_payload) ? highlight_payload : [],
   );
@@ -1168,104 +1167,85 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
     return resolve_reader_text_metrics(text_scale);
   }, [text_scale]);
 
-  const document_html = React.useMemo(() => {
-    return create_reader_post_document_html({
-      base_url: resolved_base_url,
-      caption_font_size: text_metrics.caption_font_size,
-      caption_line_height: text_metrics.caption_line_height,
-      content_max_width: Math.max(
-        Math.min(content_width, READER_WEBVIEW_CONTENT_MAX_WIDTH),
-        0,
-      ),
-      content_font_size: text_metrics.content_font_size,
-      content_line_height: text_metrics.content_line_height,
-      html,
-      theme,
-    });
-  }, [
-    text_metrics.caption_font_size,
-    text_metrics.caption_line_height,
-    content_width,
+  const document_input = React.useMemo(() => ({
+    base_url: resolved_base_url,
+    entry_id,
     html,
-    resolved_base_url,
-    text_metrics.content_font_size,
-    text_metrics.content_line_height,
-    theme.colors.accentStrong,
-    theme.colors.badge,
-    theme.colors.canvas,
-    theme.colors.ink,
-    theme.colors.inkSoft,
-    theme.colors.line,
-    theme.isDark,
-  ]);
+    theme,
+  }), [entry_id, html, resolved_base_url, theme]);
+  const [page, set_page] = React.useState(() => ({
+    id: 1,
+    input: document_input,
+    initial_metrics: text_metrics,
+  }));
+
+  // A new document gets its own bridge ID, even when revisiting the same post.
+  if (page.input !== document_input) {
+    set_page({
+      id: page.id + 1,
+      input: document_input,
+      initial_metrics: text_metrics,
+    });
+  }
+
   const webview_source = React.useMemo(() => {
     return {
-      baseUrl: resolved_base_url,
-      html: document_html,
+      baseUrl: page.input.base_url,
+      html: create_reader_post_document_html({
+        ...page.input,
+        ...page.initial_metrics,
+        document_id: page.id,
+      }),
     };
-  }, [document_html, resolved_base_url]);
+  }, [page]);
+  const is_ready = measurement?.document_id === page.id;
+  const content_height = is_ready ? measurement.height : READER_WEBVIEW_MIN_HEIGHT;
 
-  const apply_highlights = React.useCallback(() => {
-    if (!webview_ref.current || !did_finish_load) {
-      return;
-    }
-
-    webview_ref.current.injectJavaScript(
-      `window.inkwellDetail?.restoreHighlights(${serialized_highlight_payload}); true;`,
+  const inject_reader_command = React.useCallback((command) => {
+    webview_ref.current?.injectJavaScript(
+      `if (window.inkwellDetail?.documentID === ${page.id}) { window.inkwellDetail.${command}; } true;`,
     );
-  }, [did_finish_load, serialized_highlight_payload]);
+  }, [page.id]);
 
-  const apply_text_scale = React.useCallback(() => {
-    if (!webview_ref.current || !did_finish_load) {
-      return;
+  React.useEffect(() => {
+    if (is_ready) {
+      inject_reader_command(`restoreHighlights(${serialized_highlight_payload})`);
     }
-
-    webview_ref.current.injectJavaScript(
-      `window.inkwellDetail?.applyTextScale(${JSON.stringify(
-        text_metrics,
-      )}); true;`,
-    );
-  }, [did_finish_load, text_metrics]);
+  }, [inject_reader_command, is_ready, serialized_highlight_payload]);
 
   React.useEffect(() => {
-    set_content_height(READER_WEBVIEW_MIN_HEIGHT);
-    set_did_finish_load(false);
-  }, [document_html]);
+    if (is_ready && text_metrics !== page.initial_metrics) {
+      inject_reader_command(`applyTextScale(${JSON.stringify(text_metrics)})`);
+    }
+  }, [inject_reader_command, is_ready, page.initial_metrics, text_metrics]);
 
   React.useEffect(() => {
-    apply_highlights();
-  }, [apply_highlights]);
+    if (is_ready && !is_visible) {
+      inject_reader_command("deactivate()");
+    }
+  }, [inject_reader_command, is_ready, is_visible]);
 
-  React.useEffect(() => {
-    apply_text_scale();
-  }, [apply_text_scale]);
-
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     return () => {
-      if (pending_selection_request_ref.current?.resolve) {
-        pending_selection_request_ref.current.resolve(null);
-      }
-
+      pending_selection_request_ref.current?.resolve(null);
       pending_selection_request_ref.current = null;
     };
-  }, []);
+  }, [is_visible, page.id]);
 
   React.useImperativeHandle(
     forwarded_ref,
     () => ({
       clearSelection() {
-        if (!webview_ref.current || !did_finish_load) {
+        if (!is_ready) {
           return Promise.resolve();
         }
 
-        webview_ref.current.injectJavaScript(
-          "window.inkwellDetail?.clearSelection(); true;",
-        );
+        inject_reader_command("clearSelection()");
         return Promise.resolve();
       },
 
       requestSelectionPayload() {
-        if (!webview_ref.current || !did_finish_load) {
+        if (!webview_ref.current || !is_ready || !is_visible) {
           return Promise.resolve(null);
         }
 
@@ -1282,15 +1262,11 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
             resolve,
           };
 
-          webview_ref.current.injectJavaScript(
-            `window.inkwellDetail?.requestSelectionPayload(${JSON.stringify(
-              request_id,
-            )}); true;`,
-          );
+          inject_reader_command(`requestSelectionPayload(${JSON.stringify(request_id)})`);
         });
       },
     }),
-    [did_finish_load],
+    [inject_reader_command, is_ready, is_visible],
   );
 
   const handle_message = React.useCallback(
@@ -1304,12 +1280,25 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
       try {
         const payload = JSON.parse(raw_data);
 
+        if (payload?.document_id !== page.id) {
+          return;
+        }
+
         if (payload?.type === "height") {
           const next_height = Number(payload?.value);
 
           if (Number.isFinite(next_height)) {
-            set_content_height(Math.max(Math.ceil(next_height), 1));
+            const height = Math.max(Math.ceil(next_height), READER_WEBVIEW_MIN_HEIGHT);
+            set_measurement((current) => (
+              current?.document_id === page.id && current.height === height
+                ? current
+                : { document_id: page.id, height }
+            ));
           }
+          return;
+        }
+
+        if (!is_visible || !is_ready) {
           return;
         }
 
@@ -1350,12 +1339,8 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
         // Ignore malformed bridge events from the embedded document.
       }
     },
-    [onActiveHighlightChange, onImagePress, onSelectionChange],
+    [is_ready, is_visible, onActiveHighlightChange, onImagePress, onSelectionChange, page.id],
   );
-
-  const handle_load_end = React.useCallback(() => {
-    set_did_finish_load(true);
-  }, []);
 
   const handle_should_start = React.useCallback(
     (request) => {
@@ -1389,7 +1374,12 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
   );
 
   return (
-    <View style={styles.readerPostWebViewFrame}>
+    <View
+      accessibilityElementsHidden={!is_visible || !is_ready}
+      importantForAccessibility={is_visible && is_ready ? "auto" : "no-hide-descendants"}
+      pointerEvents={is_visible && is_ready ? "auto" : "none"}
+      style={[styles.readerPostWebViewFrame, !is_visible && styles.hiddenReaderPost]}
+    >
       <WebView
         androidLayerType="hardware"
         allowsFullscreenVideo
@@ -1398,8 +1388,6 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
         bounces={false}
         containerStyle={styles.readerPostWebViewContainer}
         javaScriptEnabled
-        key={`reader-post-webview-${reload_key}-${text_scale}`}
-        onLoadEnd={handle_load_end}
         onMessage={handle_message}
         onShouldStartLoadWithRequest={handle_should_start}
         originWhitelist={["*"]}
@@ -1412,6 +1400,7 @@ const ReaderPostWebView = React.forwardRef(function ReaderPostWebView(
           styles.readerPostWebView,
           {
             height: content_height,
+            opacity: is_ready ? 1 : 0,
           },
         ]}
       />
@@ -1888,6 +1877,9 @@ const styles = StyleSheet.create({
   },
   readerPostWebViewFrame: {
     width: "100%",
+  },
+  hiddenReaderPost: {
+    display: "none",
   },
   readerPostWebViewContainer: {
     backgroundColor: "transparent",

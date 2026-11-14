@@ -175,6 +175,22 @@ describe('timeline split view', () => {
     expect(recap_reader.props.route.params).toMatchObject({ entry_id: '', mode: 'recap' });
   });
 
+  it('retains the same split reader across post selections but not for Reading Recap', () => {
+    const { navigator } = navigation_fixture('ios', false, { width: 1024, height: 768, is_pad: true });
+    const feed = find_screen(navigator, 'Feed');
+    const render_reader = (params) => {
+      const workspace = render_component(feed.props.children({ navigation: {}, route: { params } }));
+      return workspace.props.children[1].props.children.props.children;
+    };
+    const first = render_reader({ entry_id: '123' });
+    const second = render_reader({ entry_id: '456' });
+
+    expect(second.type).toBe(first.type);
+    expect(second.key).toBe(first.key);
+    expect(second.props.route.params.entry_id).toBe('456');
+    expect(render_reader({ mode: 'recap' }).key).not.toBe(first.key);
+  });
+
   for (const is_dark of [false, true]) {
     it(`keeps the right inset inside the reader background in ${is_dark ? 'dark' : 'light'} mode`, () => {
       const window = { width: 951, height: 669, insets: { right: 84 } };

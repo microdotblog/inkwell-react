@@ -17,19 +17,40 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
     ],
   });
   const states = [];
+  const memos = [];
+  const refs = [];
+  const layout_effects = [];
   let state_index = 0;
+  let memo_index = 0;
+  let ref_index = 0;
+  let needs_render = false;
+  const same_deps = (previous, next) =>
+    previous?.length === next?.length && next?.every((value, index) => Object.is(previous[index], value));
   const hooks = {
     ...React,
-    useMemo: (callback) => callback(),
+    useMemo(callback, deps) {
+      const index = memo_index++;
+      if (!memos[index] || !deps || !same_deps(memos[index].deps, deps)) {
+        memos[index] = { deps, value: callback() };
+      }
+      return memos[index].value;
+    },
     useCallback: (callback) => callback,
     useEffect: () => {},
-    useLayoutEffect: () => {},
-    useRef: (value) => ({ current: value }),
+    useLayoutEffect: (callback) => layout_effects.push(callback),
+    useRef(value) {
+      const index = ref_index++;
+      return refs[index] ?? (refs[index] = { current: value });
+    },
     useState(initial) {
       const index = state_index++;
       if (!(index in states)) states[index] = initial;
       return [states[index], (value) => {
-        states[index] = typeof value === 'function' ? value(states[index]) : value;
+        const next = typeof value === 'function' ? value(states[index]) : value;
+        if (!Object.is(next, states[index])) {
+          states[index] = next;
+          needs_render = true;
+        }
       }];
     },
   };
@@ -73,7 +94,7 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
         return { __esModule: true, default: {
           subscription_snapshots: () => [],
           is_loading_subscriptions: loading,
-          timeline_entry_snapshot: () => entry,
+          timeline_entry_snapshot: (id) => ({ ...entry, id }),
           active_recap_snapshot: () => ({ html: '<p>Recap</p>' }),
           show_posts_for_feed: () => {},
         } };
@@ -114,10 +135,18 @@ function screen_fixture(name, { header_height = 88, mode = 'entry', loading = fa
     },
   };
   vm.runInNewContext(code, context);
-  return (props = {}) => {
-    state_index = 0;
-    return context.exports[export_name]({ navigation: {}, route: { params: { mode, entry_id: '123' } }, ...props });
+  const render = (props = {}) => {
+    let screen;
+    do {
+      needs_render = false;
+      state_index = memo_index = ref_index = 0;
+      layout_effects.length = 0;
+      screen = context.exports[export_name]({ navigation: {}, route: { params: { mode, entry_id: '123' } }, ...props });
+    } while (needs_render);
+    return screen;
   };
+  render.layout_effects = layout_effects;
+  return render;
 }
 
 function find_component(element, type) {
@@ -290,6 +319,29 @@ describe('reader and list layout', () => {
     });
     find_component(compact, 'Pressable').props.onPress();
     expect(did_close).toBe(true);
+  });
+
+  it('clears the previous article selection and scrolls to the top on a split reader switch', () => {
+    const render = screen_fixture('FeedItemDetailScreen');
+    const props = (entry_id) => ({ is_embedded: true, route: { params: { entry_id } } });
+    let screen = render(props('123'));
+    let reader = find_component(screen, 'EntryReaderView');
+    expect(reader.props.keep_post_mounted).toBe(true);
+    reader.props.onReaderSelectionChange(true);
+    expect(find_component(render(props('123')), 'ReaderHighlightAction')).not.toBeNull();
+
+    screen = render(props('456'));
+    reader = find_component(screen, 'EntryReaderView');
+    expect(reader.props.entry.id).toBe('456');
+    expect(reader.props.active_pane).toBe('post');
+    expect(find_component(screen, 'ReaderHighlightAction')).toBeNull();
+
+    const scroll_calls = [];
+    find_component(screen, 'ScrollView').props.ref.current = {
+      scrollTo: (params) => scroll_calls.push(params),
+    };
+    render.layout_effects.forEach((effect) => effect());
+    expect(scroll_calls).toEqual([{ y: 0, animated: false }]);
   });
 
   ['SubscriptionsScreen', 'HighlightsScreen'].forEach((name) => {

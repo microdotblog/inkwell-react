@@ -88,7 +88,7 @@ function FeedWorkspace({ navigation, route, isDark, theme }) {
           <SafeAreaView edges={{ right: is_split }}>
             {has_reader ? (
               <FeedItemDetailScreen
-                key={mode === 'recap' ? 'recap' : `entry-${entry_id}`}
+                key={mode === 'recap' ? 'recap' : 'entry'}
                 navigation={navigation}
                 route={route}
                 isDark={isDark}

@@ -152,14 +152,36 @@ function FeedItemDetailScreen({
   const [is_text_size_tray_visible, set_is_text_size_tray_visible] =
     React.useState(false);
   const [reader_image_viewer, set_reader_image_viewer] = React.useState(null);
-  const [reader_webview_reload_key, set_reader_webview_reload_key] =
-    React.useState(0);
   const [is_menu_touch_overlay_active, set_is_menu_touch_overlay_active] =
     React.useState(false);
   const [entry_reply_target, set_entry_reply_target] = React.useState(null);
+  const entry_session = React.useMemo(
+    () => ({ entry_id, entry_source, detail_mode }),
+    [detail_mode, entry_id, entry_source],
+  );
+  const [previous_entry_session, set_previous_entry_session] =
+    React.useState(entry_session);
+  const current_entry_session_ref = React.useRef(null);
   const menu_touch_overlay_timeout_ref = React.useRef(null);
   const replies_request_token_ref = React.useRef(0);
   const reader_post_ref = React.useRef(null);
+  const scroll_view_ref = React.useRef(null);
+
+  // Reset post-specific UI before committing the next article to the same view.
+  if (previous_entry_session !== entry_session) {
+    set_previous_entry_session(entry_session);
+    set_active_pane("post");
+    set_replies([]);
+    set_entry_reply_target(null);
+    set_deleting_highlight_id("");
+    set_has_reader_selection(false);
+    set_active_reader_highlight_id("");
+    set_is_creating_highlight(false);
+    set_is_opening_reader_post(false);
+    set_is_text_size_tray_visible(false);
+    set_reader_image_viewer(null);
+    set_is_menu_touch_overlay_active(false);
+  }
   const active_reader_highlight = Highlights.entry_highlight_snapshot_by_identifier(
     highlight_post_id,
     active_reader_highlight_id,
@@ -197,6 +219,26 @@ function FeedItemDetailScreen({
     original_url,
     theme,
   ]);
+
+  React.useLayoutEffect(() => {
+    current_entry_session_ref.current = entry_session;
+    if (is_embedded) {
+      scroll_view_ref.current?.scrollTo({ y: 0, animated: false });
+    }
+
+    return () => {
+      current_entry_session_ref.current = null;
+      if (menu_touch_overlay_timeout_ref.current) {
+        clearTimeout(menu_touch_overlay_timeout_ref.current);
+        menu_touch_overlay_timeout_ref.current = null;
+      }
+    };
+  }, [entry_session, is_embedded]);
+
+  const is_current_entry = React.useCallback(
+    () => current_entry_session_ref.current === entry_session,
+    [entry_session],
+  );
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
@@ -259,6 +301,9 @@ function FeedItemDetailScreen({
 
     let did_cancel = false;
     set_is_loading_replies(true);
+    const is_current_request = () =>
+      !did_cancel && is_current_entry() &&
+      replies_request_token_ref.current === request_token;
 
     async function load_replies() {
       try {
@@ -266,14 +311,14 @@ function FeedItemDetailScreen({
           post_url: original_url,
         });
 
-        if (did_cancel || replies_request_token_ref.current !== request_token) {
+        if (!is_current_request()) {
           return;
         }
 
         set_replies(normalize_conversation_replies(payload?.items));
         set_entry_reply_target(resolve_conversation_reply_target(payload));
       } catch (error) {
-        if (did_cancel || replies_request_token_ref.current !== request_token) {
+        if (!is_current_request()) {
           return;
         }
 
@@ -281,7 +326,7 @@ function FeedItemDetailScreen({
         set_replies([]);
         set_entry_reply_target(null);
       } finally {
-        if (did_cancel || replies_request_token_ref.current !== request_token) {
+        if (!is_current_request()) {
           return;
         }
 
@@ -297,7 +342,7 @@ function FeedItemDetailScreen({
     return () => {
       did_cancel = true;
     };
-  }, [detail_mode, entry_id, original_url]);
+  }, [detail_mode, is_current_entry, navigation, original_url]);
 
   React.useEffect(() => {
     if (!posted_reply_at || detail_mode !== "entry" || !original_url) {
@@ -309,6 +354,9 @@ function FeedItemDetailScreen({
     let did_cancel = false;
 
     set_is_loading_replies(true);
+    const is_current_request = () =>
+      !did_cancel && is_current_entry() &&
+      replies_request_token_ref.current === request_token;
 
     async function reload_replies_after_post() {
       try {
@@ -316,7 +364,7 @@ function FeedItemDetailScreen({
           post_url: original_url,
         });
 
-        if (did_cancel || replies_request_token_ref.current !== request_token) {
+        if (!is_current_request()) {
           return;
         }
 
@@ -326,13 +374,13 @@ function FeedItemDetailScreen({
         set_entry_reply_target(resolve_conversation_reply_target(payload));
         set_active_pane("replies");
       } catch (error) {
-        if (did_cancel || replies_request_token_ref.current !== request_token) {
+        if (!is_current_request()) {
           return;
         }
 
         console.warn("Failed to reload conversation replies", error);
       } finally {
-        if (did_cancel || replies_request_token_ref.current !== request_token) {
+        if (!is_current_request()) {
           return;
         }
 
@@ -345,7 +393,7 @@ function FeedItemDetailScreen({
     return () => {
       did_cancel = true;
     };
-  }, [detail_mode, navigation, original_url, posted_reply_at]);
+  }, [detail_mode, is_current_entry, navigation, original_url, posted_reply_at]);
 
   React.useEffect(() => {
     if (active_pane === "replies" && reply_count === 0) {
@@ -486,6 +534,10 @@ function FeedItemDetailScreen({
             style: "destructive",
             text: "Delete",
             onPress: async () => {
+              if (!is_current_entry()) {
+                return;
+              }
+
               set_deleting_highlight_id(normalized_highlight_id);
 
               try {
@@ -507,9 +559,8 @@ function FeedItemDetailScreen({
                 AppStore.show_toast("Highlight deleted", {
                   top_offset: toast_top_offset,
                 });
-                set_reader_webview_reload_key((current_key) => current_key + 1);
-
                 if (
+                  is_current_entry() &&
                   does_highlight_match_identifier(
                     highlight_entry,
                     active_highlight_identifier,
@@ -518,14 +569,21 @@ function FeedItemDetailScreen({
                   set_active_reader_highlight_id("");
                 }
               } finally {
-                set_deleting_highlight_id("");
+                if (is_current_entry()) {
+                  set_deleting_highlight_id("");
+                }
               }
             },
           },
         ],
       );
     },
-    [active_reader_highlight_id, deleting_highlight_id, toast_top_offset],
+    [
+      active_reader_highlight_id,
+      deleting_highlight_id,
+      is_current_entry,
+      toast_top_offset,
+    ],
   );
 
   const handle_copy_link = React.useCallback(async () => {
@@ -597,7 +655,7 @@ function FeedItemDetailScreen({
     const trimmed_selection_text = selection_text.trim();
     const normalized_post_title = `${entry?.title || ""}`.trim();
 
-    if (!trimmed_selection_text) {
+    if (!trimmed_selection_text || !is_current_entry()) {
       return;
     }
 
@@ -632,12 +690,15 @@ function FeedItemDetailScreen({
         top_offset: toast_top_offset,
       });
     } finally {
-      set_is_creating_highlight(false);
+      if (is_current_entry()) {
+        set_is_creating_highlight(false);
+      }
     }
   }, [
     entry,
     highlight_post_id,
     is_creating_highlight,
+    is_current_entry,
     original_url,
     source_label,
     toast_top_offset,
@@ -659,7 +720,7 @@ function FeedItemDetailScreen({
     const trimmed_selection_text = selection_text.trim();
     const normalized_post_title = `${entry?.title || ""}`.trim();
 
-    if (!trimmed_selection_text) {
+    if (!trimmed_selection_text || !is_current_entry()) {
       return;
     }
 
@@ -686,10 +747,13 @@ function FeedItemDetailScreen({
         });
       }
     } finally {
-      set_is_opening_reader_post(false);
+      if (is_current_entry()) {
+        set_is_opening_reader_post(false);
+      }
     }
   }, [
     entry,
+    is_current_entry,
     is_opening_reader_post,
     original_url,
     resolved_entry_id,
@@ -756,7 +820,6 @@ function FeedItemDetailScreen({
       AppStore.set_reader_text_scale(
         getTextScaleForSliderIndex(next_slider_index),
       );
-      set_reader_webview_reload_key((current_key) => current_key + 1);
     },
     [],
   );
@@ -974,14 +1037,6 @@ function FeedItemDetailScreen({
     }, MENU_DISMISS_TOUCH_OVERLAY_DELAY_MS);
   }, []);
 
-  React.useEffect(() => {
-    return () => {
-      if (menu_touch_overlay_timeout_ref.current) {
-        clearTimeout(menu_touch_overlay_timeout_ref.current);
-      }
-    };
-  }, []);
-
   const render_entry_menu = React.useCallback(() => {
     return (
       <HeaderEntryMenuButton
@@ -1071,6 +1126,7 @@ function FeedItemDetailScreen({
           paddingHorizontal: content_horizontal_padding,
           paddingTop: content_top_padding,
         }}
+        ref={scroll_view_ref}
         showsVerticalScrollIndicator={false}
         scrollsToTop={!is_embedded || Boolean(onCloseReader)}
       >
@@ -1080,6 +1136,7 @@ function FeedItemDetailScreen({
             deleting_highlight_id={deleting_highlight_id}
             entry={entry}
             entry_source={entry_source}
+            keep_post_mounted={is_embedded}
             onCopyHighlight={handle_copy_highlight}
             onDeleteHighlight={handle_delete_highlight}
             onPressFeedAvatar={
@@ -1095,7 +1152,6 @@ function FeedItemDetailScreen({
             onReaderImagePress={handle_reader_image_press}
             onReaderSelectionChange={handle_reader_selection_change}
             reader_post_ref={reader_post_ref}
-            reader_webview_reload_key={reader_webview_reload_key}
             replies={replies}
             scaled_text_styles={scaled_text_styles}
             theme={theme}
