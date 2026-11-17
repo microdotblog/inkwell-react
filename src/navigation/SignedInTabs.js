@@ -1,6 +1,15 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  BackHandler,
+  Dimensions,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { HeaderButton } from '@react-navigation/elements';
 import { useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react';
@@ -21,11 +30,22 @@ import { getAuthTheme } from '../theme/authTheme';
 
 const Stack = createNativeStackNavigator();
 const LibraryStack = createNativeStackNavigator();
+const ANDROID_TABLET_MIN_WIDTH = 600;
 
 function use_workspace_width() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const available_width = Math.max(width - insets.left - insets.right, 0);
+
+  if (Platform.OS === 'android') {
+    // A landscape phone can have a wide window without a tablet-sized display.
+    const screen = Dimensions.get('screen');
+    const is_split =
+      Math.min(screen.width, screen.height) >= ANDROID_TABLET_MIN_WIDTH &&
+      available_width >= ANDROID_TABLET_MIN_WIDTH;
+    return { available_width, is_split };
+  }
+
   // An unfolded Duo can have a large inset for its system controls.
   const is_split =
     Platform.OS === 'ios' &&
@@ -56,6 +76,21 @@ function FeedWorkspace({ navigation, route, isDark, theme }) {
   const close_reader = React.useCallback(() => {
     open_reader({});
   }, [open_reader]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS !== 'android' || is_split || !has_reader) {
+        return;
+      }
+
+      // An embedded reader can still be visible after the tablet window narrows.
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        close_reader();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [close_reader, has_reader, is_split]),
+  );
 
   const open_library = React.useCallback((section, params) => {
     navigation.navigate('Library', { section, section_params: params });
@@ -144,8 +179,27 @@ function LibrarySheet({ route, navigation, isDark, screen_options, screens, them
     (section === 'Subscriptions' && name === 'SubscriptionFeed') ||
     (supports_reader && ['FeedItemDetail', 'UserProfile', 'ReplyComposer'].includes(name))
   ));
+  const close_sheet = () => navigation.goBack();
+  const close_header_options = Platform.OS === 'ios'
+    ? {
+        unstable_headerLeftItems: () => [{
+          accessibilityLabel: 'Close',
+          type: 'button',
+          label: 'Close',
+          icon: { type: 'sfSymbol', name: 'xmark' },
+          onPress: close_sheet,
+          tintColor: theme.colors.ink,
+        }],
+      }
+    : {
+        headerLeft: () => (
+          <HeaderButton accessibilityLabel="Close" onPress={close_sheet}>
+            <MaterialIcons name="close" size={24} color={theme.colors.ink} />
+          </HeaderButton>
+        ),
+      };
 
-  return (
+  const stack = (
     <SafeAreaProvider style={styles.timelinePane}>
       <LibraryStack.Navigator
         initialRouteName={section}
@@ -160,14 +214,7 @@ function LibrarySheet({ route, navigation, isDark, screen_options, screens, them
               ? {
                   ...options,
                   headerBackVisible: false,
-                  unstable_headerLeftItems: () => [{
-                    accessibilityLabel: 'Close',
-                    type: 'button',
-                    label: 'Close',
-                    icon: { type: 'sfSymbol', name: 'xmark' },
-                    onPress: () => navigation.goBack(),
-                    tintColor: theme.colors.ink,
-                  }],
+                  ...close_header_options,
                 }
               : options}
           >
@@ -184,6 +231,21 @@ function LibrarySheet({ route, navigation, isDark, screen_options, screens, them
       </LibraryStack.Navigator>
     </SafeAreaProvider>
   );
+
+  if (Platform.OS === 'android') {
+    return (
+      <SafeAreaView
+        edges={{ top: true, right: true, bottom: true, left: true }}
+        style={styles.libraryOverlay}
+      >
+        <View style={[styles.libraryPanel, { backgroundColor: theme.colors.canvas }]}>
+          {stack}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return stack;
 }
 
 function SignedInTabs({ isDark = false }) {
@@ -223,6 +285,15 @@ function SignedInTabs({ isDark = false }) {
     headerStyle: { backgroundColor: theme.colors.paper },
     headerTintColor: theme.colors.ink,
   };
+  // Android formSheet cannot host our nested native stack.
+  const library_sheet_options = Platform.OS === 'android'
+    ? {
+        animation: 'fade',
+        contentStyle: { backgroundColor: 'transparent' },
+        headerShown: false,
+        presentation: 'transparentModal',
+      }
+    : { headerShown: false, presentation: 'pageSheet' };
   const screens = [
     {
       name: 'Account',
@@ -298,8 +369,8 @@ function SignedInTabs({ isDark = false }) {
           )}
         </Stack.Screen>
       ))}
-      {Platform.OS === 'ios' ? (
-        <Stack.Screen name="Library" options={{ headerShown: false, presentation: 'pageSheet' }}>
+      {Platform.OS === 'ios' || Platform.OS === 'android' ? (
+        <Stack.Screen name="Library" options={library_sheet_options}>
           {(screen_props) => (
             <LibrarySheet
               {...screen_props}
@@ -325,6 +396,19 @@ const styles = StyleSheet.create({
   },
   readerPane: {
     flex: 1,
+  },
+  libraryOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  libraryPanel: {
+    borderRadius: 24,
+    height: '90%',
+    maxWidth: 640,
+    overflow: 'hidden',
+    width: '92%',
   },
   sidebarPane: {
     borderRightWidth: StyleSheet.hairlineWidth,

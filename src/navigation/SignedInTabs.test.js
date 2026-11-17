@@ -15,7 +15,7 @@ const { code } = transformSync(source, {
   ],
 });
 
-function navigation_fixture(platform, is_dark, window = { width: 390, height: 844 }) {
+function navigation_fixture(platform, is_dark, window = { width: 390, height: 844 }, back_handler) {
   const effects = [];
   const context = {
     exports: {},
@@ -29,6 +29,8 @@ function navigation_fixture(platform, is_dark, window = { width: 390, height: 84
       }
       if (name === 'react-native') {
         return {
+          BackHandler: back_handler,
+          Dimensions: { get: () => window.screen || window },
           Platform: { OS: platform, get isPad() { return Boolean(window.is_pad); } },
           StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
           View: 'View', Text: 'Text',
@@ -37,6 +39,9 @@ function navigation_fixture(platform, is_dark, window = { width: 390, height: 84
       }
       if (name === '@react-navigation/native-stack') {
         return { createNativeStackNavigator: () => ({ Navigator: 'Navigator', Screen: 'Screen' }) };
+      }
+      if (name === '@react-navigation/elements') {
+        return { HeaderButton: 'HeaderButton' };
       }
       if (name === '@react-navigation/native') {
         return { useFocusEffect: (callback) => effects.push(callback) };
@@ -124,7 +129,16 @@ describe('timeline split view', () => {
     ['folded Duo window', 'ios', { width: 466, height: 678, insets: { right: 84 } }, false],
     ['wide window with insufficient safe width', 'ios', { width: 669, height: 951, insets: { right: 95 } }, false],
     ['phone landscape', 'ios', { width: 844, height: 390 }, false],
-    ['Android tablet', 'android', { width: 1000, height: 800 }, false],
+    ['Android tablet portrait', 'android', { width: 800, height: 1000 }, true],
+    ['Android tablet landscape', 'android', { width: 1000, height: 800 }, true],
+    ['Android tablet with system bars', 'android', {
+      width: 960, height: 564, screen: { width: 960, height: 600 },
+    }, true],
+    ['narrow Android tablet window', 'android', {
+      width: 600, height: 800, insets: { left: 12 }, screen: { width: 1200, height: 800 },
+    }, false],
+    ['Android phone portrait', 'android', { width: 412, height: 915 }, false],
+    ['Android phone landscape', 'android', { width: 915, height: 412 }, false],
   ];
 
   for (const [label, platform, window, is_split] of cases) {
@@ -173,6 +187,36 @@ describe('timeline split view', () => {
     render()[0].props.children.props.onOpenReader({ mode: 'recap' });
     const recap_reader = render()[1].props.children.props.children;
     expect(recap_reader.props.route.params).toMatchObject({ entry_id: '', mode: 'recap' });
+  });
+
+  it('lets Android Back close the embedded reader after the tablet window narrows', () => {
+    const window = { width: 820, height: 1180, screen: { width: 820, height: 1180 } };
+    const route = { params: { entry_id: '123' } };
+    const navigation = {
+      setParams: (params) => { route.params = { ...route.params, ...params }; },
+    };
+    const back_listeners = new Set();
+    const { navigator, effects } = navigation_fixture('android', false, window, {
+      addEventListener(event, listener) {
+        expect(event).toBe('hardwareBackPress');
+        back_listeners.add(listener);
+        return { remove: () => back_listeners.delete(listener) };
+      },
+    });
+    const feed = find_screen(navigator, 'Feed');
+    const render = () => render_component(feed.props.children({ navigation, route }));
+
+    render();
+    expect(effects.at(-1)()).toBeUndefined();
+    window.width = 540;
+    const [, reader] = render().props.children;
+    expect(reader.props.children.props.children.props.route.params.entry_id).toBe('123');
+
+    const cleanup = effects.at(-1)();
+    expect([...back_listeners][0]()).toBe(true);
+    expect(render().props.children[1]).toBeNull();
+    cleanup();
+    expect(back_listeners.size).toBe(0);
   });
 
   it('retains the same split reader across post selections but not for Reading Recap', () => {
@@ -233,40 +277,53 @@ describe('timeline split view', () => {
     expect(calls).toEqual([['Feed', route.params, { pop: true }]]);
   });
 
-  for (const section of ['Subscriptions', 'Bookmarks', 'Highlights', 'Account']) {
-    it(`presents ${section} in a dismissible sheet with its own navigation`, () => {
-      const { navigator } = navigation_fixture('ios', false, { width: 1024, height: 768, is_pad: true });
-      const feed = find_screen(navigator, 'Feed');
-      const sheet = find_screen(navigator, 'Library');
-      const calls = [];
-      const navigation = {
-        navigate: (...args) => calls.push(args),
-        goBack: () => calls.push('close'),
-      };
-      const workspace = render_component(feed.props.children({ navigation, route: {} }));
-      const section_params = section === 'Subscriptions' ? { mode: 'subscribe' } : undefined;
-      workspace.props.children[0].props.children.props.onOpenLibrary(section, section_params);
+  for (const platform of ['ios', 'android']) {
+    for (const section of ['Subscriptions', 'Bookmarks', 'Highlights', 'Account']) {
+      it(`presents ${section} in a dismissible sheet with its own navigation on ${platform}`, () => {
+        const { navigator } = navigation_fixture(platform, false, { width: 1024, height: 768, is_pad: true });
+        const feed = find_screen(navigator, 'Feed');
+        const sheet = find_screen(navigator, 'Library');
+        const calls = [];
+        const navigation = {
+          navigate: (...args) => calls.push(args),
+          goBack: () => calls.push('close'),
+        };
+        const workspace = render_component(feed.props.children({ navigation, route: {} }));
+        const section_params = section === 'Subscriptions' ? { mode: 'subscribe' } : undefined;
+        workspace.props.children[0].props.children.props.onOpenLibrary(section, section_params);
 
-      const [[destination, params]] = calls;
-      expect(destination).toBe('Library');
-      expect(sheet.props.options.presentation).toBe('pageSheet');
-      const { props: { children: stack } } = render_component(
-        sheet.props.children({ navigation, route: { params } }),
-      );
-      expect(stack.props.initialRouteName).toBe(section);
-      const root = find_screen(stack, section);
-      expect(root.props.initialParams).toEqual(section_params);
-      root.props.options.unstable_headerLeftItems()[0].onPress();
-      expect(calls.at(-1)).toBe('close');
-      expect(Boolean(find_screen(stack, 'SubscriptionFeed'))).toBe(section === 'Subscriptions');
-      expect(Boolean(find_screen(stack, 'FeedItemDetail'))).toBe(
-        section === 'Subscriptions' || section === 'Bookmarks',
-      );
-      if (section === 'Account') {
-        expect(root.props.options.title).toBe('Settings');
-        expect(find_screen(navigator, 'Account').props.options.presentation).toBeUndefined();
-        expect(React.Children.count(stack.props.children)).toBe(1);
-      }
-    });
+        const [[destination, params]] = calls;
+        expect(destination).toBe('Library');
+        expect(sheet.props.options.presentation).toBe(platform === 'ios' ? 'pageSheet' : 'transparentModal');
+        const sheet_content = render_component(sheet.props.children({ navigation, route: { params } }));
+        let safe_area_provider = sheet_content;
+        if (platform === 'android') {
+          expect(sheet.props.options.contentStyle.backgroundColor).toBe('transparent');
+          expect(sheet_content.props.edges).toEqual({ top: true, right: true, bottom: true, left: true });
+          safe_area_provider = sheet_content.props.children.props.children;
+        }
+        const stack = safe_area_provider.props.children;
+        expect(stack.props.initialRouteName).toBe(section);
+        const root = find_screen(stack, section);
+        expect(root.props.initialParams).toEqual(section_params);
+        if (platform === 'ios') {
+          root.props.options.unstable_headerLeftItems()[0].onPress();
+        } else {
+          const close_button = root.props.options.headerLeft();
+          expect(close_button.props.accessibilityLabel).toBe('Close');
+          close_button.props.onPress();
+        }
+        expect(calls.at(-1)).toBe('close');
+        expect(Boolean(find_screen(stack, 'SubscriptionFeed'))).toBe(section === 'Subscriptions');
+        expect(Boolean(find_screen(stack, 'FeedItemDetail'))).toBe(
+          section === 'Subscriptions' || section === 'Bookmarks',
+        );
+        if (section === 'Account') {
+          expect(root.props.options.title).toBe('Settings');
+          expect(find_screen(navigator, 'Account').props.options.presentation).toBeUndefined();
+          expect(React.Children.count(stack.props.children)).toBe(1);
+        }
+      });
+    }
   }
 });
