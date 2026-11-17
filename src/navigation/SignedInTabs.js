@@ -138,10 +138,11 @@ function ReaderStackScreen({ component: Component, inset = false, ...props }) {
 
 function LibrarySheet({ route, navigation, isDark, screen_options, screens, theme }) {
   const { section, section_params } = route.params;
+  const supports_reader = section === 'Subscriptions' || section === 'Bookmarks';
   const visible_screens = screens.filter(({ name }) => (
     name === section ||
     (section === 'Subscriptions' && name === 'SubscriptionFeed') ||
-    (section !== 'Highlights' && ['FeedItemDetail', 'UserProfile', 'ReplyComposer'].includes(name))
+    (supports_reader && ['FeedItemDetail', 'UserProfile', 'ReplyComposer'].includes(name))
   ));
 
   return (

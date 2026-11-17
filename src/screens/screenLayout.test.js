@@ -307,7 +307,7 @@ describe('reader and list layout', () => {
     const screen = render({ is_embedded: true, pane_width: 456 });
 
     expect(find_component(screen, 'EntryReaderView').props.width).toBe(456);
-    expect(find_component(screen, 'HeaderEntryMenuButton')).not.toBeNull();
+    expect(find_component(screen, 'HeaderEntryMenuButton').props.is_bordered).toBe(true);
     expect(find_component(screen, 'Text').props.children).toBe('Article');
     expect(find_component(screen, 'Pressable')).toBeNull();
 
@@ -319,6 +319,15 @@ describe('reader and list layout', () => {
     });
     find_component(compact, 'Pressable').props.onPress();
     expect(did_close).toBe(true);
+  });
+
+  it('leaves the post menu unbordered when hosted in the native navigation header', () => {
+    const render = screen_fixture('FeedItemDetailScreen');
+    let options;
+    render({ navigation: { setOptions: (value) => { options = value; } } });
+    render.layout_effects.forEach((effect) => effect());
+
+    expect(options.headerRight().props.is_bordered).toBe(false);
   });
 
   it('clears the previous article selection and scrolls to the top on a split reader switch', () => {

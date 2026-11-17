@@ -1514,6 +1514,7 @@ function get_entry_menu_actions({
 
 function HeaderEntryMenuButton({
   accessibility_label = "Open post actions",
+  is_bordered = false,
   is_dark = false,
   menu_actions = [],
   onMenuAction,
@@ -1524,6 +1525,17 @@ function HeaderEntryMenuButton({
   if (menu_actions.length === 0) {
     return null;
   }
+
+  const button_style = is_bordered
+    ? [
+        styles.borderedHeaderMenuButton,
+        {
+          backgroundColor: theme.colors.paper,
+          borderColor: theme.colors.line,
+          shadowColor: theme.colors.shadow,
+        },
+      ]
+    : styles.headerMenuButton;
 
   return (
     <MenuView
@@ -1537,9 +1549,9 @@ function HeaderEntryMenuButton({
       shouldOpenOnLongPress={false}
       themeVariant={is_dark ? "dark" : "light"}
     >
-      <View accessibilityRole="button" style={styles.headerMenuButton}>
+      <View accessibilityRole="button" style={button_style}>
         <MaterialIcons
-          color={theme.colors.accentStrong}
+          color={is_bordered ? theme.colors.inkSoft : theme.colors.accentStrong}
           name="more-horiz"
           size={24}
         />
@@ -2137,6 +2149,20 @@ const styles = StyleSheet.create({
   headerMenuButton: {
     paddingHorizontal: 2,
     paddingVertical: 2,
+  },
+  borderedHeaderMenuButton: {
+    alignItems: "center",
+    borderRadius: 20,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    width: 40,
   },
   unavailableBodyCard: {
     gap: 16,

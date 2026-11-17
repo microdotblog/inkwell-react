@@ -668,6 +668,8 @@ function FeedScreen({
         open_library('Bookmarks');
       } else if (menu_action_id === 'highlights') {
         open_library('Highlights');
+      } else if (menu_action_id === 'settings') {
+        open_library('Account');
       } else if (menu_action_id === 'mark_all_as_read') {
         const unread_display_entry_ids = display_timeline_entries
           .filter((entry) => {
@@ -688,14 +690,6 @@ function FeedScreen({
         );
       } else if (menu_action_id === 'toggle_hide_read_posts') {
         Feed.toggle_hide_read_posts();
-      } else if (menu_action_id === 'settings') {
-        const parent_navigation = navigation.getParent();
-
-        if (parent_navigation) {
-          parent_navigation.navigate('Account');
-        } else {
-          navigation.navigate('Account');
-        }
       }
     },
     [display_timeline_entries, navigation, onOpenLibrary, toast_top_offset],
@@ -1323,6 +1317,7 @@ function render_content({
               error_message={recap_error_message}
               is_ai_enabled={is_using_ai !== false}
               is_loading={is_generating_recap || is_refreshing}
+              is_sidebar={is_sidebar}
               onPress={on_open_recap}
               scaled_text_styles={scaled_text_styles}
               theme={theme}
@@ -1719,6 +1714,7 @@ function FeedRecapSummaryCard({
   error_message = '',
   is_ai_enabled = true,
   is_loading = false,
+  is_sidebar = false,
   onPress,
   scaled_text_styles,
   theme,
@@ -1744,6 +1740,7 @@ function FeedRecapSummaryCard({
         <View
           style={[
             styles.recapSummaryRow,
+            is_sidebar && styles.recapSummaryRowSidebar,
             !is_ai_enabled ? styles.recapSummaryRowTextOnly : null,
           ]}
         >
@@ -2485,6 +2482,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  recapSummaryRowSidebar: {
+    rowGap: 6,
   },
   recapSummaryRowTextOnly: {
     justifyContent: 'flex-start',

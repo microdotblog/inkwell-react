@@ -233,7 +233,7 @@ describe('timeline split view', () => {
     expect(calls).toEqual([['Feed', route.params, { pop: true }]]);
   });
 
-  for (const section of ['Subscriptions', 'Bookmarks', 'Highlights']) {
+  for (const section of ['Subscriptions', 'Bookmarks', 'Highlights', 'Account']) {
     it(`presents ${section} in a dismissible sheet with its own navigation`, () => {
       const { navigator } = navigation_fixture('ios', false, { width: 1024, height: 768, is_pad: true });
       const feed = find_screen(navigator, 'Feed');
@@ -244,7 +244,8 @@ describe('timeline split view', () => {
         goBack: () => calls.push('close'),
       };
       const workspace = render_component(feed.props.children({ navigation, route: {} }));
-      workspace.props.children[0].props.children.props.onOpenLibrary(section, { mode: 'subscribe' });
+      const section_params = section === 'Subscriptions' ? { mode: 'subscribe' } : undefined;
+      workspace.props.children[0].props.children.props.onOpenLibrary(section, section_params);
 
       const [[destination, params]] = calls;
       expect(destination).toBe('Library');
@@ -254,11 +255,18 @@ describe('timeline split view', () => {
       );
       expect(stack.props.initialRouteName).toBe(section);
       const root = find_screen(stack, section);
-      expect(root.props.initialParams).toEqual({ mode: 'subscribe' });
+      expect(root.props.initialParams).toEqual(section_params);
       root.props.options.unstable_headerLeftItems()[0].onPress();
       expect(calls.at(-1)).toBe('close');
       expect(Boolean(find_screen(stack, 'SubscriptionFeed'))).toBe(section === 'Subscriptions');
-      expect(Boolean(find_screen(stack, 'FeedItemDetail'))).toBe(section !== 'Highlights');
+      expect(Boolean(find_screen(stack, 'FeedItemDetail'))).toBe(
+        section === 'Subscriptions' || section === 'Bookmarks',
+      );
+      if (section === 'Account') {
+        expect(root.props.options.title).toBe('Settings');
+        expect(find_screen(navigator, 'Account').props.options.presentation).toBeUndefined();
+        expect(React.Children.count(stack.props.children)).toBe(1);
+      }
     });
   }
 });

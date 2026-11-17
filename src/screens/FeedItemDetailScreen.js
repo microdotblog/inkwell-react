@@ -1040,6 +1040,7 @@ function FeedItemDetailScreen({
   const render_entry_menu = React.useCallback(() => {
     return (
       <HeaderEntryMenuButton
+        is_bordered={is_embedded}
         is_dark={isDark}
         menu_actions={entry_menu_actions}
         onMenuAction={handle_entry_menu_action}
@@ -1053,6 +1054,7 @@ function FeedItemDetailScreen({
     handle_entry_menu_action,
     handle_entry_menu_close,
     handle_entry_menu_open,
+    is_embedded,
     isDark,
     theme,
   ]);
