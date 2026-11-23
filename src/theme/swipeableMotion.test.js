@@ -20,7 +20,7 @@ function motion_options(reduce_motion = false) {
   return context.exports.useSwipeableMotion();
 }
 
-function render_row(screen_name, row_name, options) {
+function render_row(screen_name, row_name, options, props = {}) {
   const source = readFileSync(new URL(`../screens/${screen_name}.js`, import.meta.url), 'utf8');
   const ast = parseSync(source, {
     configFile: false, babelrc: false, parserOpts: { plugins: ['jsx'] },
@@ -60,6 +60,7 @@ function render_row(screen_name, row_name, options) {
     subscription: { id: '123' },
     scaled_text_styles: {},
     theme: { colors: {} },
+    ...props,
   });
 }
 
@@ -90,6 +91,16 @@ describe('swipeable row motion', () => {
         expect(key in options).toBe(false);
       });
     });
+  });
+
+  it('leaves two-finger trackpad scrolling to the sidebar without removing row actions', () => {
+    const row = render_row('FeedScreen', 'FeedEntrySwipeRow', motion_options(), {
+      is_sidebar: true,
+    });
+    expect(row.type).toBe('Swipeable');
+    expect(row.props.enableTrackpadTwoFingerGesture).toBe(false);
+    expect(row.props.renderRightActions).toBeFunction();
+    expect(row.props.rightThreshold).toBe(40);
   });
 
   [

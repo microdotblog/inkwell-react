@@ -1353,6 +1353,7 @@ function render_content({
           return (
             <FeedEntrySwipeRow
               entry={item}
+              is_sidebar={is_sidebar}
               onToggleReadPress={on_entry_menu_action}
               theme={theme}
             >
@@ -1400,6 +1401,7 @@ function render_content({
 function FeedEntrySwipeRow({
   children,
   entry = null,
+  is_sidebar = false,
   onToggleReadPress,
   theme,
 }) {
@@ -1419,7 +1421,8 @@ function FeedEntrySwipeRow({
       {...swipeable_motion}
       ref={swipeable_ref}
       containerStyle={styles.rowSwipeContainer}
-      enableTrackpadTwoFingerGesture={true}
+      // Leave two-finger trackpad scrolling to the sidebar list.
+      enableTrackpadTwoFingerGesture={!is_sidebar}
       renderRightActions={(progress) => {
         const action_opacity = progress.interpolate({
           inputRange: [0, 0.2, 0.85, 1],
