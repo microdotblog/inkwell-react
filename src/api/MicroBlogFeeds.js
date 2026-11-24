@@ -1,6 +1,7 @@
 import { MICRO_BLOG_AUTH_URL } from './MicroBlogAuth';
 
 const MICRO_BLOG_FEEDS_BASE_URL = new URL(MICRO_BLOG_AUTH_URL).origin;
+const BOOKMARKS_REQUEST_TIMEOUT_MS = 15000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECAP_POLL_DELAY_MS = 5000;
 const RECAP_POLL_MAX_ATTEMPTS = 25;
@@ -301,40 +302,46 @@ export async function delete_micro_blog_feed_subscription({
   );
 }
 
-export async function fetch_micro_blog_bookmarks({ token = '' } = {}) {
-  const items = [];
-  const seen_ids = new Set();
-  let first_payload = null;
-  let before_id = '';
+export async function fetch_micro_blog_bookmarks({ token = '', before_id = '' } = {}) {
+  const path = before_id
+    ? `/posts/bookmarks?before_id=${encodeURIComponent(before_id)}`
+    : '/posts/bookmarks';
+  const controller = new AbortController();
+  let timeout_id;
+  const timeout = new Promise((_, reject) => {
+    timeout_id = setTimeout(() => {
+      const error = create_request_error('Bookmarks request timed out.');
+      error.name = 'TimeoutError';
+      reject(error);
+      controller.abort();
+    }, BOOKMARKS_REQUEST_TIMEOUT_MS);
+  });
 
-  while (true) {
-    const path = before_id
-      ? `/posts/bookmarks?before_id=${encodeURIComponent(before_id)}`
-      : '/posts/bookmarks';
-    const payload = await fetch_micro_blog_feeds_json(path, { token });
-    first_payload = first_payload || payload;
+  try {
+    const payload = await Promise.race([
+      fetch_micro_blog_feeds_json(path, { token, signal: controller.signal }),
+      timeout,
+    ]);
     const page_items = Array.isArray(payload?.items) ? payload.items : [];
-    const previous_count = items.length;
-
-    page_items.forEach((item) => {
+    const seen_ids = new Set();
+    const items = page_items.filter((item) => {
       const id = `${item?.id || ''}`.trim();
 
-      if (id && !seen_ids.has(id)) {
-        seen_ids.add(id);
-        items.push(item);
+      if (!id || seen_ids.has(id)) {
+        return false;
       }
+
+      seen_ids.add(id);
+      return true;
     });
 
-    if (page_items.length === 0 || items.length === previous_count) {
-      break;
-    }
-
+    const last_id = `${items[items.length - 1]?.id || ''}`.trim();
     // Post.get accepts f-prefixed Favorite IDs, avoiding collisions with posts.
-    const last_id = `${page_items[page_items.length - 1]?.id || ''}`.trim();
-    before_id = last_id.startsWith('f') ? last_id : `f${last_id}`;
+    const next_before_id = last_id && (last_id.startsWith('f') ? last_id : `f${last_id}`);
+    return { ...payload, items, next_before_id };
+  } finally {
+    clearTimeout(timeout_id);
   }
-
-  return { ...first_payload, items };
 }
 
 export async function fetch_micro_blog_highlights({ token = '' } = {}) {

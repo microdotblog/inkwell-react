@@ -6,6 +6,8 @@ import {
 } from '../api/MicroBlogFeeds';
 import Tokens from './Tokens';
 
+const OLDER_BOOKMARK_PAGES = 3;
+
 const BookmarkEntry = types.model('BookmarkEntry', {
   id: types.optional(types.string, ''),
   bookmark_id: types.optional(types.string, ''),
@@ -28,6 +30,9 @@ const Bookmarks = types
     error_message: types.maybeNull(types.string),
   })
   .volatile(() => ({
+    is_prefetching: false,
+    next_before_id: '',
+    older_pages_remaining: 0,
     request_token: 0,
   }))
   .actions((self) => ({
@@ -37,6 +42,9 @@ const Bookmarks = types
       self.is_loading = false;
       self.has_loaded = false;
       self.error_message = null;
+      self.is_prefetching = false;
+      self.next_before_id = '';
+      self.older_pages_remaining = 0;
     },
 
     apply_items(items = []) {
@@ -65,11 +73,11 @@ const Bookmarks = types
     },
 
     load: flow(function* () {
-      if (self.is_loading) {
+      if (self.is_loading || self.is_prefetching) {
         return false;
       }
 
-      if (self.has_loaded && !self.error_message) {
+      if (self.has_loaded && (!self.error_message || self.items.length > 0)) {
         return true;
       }
 
@@ -80,18 +88,32 @@ const Bookmarks = types
       return yield self.fetch_bookmarks();
     }),
 
-    fetch_bookmarks: flow(function* () {
-      if (self.is_loading) {
+    retry: flow(function* () {
+      const resume = Boolean(self.next_before_id && self.older_pages_remaining > 0);
+      return yield self.fetch_bookmarks({ resume });
+    }),
+
+    fetch_bookmarks: flow(function* ({ resume = false } = {}) {
+      if (self.is_loading || (resume && self.is_prefetching)) {
         return false;
       }
 
-      self.is_loading = true;
+      self.is_loading = !resume;
+      self.is_prefetching = resume;
       self.error_message = null;
+      if (!resume) {
+        self.next_before_id = '';
+        self.older_pages_remaining = 0;
+      }
       self.request_token += 1;
       const request_token = self.request_token;
 
       try {
         yield Tokens.hydrate();
+
+        if (self.request_token !== request_token) {
+          return false;
+        }
 
         const user_token = Tokens.get_user_token();
 
@@ -100,30 +122,57 @@ const Bookmarks = types
           return false;
         }
 
-        const payload = yield fetch_micro_blog_bookmarks({
-          token: user_token,
-        });
+        if (!resume) {
+          const payload = yield fetch_micro_blog_bookmarks({ token: user_token });
+          if (self.request_token !== request_token) {
+            return false;
+          }
 
-        if (self.request_token !== request_token) {
-          return false;
+          self.apply_items(payload.items);
+          self.next_before_id = payload.next_before_id;
+          self.older_pages_remaining = OLDER_BOOKMARK_PAGES;
+          self.is_loading = false;
         }
 
-        const items = Array.isArray(payload?.items) ? payload.items : [];
-        self.apply_items(items);
+        self.is_prefetching = Boolean(self.next_before_id);
+        while (self.next_before_id && self.older_pages_remaining > 0) {
+          const before_id = self.next_before_id;
+          const payload = yield fetch_micro_blog_bookmarks({ token: user_token, before_id });
+          if (self.request_token !== request_token) {
+            return false;
+          }
+
+          const seen_ids = new Set(self.items.map((item) => item.id));
+          const older_items = normalize_bookmark_entries(payload.items).filter((item) => {
+            return !seen_ids.has(item.id);
+          });
+          self.items.push(...older_items);
+          self.older_pages_remaining -= 1;
+          self.next_before_id = older_items.length && payload.next_before_id !== before_id
+            ? payload.next_before_id
+            : '';
+        }
+
         return true;
       } catch (error) {
         if (self.request_token === request_token) {
           self.has_loaded = true;
-          self.error_message =
-            error?.status === 401 || error?.status === 403
-              ? 'Your Micro.blog session expired. Please sign in again.'
-              : 'We could not load your bookmarks. Please try again.';
+          if (error?.status === 401 || error?.status === 403) {
+            self.error_message = 'Your Micro.blog session expired. Please sign in again.';
+          } else if (error?.name === 'TimeoutError') {
+            self.error_message = 'Micro.blog took too long to respond.';
+          } else if (self.is_prefetching) {
+            self.error_message = 'We could not load older bookmarks. Please try again.';
+          } else {
+            self.error_message = 'We could not load your bookmarks. Please try again.';
+          }
         }
 
         return false;
       } finally {
         if (self.request_token === request_token) {
           self.is_loading = false;
+          self.is_prefetching = false;
         }
       }
     }),
@@ -168,6 +217,10 @@ const Bookmarks = types
     }),
   }))
   .views((self) => ({
+    get did_fail_older_page() {
+      return Boolean(self.error_message && self.next_before_id);
+    },
+
     bookmark_entries() {
       return self.items.map((item) => {
         return getSnapshot(item);

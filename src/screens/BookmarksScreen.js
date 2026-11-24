@@ -54,6 +54,7 @@ function BookmarksScreen({ navigation, isDark = false }) {
   const insets = useSafeAreaInsets();
   const bookmark_entries = Bookmarks.bookmark_entries();
   const error_message = Bookmarks.error_message;
+  const did_fail_older_page = Bookmarks.did_fail_older_page;
   const has_bookmarks = bookmark_entries.length > 0;
   const is_loading_initial =
     Bookmarks.is_loading && !Bookmarks.has_loaded && !has_bookmarks;
@@ -157,6 +158,27 @@ function BookmarksScreen({ navigation, isDark = false }) {
     [removing_bookmark_id],
   );
 
+  const retry_control = has_bookmarks && error_message ? (
+    <View style={[styles.stateCopy, styles.retryControl]}>
+      <Text
+        accessibilityLiveRegion="polite"
+        style={[
+          styles.stateBody,
+          scaled_text_styles.stateBody,
+          { color: theme.colors.inkSoft },
+        ]}
+      >
+        {error_message}
+      </Text>
+      <PrimaryButton
+        label="Try again"
+        onPress={Bookmarks.retry}
+        theme={theme}
+        variant="ghost"
+      />
+    </View>
+  ) : null;
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.canvas }]}>
       <AuthBackground intensity={background_intensity} theme={theme} />
@@ -194,6 +216,8 @@ function BookmarksScreen({ navigation, isDark = false }) {
             ]}
             data={bookmark_entries}
             keyExtractor={(item) => item.id}
+            ListHeaderComponent={did_fail_older_page ? null : retry_control}
+            ListFooterComponent={did_fail_older_page ? retry_control : null}
             ListEmptyComponent={
               error_message ? (
                 <AuthCard style={styles.stateCard} theme={theme}>
@@ -219,7 +243,7 @@ function BookmarksScreen({ navigation, isDark = false }) {
                   </View>
                   <PrimaryButton
                     label="Try again"
-                    onPress={Bookmarks.refresh}
+                    onPress={Bookmarks.retry}
                     theme={theme}
                   />
                 </AuthCard>
@@ -480,6 +504,9 @@ const styles = StyleSheet.create({
   stateCopy: {
     alignItems: 'center',
     gap: 10,
+  },
+  retryControl: {
+    marginBottom: 14,
   },
   stateTitle: {
     // fontFamily: 'Newsreader_600SemiBold',
