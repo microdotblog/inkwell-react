@@ -47,7 +47,9 @@ class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
 }
 
 class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
-  // Extension point for config-plugins
+  override func createRootViewController() -> UIViewController {
+    return InkwellKeyboardViewController()
+  }
 
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     // needed to return the correct URL for expo-dev-client.

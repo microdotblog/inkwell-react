@@ -13,6 +13,7 @@
 		7531C433130ED5AC935FA830 /* libPods-inkwell.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F24E0559E528A91E959218A1 /* libPods-inkwell.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		E3C9AC8497FC3DADAF3FF18D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5AB071EB5F89BC9DF138C54C /* PrivacyInfo.xcprivacy */; };
+		F1C98EA32F5100000044C1D9 /* InkwellKeyboardViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = F1C98EA22F5100000044C1D9 /* InkwellKeyboardViewController.m */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -30,6 +31,8 @@
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = inkwell/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* inkwell-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "inkwell-Bridging-Header.h"; path = "inkwell/inkwell-Bridging-Header.h"; sourceTree = "<group>"; };
+		F1C98EA12F5100000044C1D9 /* InkwellKeyboardViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = InkwellKeyboardViewController.h; path = inkwell/InkwellKeyboardViewController.h; sourceTree = "<group>"; };
+		F1C98EA22F5100000044C1D9 /* InkwellKeyboardViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = InkwellKeyboardViewController.m; path = inkwell/InkwellKeyboardViewController.m; sourceTree = "<group>"; };
 		F24E0559E528A91E959218A1 /* libPods-inkwell.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-inkwell.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3CC79C129B13C39E46B775F /* Pods-inkwell.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-inkwell.debug.xcconfig"; path = "Target Support Files/Pods-inkwell/Pods-inkwell.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -59,6 +62,8 @@
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F11748442D0722820044C1D9 /* inkwell-Bridging-Header.h */,
+				F1C98EA12F5100000044C1D9 /* InkwellKeyboardViewController.h */,
+				F1C98EA22F5100000044C1D9 /* InkwellKeyboardViewController.m */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
@@ -335,6 +340,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				F1C98EA32F5100000044C1D9 /* InkwellKeyboardViewController.m in Sources */,
 				6DF4B5DC42CA15EE85842448 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

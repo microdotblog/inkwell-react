@@ -5,6 +5,8 @@ import {
   FlatList,
   Keyboard,
   Linking,
+  NativeEventEmitter,
+  NativeModules,
   Platform,
   Pressable,
   RefreshControl,
@@ -58,6 +60,7 @@ const SEGMENT_OPTIONS = [
   { key: 'recent', label: 'Recent' },
   { key: 'fading', label: 'Fading' },
 ];
+const SIDEBAR_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 95 };
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const SCREEN_HORIZONTAL_PADDING = 16;
 const LIST_TOP_PADDING = 12;
@@ -284,6 +287,29 @@ function get_entry_menu_actions({ entry = null, theme }) {
   return actions;
 }
 
+function resolve_feed_keyboard_action(command, entries, selected_entry_id, can_use_timeline_controls) {
+  if (command === 'search') {
+    return can_use_timeline_controls ? { type: 'search' } : null;
+  }
+
+  if (SEGMENT_OPTIONS.some(({ key }) => key === command)) {
+    return can_use_timeline_controls ? { type: 'segment', segment: command } : null;
+  }
+
+  if (command === 'up' || command === 'down') {
+    const direction = command === 'up' ? -1 : 1;
+    const current_index = entries.findIndex(({ id }) => id === selected_entry_id);
+    const next_entry = entries[current_index < 0 ? 0 : current_index + direction];
+    return next_entry ? { type: 'select', entry_id: next_entry.id, direction } : null;
+  }
+
+  if (selected_entry_id && ['new_post', 'open_web', 'toggle_bookmark', 'toggle_read'].includes(command)) {
+    return { type: 'menu', action_id: command };
+  }
+
+  return null;
+}
+
 function FeedScreen({
   navigation,
   isDark = false,
@@ -353,6 +379,9 @@ function FeedScreen({
     (is_feed_filter_active ? FEED_FILTER_BAR_VERTICAL_SPACE : 0);
   const list_ref = React.useRef(null);
   const search_input_ref = React.useRef(null);
+  const visible_row_ids_ref = React.useRef(new Set());
+  const keyboard_scroll_target_ref = React.useRef(null);
+  const keyboard_command_handler_ref = React.useRef(null);
   const menu_touch_overlay_timeout_ref = React.useRef(null);
   const [segment_frames, set_segment_frames] = React.useState({});
   const scroll_y = useSharedValue(0);
@@ -573,6 +602,10 @@ function FeedScreen({
       }
 
       if (menu_action_id === 'new_post') {
+        if (!original_url) {
+          return;
+        }
+
         const normalized_post_title = `${entry?.title || ''}`.trim();
         const did_open = await open_micro_blog_entry_post(entry, {
           post_has_title:
@@ -694,6 +727,90 @@ function FeedScreen({
     },
     [display_timeline_entries, navigation, onOpenLibrary, toast_top_offset],
   );
+
+  React.useLayoutEffect(() => {
+    keyboard_command_handler_ref.current = (command) => {
+      const action = resolve_feed_keyboard_action(
+        command, display_timeline_entries, selected_entry_id, !is_feed_filter_active,
+      );
+      if (!action || is_menu_touch_overlay_active) {
+        return;
+      }
+
+      if (action.type === 'search') {
+        if (is_search_active) {
+          search_input_ref.current?.focus?.();
+        } else {
+          handle_search_toggle_press();
+        }
+      } else if (action.type === 'segment') {
+        if (is_search_active) {
+          clear_feed_search_focus(search_input_ref, true);
+          Feed.hide_search();
+        }
+        handle_segment_press(action.segment);
+      } else if (!search_input_ref.current?.isFocused?.()) {
+        if (action.type === 'select') {
+          keyboard_scroll_target_ref.current = action;
+          handle_entry_press(action.entry_id);
+        } else {
+          const entry = Feed.timeline_entry_snapshot(selected_entry_id);
+          handle_entry_menu_action(entry, action.action_id);
+        }
+      }
+    };
+  }, [
+    display_timeline_entries, handle_entry_menu_action, handle_entry_press,
+    handle_search_toggle_press, handle_segment_press, is_feed_filter_active, is_menu_touch_overlay_active,
+    is_search_active, selected_entry_id,
+  ]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS !== 'ios' || !is_sidebar || is_menu_touch_overlay_active) {
+        return;
+      }
+
+      const module = NativeModules.InkwellKeyboard;
+      if (!module) {
+        return;
+      }
+
+      const subscription = new NativeEventEmitter(module).addListener(
+        'inkwellFeedKeyCommand',
+        ({ command }) => keyboard_command_handler_ref.current?.(command),
+      );
+      return () => {
+        subscription.remove();
+        keyboard_scroll_target_ref.current = null;
+      };
+    }, [is_sidebar, is_menu_touch_overlay_active]),
+  );
+
+  const handle_viewable_rows_change = React.useCallback(({ viewableItems }) => {
+    visible_row_ids_ref.current = new Set(viewableItems.map(({ item }) => item.id));
+  }, []);
+
+  const handle_scroll_to_row_failed = React.useCallback(({ averageItemLength, index }) => {
+    list_ref.current?.scrollToOffset({ animated: false, offset: averageItemLength * index });
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const target = keyboard_scroll_target_ref.current;
+    if (!target || target.entry_id !== selected_entry_id) {
+      return;
+    }
+
+    keyboard_scroll_target_ref.current = null;
+    const index = display_timeline_entries.findIndex(({ id }) => id === selected_entry_id);
+    if (index >= 0 && !visible_row_ids_ref.current.has(selected_entry_id)) {
+      list_ref.current?.scrollToIndex({
+        animated: false,
+        index,
+        viewPosition: target.direction < 0 ? 0 : 1,
+      });
+    }
+  }, [display_timeline_entries, selected_entry_id]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -989,6 +1106,8 @@ function FeedScreen({
             list_bottom_inset,
             list_top_inset,
             on_scroll,
+            on_scroll_to_row_failed: handle_scroll_to_row_failed,
+            on_viewable_rows_change: handle_viewable_rows_change,
             theme,
             is_loading_initial,
             is_refreshing,
@@ -1140,6 +1259,8 @@ function render_content({
   list_bottom_inset,
   list_top_inset,
   on_scroll,
+  on_scroll_to_row_failed,
+  on_viewable_rows_change,
   theme,
   is_loading_initial,
   is_refreshing,
@@ -1331,6 +1452,8 @@ function render_content({
           />
         }
         onScroll={on_scroll}
+        onScrollToIndexFailed={on_scroll_to_row_failed}
+        onViewableItemsChanged={Platform.OS === 'ios' ? on_viewable_rows_change : undefined}
         progressViewOffset={list_top_inset}
         ref={list_ref}
         refreshControl={
@@ -1393,6 +1516,7 @@ function render_content({
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         style={styles.list}
+        viewabilityConfig={Platform.OS === 'ios' ? SIDEBAR_VIEWABILITY_CONFIG : undefined}
       />
     );
   }

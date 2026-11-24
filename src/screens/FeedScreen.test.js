@@ -6,13 +6,67 @@ import { transformSync } from '@babel/core';
 import { getAuthTheme } from '../theme/authTheme';
 
 const source = readFileSync(new URL('./FeedScreen.js', import.meta.url), 'utf8');
-const { code } = transformSync(`${source}\nexport { AccountHeaderButton, FeedControlsRow };`, {
+const { code } = transformSync(`${source}\nexport { AccountHeaderButton, FeedControlsRow, resolve_feed_keyboard_action };`, {
   configFile: false,
   babelrc: false,
   plugins: [
     '@babel/plugin-transform-modules-commonjs',
     ['@babel/plugin-transform-react-jsx', { runtime: 'classic' }],
   ],
+});
+
+describe('sidebar keyboard commands', () => {
+  const context = {
+    exports: {},
+    require: (name) => {
+      if (name === 'react-native') {
+        return { StyleSheet: { create: (styles) => styles } };
+      }
+      if (name === 'react-native-reanimated') {
+        return { createAnimatedComponent: () => 'AnimatedFlatList' };
+      }
+      if (name === 'mobx-react') {
+        return { observer: (component) => component };
+      }
+      return {};
+    },
+  };
+  vm.runInNewContext(code, context);
+  const { resolve_feed_keyboard_action: resolve } = context.exports;
+  const entries = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+  it('selects adjacent rows in visible order without wrapping', () => {
+    expect(resolve('down', entries, 'a', true)).toMatchObject({ type: 'select', entry_id: 'b', direction: 1 });
+    expect(resolve('up', entries, 'c', true)).toMatchObject({ type: 'select', entry_id: 'b', direction: -1 });
+    expect(resolve('up', entries, 'a', true)).toBeNull();
+    expect(resolve('down', entries, 'c', true)).toBeNull();
+  });
+
+  it('starts at the first row when no visible item is selected', () => {
+    expect(resolve('down', entries, '', true)?.entry_id).toBe('a');
+    expect(resolve('up', entries, 'filtered-out', false)?.entry_id).toBe('a');
+    expect(resolve('down', [], '', true)).toBeNull();
+  });
+
+  it('selects the requested tab unless the feed filter disables tab switching', () => {
+    for (const segment of ['today', 'recent', 'fading']) {
+      expect(resolve(segment, entries, '', true)).toMatchObject({ type: 'segment', segment });
+      expect(resolve(segment, entries, '', false)).toBeNull();
+    }
+  });
+
+  it('opens search without a selection unless the feed filter disables search', () => {
+    expect(resolve('search', [], '', true)).toMatchObject({ type: 'search' });
+    expect(resolve('search', entries, '', false)).toBeNull();
+  });
+
+  it('reuses the row menu actions and requires a selected post', () => {
+    for (const action_id of ['new_post', 'open_web', 'toggle_bookmark', 'toggle_read']) {
+      expect(resolve(action_id, entries, 'b', false)).toMatchObject({ type: 'menu', action_id });
+      expect(resolve(action_id, entries, '', true)).toBeNull();
+    }
+    expect(resolve('unrecognized', entries, 'b', true)).toBeNull();
+  });
 });
 
 function avatar_fixture({
